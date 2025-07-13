@@ -47,14 +47,23 @@ const Index = () => {
   const Slide = ({ children, id, index }: { children: React.ReactNode; id: string; index: number }) => {
     const controls = useAnimation();
     const ref = React.useRef(null);
-    const inView = useInView(ref);
+    const [hasAnimated, setHasAnimated] = useState(false);
+    const inView = useInView(ref, { 
+      margin: "-30% 0px -30% 0px", // More conservative trigger area
+      once: false
+    });
 
     useEffect(() => {
       if (inView) {
         setActiveSlide(index);
-        controls.start("visible");
+        
+        // Only animate if we haven't animated this slide before
+        if (!hasAnimated) {
+          controls.start("visible");
+          setHasAnimated(true);
+        }
       }
-    }, [inView, controls, index]);
+    }, [inView, controls, index, hasAnimated]);
 
     return (
       <motion.section

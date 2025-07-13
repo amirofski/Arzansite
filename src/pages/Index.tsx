@@ -21,63 +21,7 @@ import {
 
 const Index = () => {
   const [activeSlide, setActiveSlide] = useState(0);
-  const [isScrolling, setIsScrolling] = useState(false);
   const navigate = useNavigate();
-
-  // Handle wheel scroll for full-page scrolling
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      
-      if (isScrolling) return;
-      
-      setIsScrolling(true);
-      
-      const direction = e.deltaY > 0 ? 1 : -1;
-      const nextSlide = Math.max(0, Math.min(5, activeSlide + direction));
-      
-      if (nextSlide !== activeSlide) {
-        setActiveSlide(nextSlide);
-        const element = document.getElementById(`slide-${nextSlide}`);
-        element?.scrollIntoView({ behavior: 'smooth' });
-      }
-      
-      // Reset scrolling flag after animation
-      setTimeout(() => setIsScrolling(false), 800);
-    };
-
-    const handleKeydown = (e: KeyboardEvent) => {
-      if (isScrolling) return;
-      
-      let nextSlide = activeSlide;
-      
-      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
-        e.preventDefault();
-        nextSlide = Math.min(5, activeSlide + 1);
-      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
-        e.preventDefault();
-        nextSlide = Math.max(0, activeSlide - 1);
-      }
-      
-      if (nextSlide !== activeSlide) {
-        setIsScrolling(true);
-        setActiveSlide(nextSlide);
-        const element = document.getElementById(`slide-${nextSlide}`);
-        element?.scrollIntoView({ behavior: 'smooth' });
-        setTimeout(() => setIsScrolling(false), 800);
-      }
-    };
-
-    // Add event listeners
-    document.addEventListener('wheel', handleWheel, { passive: false });
-    document.addEventListener('keydown', handleKeydown);
-    
-    // Cleanup
-    return () => {
-      document.removeEventListener('wheel', handleWheel);
-      document.removeEventListener('keydown', handleKeydown);
-    };
-  }, [activeSlide, isScrolling]);
 
   // Navigation dots component
   const NavigationDots = () => (
@@ -86,13 +30,8 @@ const Index = () => {
         <button
           key={i}
           onClick={() => {
-            if (!isScrolling) {
-              setIsScrolling(true);
-              setActiveSlide(i);
-              const element = document.getElementById(`slide-${i}`);
-              element?.scrollIntoView({ behavior: 'smooth' });
-              setTimeout(() => setIsScrolling(false), 800);
-            }
+            const element = document.getElementById(`slide-${i}`);
+            element?.scrollIntoView({ behavior: 'smooth' });
           }}
           className={`w-3 h-3 rounded-full transition-all duration-300 ${
             activeSlide === i 
@@ -104,13 +43,11 @@ const Index = () => {
     </div>
   );
 
-  // Track which slides have been animated globally
-  const [animatedSlides, setAnimatedSlides] = useState(new Set<number>());
-
   // Slide component with intersection observer
   const Slide = ({ children, id, index }: { children: React.ReactNode; id: string; index: number }) => {
     const controls = useAnimation();
     const ref = React.useRef(null);
+    const [hasAnimated, setHasAnimated] = useState(false);
     const inView = useInView(ref, { 
       margin: "-30% 0px -30% 0px", // More conservative trigger area
       once: false
@@ -121,12 +58,12 @@ const Index = () => {
         setActiveSlide(index);
         
         // Only animate if we haven't animated this slide before
-        if (!animatedSlides.has(index)) {
+        if (!hasAnimated) {
           controls.start("visible");
-          setAnimatedSlides(prev => new Set([...prev, index]));
+          setHasAnimated(true);
         }
       }
-    }, [inView, controls, index, animatedSlides]);
+    }, [inView, controls, index, hasAnimated]);
 
     return (
       <motion.section

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, useAnimation } from "framer-motion";
 import { useInView } from "framer-motion";
+import { useNavigate } from "react-router-dom";
 import { 
   Globe, 
   Shield, 
@@ -20,6 +21,7 @@ import {
 
 const Index = () => {
   const [activeSlide, setActiveSlide] = useState(0);
+  const navigate = useNavigate();
 
   // Navigation dots component
   const NavigationDots = () => (
@@ -90,7 +92,10 @@ const Index = () => {
             <h1 className="text-2xl font-bold text-primary">ارزان سایت</h1>
             <span className="text-sm text-muted-foreground">Arzansite.com</span>
           </div>
-          <button className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+          <button 
+            onClick={() => navigate('/wizard')}
+            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+          >
             شروع کنید
           </button>
         </div>
@@ -115,6 +120,24 @@ const Index = () => {
               >
                 ارزان سایت
               </motion.h1>
+              
+              {/* Animated subtitle with typewriter effect */}
+              <motion.div 
+                className="text-xl md:text-2xl mb-8 text-accent font-semibold"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, delay: 1.0 }}
+              >
+                <motion.span
+                  initial={{ width: 0 }}
+                  animate={{ width: "auto" }}
+                  transition={{ duration: 1.5, delay: 1.2 }}
+                  className="inline-block overflow-hidden whitespace-nowrap border-r-2 border-accent"
+                >
+                  Arzansite.com - بهترین سایت‌ساز ایران
+                </motion.span>
+              </motion.div>
+              
               <motion.p 
                 className="text-2xl md:text-3xl mb-12 text-white/90 leading-relaxed"
                 initial={{ y: 30, opacity: 0 }}
@@ -127,24 +150,84 @@ const Index = () => {
                 <br />
                 <span className="text-accent font-bold">تنها ۲,۵۰۰,۰۰۰ تومان در ماه</span>
               </motion.p>
+              
+              {/* Animated features grid */}
+              <motion.div
+                className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12 max-w-4xl mx-auto"
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 1.4 }}
+              >
+                {[
+                  { icon: "⚡", title: "تحویل فوری", desc: "کمتر از ۲۴ ساعت" },
+                  { icon: "🎨", title: "طراحی منحصر", desc: "۱۰۰٪ سفارشی" },
+                  { icon: "🔒", title: "امنیت کامل", desc: "SSL + CDN رایگان" }
+                ].map((feature, index) => (
+                  <motion.div
+                    key={index}
+                    className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/20"
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.5, delay: 1.6 + index * 0.2 }}
+                    whileHover={{ scale: 1.05, backgroundColor: "rgba(255,255,255,0.15)" }}
+                  >
+                    <div className="text-3xl mb-2">{feature.icon}</div>
+                    <h4 className="font-bold text-white mb-1">{feature.title}</h4>
+                    <p className="text-sm text-white/80">{feature.desc}</p>
+                  </motion.div>
+                ))}
+              </motion.div>
+              
+              {/* Call to action button */}
+              <motion.div
+                className="mb-12"
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 2.4 }}
+              >
+                <motion.button
+                  onClick={() => navigate('/wizard')}
+                  className="px-10 py-4 bg-accent text-black text-xl font-bold rounded-xl shadow-2xl hover:shadow-accent/50 transition-all duration-300"
+                  whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(var(--accent), 0.5)" }}
+                  whileTap={{ scale: 0.95 }}
+                >
+                  <span className="flex items-center gap-2">
+                    <Rocket className="w-6 h-6" />
+                    همین الان شروع کنید
+                  </span>
+                </motion.button>
+              </motion.div>
+              
               <motion.div
                 className="flex items-center justify-center gap-8 text-white/80"
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ duration: 0.8, delay: 0.8 }}
               >
-                <div className="flex items-center gap-2">
+                <motion.div 
+                  className="flex items-center gap-2"
+                  whileHover={{ scale: 1.1 }}
+                  transition={{ duration: 0.2 }}
+                >
                   <CheckCircle className="w-6 h-6 text-accent" />
                   <span className="text-lg">طراحی سفارشی</span>
-                </div>
-                <div className="flex items-center gap-2">
+                </motion.div>
+                <motion.div 
+                  className="flex items-center gap-2"
+                  whileHover={{ scale: 1.1 }}
+                  transition={{ duration: 0.2 }}
+                >
                   <CheckCircle className="w-6 h-6 text-accent" />
                   <span className="text-lg">سئو حرفه‌ای</span>
-                </div>
-                <div className="flex items-center gap-2">
+                </motion.div>
+                <motion.div 
+                  className="flex items-center gap-2"
+                  whileHover={{ scale: 1.1 }}
+                  transition={{ duration: 0.2 }}
+                >
                   <CheckCircle className="w-6 h-6 text-accent" />
                   <span className="text-lg">سورس کامل</span>
-                </div>
+                </motion.div>
               </motion.div>
             </motion.div>
             <motion.div
@@ -515,7 +598,10 @@ const Index = () => {
                 transition={{ duration: 0.8, delay: 0.8 }}
                 viewport={{ once: true }}
               >
-                <button className="px-12 py-4 bg-primary text-white text-xl font-bold rounded-xl hover:bg-primary/90 transition-colors shadow-xl hover:shadow-2xl">
+                <button 
+                  onClick={() => navigate('/wizard')}
+                  className="px-12 py-4 bg-primary text-white text-xl font-bold rounded-xl hover:bg-primary/90 transition-colors shadow-xl hover:shadow-2xl"
+                >
                   همین امروز شروع کنید
                 </button>
                 <p className="text-sm text-muted-foreground mt-4">

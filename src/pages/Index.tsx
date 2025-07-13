@@ -21,7 +21,63 @@ import {
 
 const Index = () => {
   const [activeSlide, setActiveSlide] = useState(0);
+  const [isScrolling, setIsScrolling] = useState(false);
   const navigate = useNavigate();
+
+  // Handle wheel scroll for full-page scrolling
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      
+      if (isScrolling) return;
+      
+      setIsScrolling(true);
+      
+      const direction = e.deltaY > 0 ? 1 : -1;
+      const nextSlide = Math.max(0, Math.min(5, activeSlide + direction));
+      
+      if (nextSlide !== activeSlide) {
+        setActiveSlide(nextSlide);
+        const element = document.getElementById(`slide-${nextSlide}`);
+        element?.scrollIntoView({ behavior: 'smooth' });
+      }
+      
+      // Reset scrolling flag after animation
+      setTimeout(() => setIsScrolling(false), 800);
+    };
+
+    const handleKeydown = (e: KeyboardEvent) => {
+      if (isScrolling) return;
+      
+      let nextSlide = activeSlide;
+      
+      if (e.key === 'ArrowDown' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide = Math.min(5, activeSlide + 1);
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        nextSlide = Math.max(0, activeSlide - 1);
+      }
+      
+      if (nextSlide !== activeSlide) {
+        setIsScrolling(true);
+        setActiveSlide(nextSlide);
+        const element = document.getElementById(`slide-${nextSlide}`);
+        element?.scrollIntoView({ behavior: 'smooth' });
+        setTimeout(() => setIsScrolling(false), 800);
+      }
+    };
+
+    // Add event listeners
+    document.addEventListener('wheel', handleWheel, { passive: false });
+    document.addEventListener('keydown', handleKeydown);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('wheel', handleWheel);
+      document.removeEventListener('keydown', handleKeydown);
+    };
+  }, [activeSlide, isScrolling]);
 
   // Navigation dots component
   const NavigationDots = () => (
@@ -30,8 +86,13 @@ const Index = () => {
         <button
           key={i}
           onClick={() => {
-            const element = document.getElementById(`slide-${i}`);
-            element?.scrollIntoView({ behavior: 'smooth' });
+            if (!isScrolling) {
+              setIsScrolling(true);
+              setActiveSlide(i);
+              const element = document.getElementById(`slide-${i}`);
+              element?.scrollIntoView({ behavior: 'smooth' });
+              setTimeout(() => setIsScrolling(false), 800);
+            }
           }}
           className={`w-3 h-3 rounded-full transition-all duration-300 ${
             activeSlide === i 

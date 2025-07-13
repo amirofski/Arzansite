@@ -58,7 +58,7 @@ const Index = () => {
       <motion.section
         ref={ref}
         id={id}
-        className="min-h-screen flex items-center justify-center relative"
+        className="min-h-screen w-full flex items-center justify-center relative"
         initial="hidden"
         animate={controls}
         variants={{
@@ -82,7 +82,7 @@ const Index = () => {
         animate={{ y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-r from-primary to-secondary rounded-xl flex items-center justify-center">
               <Sparkles className="w-6 h-6 text-white" />
@@ -98,9 +98,9 @@ const Index = () => {
 
       {/* Slide 1: Overview */}
       <Slide id="slide-0" index={0}>
-        <div className="hero-gradient min-h-screen flex items-center justify-center text-white relative overflow-hidden">
-          <div className="absolute inset-0 bg-black/30"></div>
-          <div className="container mx-auto px-6 text-center relative z-10">
+        <div className="hero-gradient min-h-screen w-full flex items-center justify-center text-white relative overflow-hidden">
+          <div className="absolute inset-0 bg-black/30 w-full"></div>
+          <div className="max-w-6xl mx-auto px-6 text-center relative z-10 w-full">
             <motion.div
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -178,8 +178,8 @@ const Index = () => {
 
       {/* Slide 2: Workflow */}
       <Slide id="slide-1" index={1}>
-        <div className="min-h-screen bg-gradient-to-br from-muted/30 to-background flex items-center">
-          <div className="container mx-auto px-6">
+        <div className="min-h-screen w-full bg-gradient-to-br from-muted/30 to-background flex items-center">
+          <div className="max-w-6xl mx-auto px-6 w-full">
             <div className="text-center mb-16">
               <h2 className="text-5xl font-bold mb-6">فرآیند کار</h2>
               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
@@ -254,8 +254,8 @@ const Index = () => {
 
       {/* Slide 3: Technology */}
       <Slide id="slide-2" index={2}>
-        <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center">
-          <div className="container mx-auto px-6">
+        <div className="min-h-screen w-full bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center">
+          <div className="max-w-6xl mx-auto px-6 w-full">
             <div className="max-w-4xl mx-auto text-center">
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -312,8 +312,8 @@ const Index = () => {
 
       {/* Slide 4: Security */}
       <Slide id="slide-3" index={3}>
-        <div className="min-h-screen bg-gradient-to-br from-background to-muted/30 flex items-center">
-          <div className="container mx-auto px-6">
+        <div className="min-h-screen w-full bg-gradient-to-br from-background to-muted/30 flex items-center">
+          <div className="max-w-6xl mx-auto px-6 w-full">
             <div className="max-w-4xl mx-auto text-center">
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -372,8 +372,8 @@ const Index = () => {
 
       {/* Slide 5: Pricing & Value */}
       <Slide id="slide-4" index={4}>
-        <div className="min-h-screen hero-gradient text-white flex items-center">
-          <div className="container mx-auto px-6">
+        <div className="min-h-screen w-full hero-gradient text-white flex items-center">
+          <div className="max-w-6xl mx-auto px-6 w-full">
             <div className="max-w-4xl mx-auto text-center">
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}
@@ -432,8 +432,8 @@ const Index = () => {
 
       {/* Slide 6: Social Proof */}
       <Slide id="slide-5" index={5}>
-        <div className="min-h-screen bg-gradient-to-br from-muted/30 to-background flex items-center">
-          <div className="container mx-auto px-6">
+        <div className="min-h-screen w-full bg-gradient-to-br from-muted/30 to-background flex items-center">
+          <div className="max-w-6xl mx-auto px-6 w-full">
             <div className="max-w-6xl mx-auto text-center">
               <motion.div
                 initial={{ scale: 0.8, opacity: 0 }}

@@ -1,316 +1,531 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { motion, useAnimation } from "framer-motion";
+import { useInView } from "framer-motion";
 import { 
-  Zap, 
-  Palette, 
   Globe, 
   Shield, 
   Star, 
   Users, 
-  ArrowRight,
+  ArrowDown,
   CheckCircle,
   Sparkles,
-  Rocket
+  Rocket,
+  Zap,
+  Code,
+  DollarSign,
+  Clock,
+  TrendingUp,
+  Target
 } from 'lucide-react';
 
 const Index = () => {
-  const navigate = useNavigate();
+  const [activeSlide, setActiveSlide] = useState(0);
 
-  const features = [
-    {
-      icon: Zap,
-      title: 'سریع و آسان',
-      description: 'در کمتر از 10 دقیقه وب‌سایت خود را بسازید'
-    },
-    {
-      icon: Palette,
-      title: 'طراحی زیبا',
-      description: 'قالب‌های مدرن و ریسپانسیو برای همه دستگاه‌ها'
-    },
-    {
-      icon: Globe,
-      title: 'دامنه رایگان',
-      description: 'دامنه .ir برای یک سال کاملاً رایگان'
-    },
-    {
-      icon: Shield,
-      title: 'امن و قابل اعتماد',
-      description: 'هاستینگ سریع و پشتیبانی 24/7'
-    }
-  ];
+  // Navigation dots component
+  const NavigationDots = () => (
+    <div className="fixed left-8 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3">
+      {Array.from({ length: 6 }, (_, i) => (
+        <button
+          key={i}
+          onClick={() => {
+            const element = document.getElementById(`slide-${i}`);
+            element?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          className={`w-3 h-3 rounded-full transition-all duration-300 ${
+            activeSlide === i 
+              ? 'bg-primary scale-125' 
+              : 'bg-white/40 hover:bg-white/60'
+          }`}
+        />
+      ))}
+    </div>
+  );
 
-  const steps = [
-    { number: 1, title: 'انتخاب نوع سایت', description: 'شخصی یا تجاری' },
-    { number: 2, title: 'انتخاب صفحات', description: 'صفحات مورد نیاز' },
-    { number: 3, title: 'طراحی و برندینگ', description: 'رنگ و لوگو' },
-    { number: 4, title: 'محاسبه قیمت', description: 'شفاف و منصفانه' },
-    { number: 5, title: 'اطلاعات شخصی', description: 'تماس و دامنه' },
-    { number: 6, title: 'پرداخت امن', description: 'زرین‌پال' }
-  ];
+  // Slide component with intersection observer
+  const Slide = ({ children, id, index }: { children: React.ReactNode; id: string; index: number }) => {
+    const controls = useAnimation();
+    const ref = React.useRef(null);
+    const inView = useInView(ref);
 
-  const testimonials = [
-    {
-      name: 'علی احمدی',
-      role: 'طراح گرافیک',
-      content: 'در کمتر از یک ساعت وب‌سایت نمونه کارهایم آماده شد. فوق‌العاده!'
-    },
-    {
-      name: 'مریم کریمی',
-      role: 'صاحب کافه',
-      content: 'وب‌سایت کافه‌ام حرفه‌ای و زیبا شد. مشتریان بیشتری جذب کردم.'
-    },
-    {
-      name: 'حسن محمدی',
-      role: 'مشاور املاک',
-      content: 'پشتیبانی عالی و کیفیت بالا. به همه توصیه می‌کنم.'
-    }
-  ];
+    useEffect(() => {
+      if (inView) {
+        setActiveSlide(index);
+        controls.start("visible");
+      }
+    }, [inView, controls, index]);
+
+    return (
+      <motion.section
+        ref={ref}
+        id={id}
+        className="min-h-screen flex items-center justify-center relative"
+        initial="hidden"
+        animate={controls}
+        variants={{
+          hidden: { opacity: 0, y: 50 },
+          visible: { opacity: 1, y: 0, transition: { duration: 0.8 } }
+        }}
+      >
+        {children}
+      </motion.section>
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background text-foreground">
+      <NavigationDots />
+      
       {/* Header */}
-      <header className="border-b border-border/50 bg-white/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+      <motion.header 
+        className="fixed top-0 w-full bg-white/10 backdrop-blur-sm border-b border-white/20 z-40"
+        initial={{ y: -100 }}
+        animate={{ y: 0 }}
+        transition={{ duration: 0.6 }}
+      >
+        <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-r from-primary to-secondary rounded-xl flex items-center justify-center">
               <Sparkles className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-gradient">سایت‌ساز فارسی</h1>
+            <h1 className="text-2xl font-bold text-primary">ارزان سایت</h1>
+            <span className="text-sm text-muted-foreground">Arzansite.com</span>
           </div>
-          <Button 
-            onClick={() => navigate('/wizard')}
-            className="btn-gradient"
-          >
+          <button className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
             شروع کنید
-            <ArrowRight className="w-4 h-4 mr-2" />
-          </Button>
+          </button>
         </div>
-      </header>
+      </motion.header>
 
-      {/* Hero Section */}
-      <section className="hero-gradient py-20 text-white relative overflow-hidden">
-        <div className="absolute inset-0 bg-black/20"></div>
-        <div className="container mx-auto px-4 text-center relative z-10">
-          <div className="max-w-4xl mx-auto">
-            <Badge variant="secondary" className="mb-6 text-primary bg-white/20 border-white/30">
-              🚀 ساخت وب‌سایت در چند کلیک
-            </Badge>
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 bounce-in">
-              وب‌سایت رویایی خود را
-              <br />
-              <span className="text-accent">همین امروز بسازید</span>
-            </h1>
-            <p className="text-xl md:text-2xl mb-8 text-white/90 fade-in">
-              بدون کدنویسی، بدون پیچیدگی - فقط چند قدم ساده
-              <br />
-              و وب‌سایت حرفه‌ای شما آماده است!
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-              <Button 
-                size="lg" 
-                onClick={() => navigate('/wizard')}
-                className="btn-accent text-lg px-8 py-4 shadow-strong hover:shadow-xl"
+      {/* Slide 1: Overview */}
+      <Slide id="slide-0" index={0}>
+        <div className="hero-gradient min-h-screen flex items-center justify-center text-white relative overflow-hidden">
+          <div className="absolute inset-0 bg-black/30"></div>
+          <div className="container mx-auto px-6 text-center relative z-10">
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 1, delay: 0.2 }}
+              className="max-w-4xl mx-auto"
+            >
+              <motion.h1 
+                className="text-6xl md:text-8xl font-bold mb-8"
+                initial={{ y: 50, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.4 }}
               >
-                <Rocket className="w-5 h-5 ml-2" />
-                همین الان شروع کنید
-              </Button>
-              <Button 
-                size="lg" 
-                variant="outline"
-                className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                ارزان سایت
+              </motion.h1>
+              <motion.p 
+                className="text-2xl md:text-3xl mb-12 text-white/90 leading-relaxed"
+                initial={{ y: 30, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.6 }}
               >
-                مشاهده نمونه‌ها
-              </Button>
-            </div>
-            <div className="flex items-center justify-center gap-8 text-white/80">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-accent" />
-                <span>بدون پیش‌پرداخت</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-accent" />
-                <span>دامنه رایگان</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-accent" />
-                <span>پشتیبانی 24/7</span>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        {/* Floating Elements */}
-        <div className="absolute top-20 left-20 w-20 h-20 bg-accent/20 rounded-full blur-xl animate-pulse"></div>
-        <div className="absolute bottom-32 right-16 w-32 h-32 bg-secondary/20 rounded-full blur-xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-      </section>
-
-      {/* Features */}
-      <section className="py-20 bg-muted/30">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">چرا ما را انتخاب کنید؟</h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              با سایت‌ساز فارسی، ساخت وب‌سایت هیچ‌وقت آسان‌تر نبوده
-            </p>
-          </div>
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
-              return (
-                <Card key={index} className="card-modern text-center hover:shadow-strong transition-all duration-300 hover:-translate-y-2">
-                  <CardContent className="p-8">
-                    <div className="w-16 h-16 bg-gradient-to-r from-primary to-secondary rounded-2xl flex items-center justify-center mx-auto mb-6">
-                      <Icon className="w-8 h-8 text-white" />
-                    </div>
-                    <h3 className="text-xl font-bold mb-3">{feature.title}</h3>
-                    <p className="text-muted-foreground">{feature.description}</p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section className="py-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">چطور کار می‌کند؟</h2>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              فقط شش قدم تا وب‌سایت رویایی شما
-            </p>
-          </div>
-          <div className="max-w-4xl mx-auto">
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {steps.map((step, index) => (
-                <div key={index} className="text-center">
-                  <div className="relative mb-6">
-                    <div className="w-16 h-16 bg-gradient-to-r from-primary to-secondary rounded-full flex items-center justify-center mx-auto text-white text-2xl font-bold shadow-medium">
-                      {step.number}
-                    </div>
-                    {index < steps.length - 1 && (
-                      <div className="hidden lg:block absolute top-8 left-full w-full h-0.5 bg-gradient-to-r from-primary/50 to-transparent"></div>
-                    )}
-                  </div>
-                  <h3 className="text-lg font-bold mb-2">{step.title}</h3>
-                  <p className="text-muted-foreground">{step.description}</p>
+                سایت‌ساز فوق‌آسان با طراحی و کد سفارشی، سئو بی‌نظیر، سرعت بالا، 
+                <br />
+                اپتایم ۲۴/۷، پرداخت امن آنلاین، سورس کامل
+                <br />
+                <span className="text-accent font-bold">تنها ۲,۵۰۰,۰۰۰ تومان در ماه</span>
+              </motion.p>
+              <motion.div
+                className="flex items-center justify-center gap-8 text-white/80"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.8 }}
+              >
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-6 h-6 text-accent" />
+                  <span className="text-lg">طراحی سفارشی</span>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonials */}
-      <section className="py-20 bg-gradient-to-r from-primary/5 to-secondary/5">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold mb-4">نظرات مشتریان</h2>
-            <p className="text-xl text-muted-foreground">
-              ببینید دیگران چه می‌گویند
-            </p>
-          </div>
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {testimonials.map((testimonial, index) => (
-              <Card key={index} className="card-modern">
-                <CardContent className="p-6">
-                  <div className="flex items-center gap-1 mb-4">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-accent text-accent" />
-                    ))}
-                  </div>
-                  <p className="text-muted-foreground mb-6 italic">
-                    "{testimonial.content}"
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-r from-primary to-secondary rounded-full flex items-center justify-center">
-                      <Users className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="font-semibold">{testimonial.name}</p>
-                      <p className="text-sm text-muted-foreground">{testimonial.role}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="py-20 hero-gradient text-white">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-4xl md:text-5xl font-bold mb-6">
-            آماده برای شروع هستید؟
-          </h2>
-          <p className="text-xl mb-8 text-white/90 max-w-2xl mx-auto">
-            همین امروز وب‌سایت خود را بسازید و حضور آنلاین قدرتمندی داشته باشید
-          </p>
-          <Button 
-            size="lg" 
-            onClick={() => navigate('/wizard')}
-            className="btn-accent text-lg px-8 py-4 shadow-strong hover:shadow-xl"
-          >
-            <Rocket className="w-5 h-5 ml-2" />
-            شروع رایگان
-          </Button>
-          <p className="text-sm text-white/70 mt-4">
-            ⭐ بدون هیچ تعهدی - اگر راضی نبودید، پول‌تان را برمی‌گردانیم
-          </p>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="bg-card border-t border-border py-12">
-        <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-8 h-8 bg-gradient-to-r from-primary to-secondary rounded-lg flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-white" />
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-6 h-6 text-accent" />
+                  <span className="text-lg">سئو حرفه‌ای</span>
                 </div>
-                <h3 className="text-lg font-bold">سایت‌ساز فارسی</h3>
-              </div>
-              <p className="text-muted-foreground text-sm">
-                ساخت وب‌سایت حرفه‌ای در چند کلیک
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="w-6 h-6 text-accent" />
+                  <span className="text-lg">سورس کامل</span>
+                </div>
+              </motion.div>
+            </motion.div>
+            <motion.div
+              className="absolute bottom-8 left-1/2 -translate-x-1/2"
+              animate={{ y: [0, 10, 0] }}
+              transition={{ duration: 2, repeat: Infinity }}
+            >
+              <ArrowDown className="w-6 h-6 text-white/70" />
+            </motion.div>
+          </div>
+          
+          {/* Floating Elements */}
+          <motion.div 
+            className="absolute top-20 left-20 w-32 h-32 bg-accent/20 rounded-full blur-xl"
+            animate={{ 
+              y: [-20, 20, -20],
+              scale: [1, 1.1, 1]
+            }}
+            transition={{ duration: 4, repeat: Infinity }}
+          />
+          <motion.div 
+            className="absolute bottom-32 right-16 w-40 h-40 bg-secondary/20 rounded-full blur-xl"
+            animate={{ 
+              y: [20, -20, 20],
+              scale: [1.1, 1, 1.1]
+            }}
+            transition={{ duration: 5, repeat: Infinity, delay: 1 }}
+          />
+        </div>
+      </Slide>
+
+      {/* Slide 2: Workflow */}
+      <Slide id="slide-1" index={1}>
+        <div className="min-h-screen bg-gradient-to-br from-muted/30 to-background flex items-center">
+          <div className="container mx-auto px-6">
+            <div className="text-center mb-16">
+              <h2 className="text-5xl font-bold mb-6">فرآیند کار</h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                سه قدم ساده تا راه‌اندازی وب‌سایت شما
               </p>
             </div>
-            <div>
-              <h4 className="font-semibold mb-4">خدمات</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>ساخت وب‌سایت شخصی</li>
-                <li>ساخت وب‌سایت تجاری</li>
-                <li>طراحی لوگو</li>
-                <li>هاستینگ</li>
-              </ul>
+            <div className="max-w-6xl mx-auto">
+              <div className="grid md:grid-cols-3 gap-12">
+                {[
+                  {
+                    step: 1,
+                    icon: Globe,
+                    title: "انتخاب دامنه و قالب",
+                    description: "دامنه دلخواه و قالب مناسب کسب‌وکارتان را انتخاب کنید"
+                  },
+                  {
+                    step: 2,
+                    icon: DollarSign,
+                    title: "پرداخت آنلاین",
+                    description: "پرداخت امن و سریع از طریق درگاه‌های معتبر"
+                  },
+                  {
+                    step: 3,
+                    icon: Rocket,
+                    title: "راه‌اندازی سایت",
+                    description: "سایت استاتیک شما در کمتر از یک روز آماده می‌شود"
+                  }
+                ].map((item, index) => (
+                  <motion.div
+                    key={index}
+                    className="text-center group"
+                    initial={{ y: 50, opacity: 0 }}
+                    whileInView={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 0.6, delay: index * 0.2 }}
+                    viewport={{ once: true }}
+                  >
+                    <div className="relative mb-8">
+                      <motion.div 
+                        className="w-24 h-24 bg-gradient-to-r from-primary to-secondary rounded-full flex items-center justify-center mx-auto shadow-xl"
+                        whileHover={{ scale: 1.1 }}
+                        transition={{ duration: 0.3 }}
+                      >
+                        <item.icon className="w-12 h-12 text-white" />
+                      </motion.div>
+                      <div className="absolute -top-2 -right-2 w-8 h-8 bg-accent rounded-full flex items-center justify-center text-white font-bold text-sm">
+                        {item.step}
+                      </div>
+                      {index < 2 && (
+                        <div className="hidden md:block absolute top-12 left-full w-full h-1 bg-gradient-to-r from-primary/50 to-transparent -z-10"></div>
+                      )}
+                    </div>
+                    <h3 className="text-2xl font-bold mb-4 group-hover:text-primary transition-colors">{item.title}</h3>
+                    <p className="text-muted-foreground leading-relaxed">{item.description}</p>
+                  </motion.div>
+                ))}
+              </div>
+              <motion.div
+                className="text-center mt-16"
+                initial={{ y: 30, opacity: 0 }}
+                whileInView={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6, delay: 0.8 }}
+                viewport={{ once: true }}
+              >
+                <p className="text-xl font-semibold text-primary">
+                  شما ۱۰۰٪ مالک سایت خود خواهید بود
+                </p>
+              </motion.div>
             </div>
-            <div>
-              <h4 className="font-semibold mb-4">پشتیبانی</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>راهنمای کاربری</li>
-                <li>سوالات متداول</li>
-                <li>تماس با ما</li>
-                <li>گزارش مشکل</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-semibold mb-4">تماس</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>ایمیل: info@sitesaz.ir</li>
-                <li>تلفن: ۰۲۱-۱۲۳۴۵۶۷۸</li>
-                <li>آدرس: تهران، ایران</li>
-              </ul>
-            </div>
-          </div>
-          <div className="border-t border-border mt-8 pt-8 text-center text-sm text-muted-foreground">
-            <p>© ۱۴۰۳ سایت‌ساز فارسی. تمام حقوق محفوظ است.</p>
           </div>
         </div>
-      </footer>
+      </Slide>
+
+      {/* Slide 3: Technology */}
+      <Slide id="slide-2" index={2}>
+        <div className="min-h-screen bg-gradient-to-br from-primary/5 to-secondary/5 flex items-center">
+          <div className="container mx-auto px-6">
+            <div className="max-w-4xl mx-auto text-center">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                whileInView={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.8 }}
+                viewport={{ once: true }}
+              >
+                <Code className="w-24 h-24 text-primary mx-auto mb-8" />
+                <h2 className="text-5xl font-bold mb-8">تکنولوژی پیشرفته</h2>
+                <p className="text-2xl text-muted-foreground mb-12 leading-relaxed">
+                  تمام سایت‌ها به‌صورت استاتیک روی Vercel دیپلوی می‌شوند. 
+                  <br />
+                  پشتیبانی از سایت‌های داینامیک به زودی اضافه خواهد شد.
+                </p>
+              </motion.div>
+              
+              <div className="grid md:grid-cols-3 gap-8 mt-16">
+                {[
+                  {
+                    icon: Zap,
+                    title: "سرعت فوق‌العاده",
+                    description: "بارگیری در کمتر از ۱ ثانیه"
+                  },
+                  {
+                    icon: Globe,
+                    title: "CDN جهانی",
+                    description: "دسترسی سریع از هر نقطه دنیا"
+                  },
+                  {
+                    icon: Code,
+                    title: "React & TypeScript",
+                    description: "جدیدترین تکنولوژی‌های وب"
+                  }
+                ].map((item, index) => (
+                  <motion.div
+                    key={index}
+                    className="bg-white p-8 rounded-2xl shadow-lg hover:shadow-xl transition-shadow"
+                    initial={{ y: 50, opacity: 0 }}
+                    whileInView={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 0.6, delay: index * 0.1 }}
+                    viewport={{ once: true }}
+                    whileHover={{ y: -5 }}
+                  >
+                    <item.icon className="w-12 h-12 text-primary mx-auto mb-4" />
+                    <h3 className="text-xl font-bold mb-3">{item.title}</h3>
+                    <p className="text-muted-foreground">{item.description}</p>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Slide>
+
+      {/* Slide 4: Security */}
+      <Slide id="slide-3" index={3}>
+        <div className="min-h-screen bg-gradient-to-br from-background to-muted/30 flex items-center">
+          <div className="container mx-auto px-6">
+            <div className="max-w-4xl mx-auto text-center">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                whileInView={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.8 }}
+                viewport={{ once: true }}
+              >
+                <Shield className="w-24 h-24 text-green-500 mx-auto mb-8" />
+                <h2 className="text-5xl font-bold mb-8">امنیت بالا</h2>
+                <p className="text-2xl text-muted-foreground mb-12 leading-relaxed">
+                  معماری استاتیک + CDN + HTTPS = سایت تقریباً غیرقابل هک
+                </p>
+              </motion.div>
+              
+              <div className="grid md:grid-cols-2 gap-12 mt-16">
+                {[
+                  {
+                    icon: Shield,
+                    title: "محافظت کامل",
+                    description: "بدون پایگاه داده یا سرور، بدون نقطه ضعف امنیتی",
+                    features: ["SSL رایگان", "حفاظت DDoS", "بکاپ خودکار"]
+                  },
+                  {
+                    icon: Clock,
+                    title: "اپتایم ۹۹.۹۹٪",
+                    description: "سرویس پایدار و قابل اعتماد ۲۴ ساعته",
+                    features: ["مانیتورینگ مداوم", "سرور چندگانه", "پشتیبانی ۲۴/۷"]
+                  }
+                ].map((item, index) => (
+                  <motion.div
+                    key={index}
+                    className="bg-white p-8 rounded-2xl shadow-lg"
+                    initial={{ x: index === 0 ? -50 : 50, opacity: 0 }}
+                    whileInView={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.8, delay: 0.2 }}
+                    viewport={{ once: true }}
+                  >
+                    <item.icon className="w-16 h-16 text-green-500 mx-auto mb-6" />
+                    <h3 className="text-2xl font-bold mb-4">{item.title}</h3>
+                    <p className="text-muted-foreground mb-6">{item.description}</p>
+                    <ul className="space-y-2">
+                      {item.features.map((feature, i) => (
+                        <li key={i} className="flex items-center gap-2">
+                          <CheckCircle className="w-5 h-5 text-green-500" />
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Slide>
+
+      {/* Slide 5: Pricing & Value */}
+      <Slide id="slide-4" index={4}>
+        <div className="min-h-screen hero-gradient text-white flex items-center">
+          <div className="container mx-auto px-6">
+            <div className="max-w-4xl mx-auto text-center">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                whileInView={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.8 }}
+                viewport={{ once: true }}
+              >
+                <DollarSign className="w-24 h-24 text-accent mx-auto mb-8" />
+                <h2 className="text-5xl font-bold mb-8">قیمت و ارزش</h2>
+                <div className="text-6xl font-bold text-accent mb-4">۲,۵۰۰,۰۰۰</div>
+                <p className="text-2xl mb-8">تومان در ماه</p>
+                <p className="text-xl text-white/90 mb-12 leading-relaxed">
+                  برای یک سایت React کاملاً سفارشی - شامل طراحی، تیم توسعه و هاستینگ مداوم
+                  <br />
+                  <span className="font-bold text-accent">بدون هزینه مخفی</span>
+                </p>
+              </motion.div>
+              
+              <div className="grid md:grid-cols-3 gap-8 mt-16">
+                {[
+                  {
+                    icon: Target,
+                    title: "طراحی سفارشی",
+                    description: "طراحی منحصر به فرد برای برند شما"
+                  },
+                  {
+                    icon: Users,
+                    title: "تیم توسعه",
+                    description: "تیم حرفه‌ای برنامه‌نویسان React"
+                  },
+                  {
+                    icon: Globe,
+                    title: "هاستینگ ابری",
+                    description: "هاستینگ پرسرعت روی Vercel"
+                  }
+                ].map((item, index) => (
+                  <motion.div
+                    key={index}
+                    className="bg-white/10 backdrop-blur-sm p-6 rounded-2xl border border-white/20"
+                    initial={{ y: 50, opacity: 0 }}
+                    whileInView={{ y: 0, opacity: 1 }}
+                    transition={{ duration: 0.6, delay: index * 0.1 }}
+                    viewport={{ once: true }}
+                    whileHover={{ scale: 1.05 }}
+                  >
+                    <item.icon className="w-12 h-12 text-accent mx-auto mb-4" />
+                    <h3 className="text-xl font-bold mb-3">{item.title}</h3>
+                    <p className="text-white/80">{item.description}</p>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </Slide>
+
+      {/* Slide 6: Social Proof */}
+      <Slide id="slide-5" index={5}>
+        <div className="min-h-screen bg-gradient-to-br from-muted/30 to-background flex items-center">
+          <div className="container mx-auto px-6">
+            <div className="max-w-6xl mx-auto text-center">
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                whileInView={{ scale: 1, opacity: 1 }}
+                transition={{ duration: 0.8 }}
+                viewport={{ once: true }}
+              >
+                <TrendingUp className="w-24 h-24 text-primary mx-auto mb-8" />
+                <h2 className="text-5xl font-bold mb-8">اعتماد مشتریان</h2>
+                <p className="text-xl text-muted-foreground mb-16">
+                  آمار و ارقامی که از کیفیت خدمات ما حکایت می‌کند
+                </p>
+              </motion.div>
+              
+              <div className="grid md:grid-cols-3 gap-12 mb-16">
+                {[
+                  {
+                    number: "۱,۰۰۰+",
+                    label: "مشتری راضی",
+                    icon: Users
+                  },
+                  {
+                    number: "۹۹.۹۹٪",
+                    label: "اپتایم سرور",
+                    icon: TrendingUp
+                  },
+                  {
+                    number: "۵۰۰+",
+                    label: "پروژه تحویلی",
+                    icon: CheckCircle
+                  }
+                ].map((stat, index) => (
+                  <motion.div
+                    key={index}
+                    className="text-center"
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    whileInView={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.6, delay: index * 0.2 }}
+                    viewport={{ once: true }}
+                  >
+                    <stat.icon className="w-16 h-16 text-primary mx-auto mb-4" />
+                    <div className="text-5xl font-bold text-primary mb-2">{stat.number}</div>
+                    <p className="text-xl text-muted-foreground">{stat.label}</p>
+                  </motion.div>
+                ))}
+              </div>
+
+              <motion.div
+                className="bg-white p-8 rounded-2xl shadow-xl max-w-3xl mx-auto"
+                initial={{ y: 50, opacity: 0 }}
+                whileInView={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.6 }}
+                viewport={{ once: true }}
+              >
+                <div className="flex items-center gap-1 justify-center mb-6">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="w-6 h-6 fill-accent text-accent" />
+                  ))}
+                </div>
+                <p className="text-xl text-muted-foreground italic mb-6">
+                  "تیم ارزان سایت در کمتر از ۲۴ ساعت وب‌سایت فروشگاهم را آماده کرد. 
+                  کیفیت طراحی و سرعت بارگیری فوق‌العاده بود!"
+                </p>
+                <div className="flex items-center justify-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-r from-primary to-secondary rounded-full flex items-center justify-center">
+                    <Users className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">سارا احمدی</p>
+                    <p className="text-sm text-muted-foreground">مدیر فروشگاه آنلاین</p>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div
+                className="mt-16"
+                initial={{ y: 30, opacity: 0 }}
+                whileInView={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.8, delay: 0.8 }}
+                viewport={{ once: true }}
+              >
+                <button className="px-12 py-4 bg-primary text-white text-xl font-bold rounded-xl hover:bg-primary/90 transition-colors shadow-xl hover:shadow-2xl">
+                  همین امروز شروع کنید
+                </button>
+                <p className="text-sm text-muted-foreground mt-4">
+                  ⭐ تضمین بازگشت وجه در صورت عدم رضایت
+                </p>
+              </motion.div>
+            </div>
+          </div>
+        </div>
+      </Slide>
     </div>
   );
 };

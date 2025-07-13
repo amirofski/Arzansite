@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, useAnimation } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -21,7 +21,37 @@ import {
 
 const Index = () => {
   const [activeSlide, setActiveSlide] = useState(0);
+  const [animatedSlides, setAnimatedSlides] = useState<Set<number>>(new Set());
+  const [isScrolling, setIsScrolling] = useState(false);
   const navigate = useNavigate();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Handle wheel scroll for single-scroll navigation
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    
+    if (isScrolling) return;
+    
+    const direction = e.deltaY > 0 ? 1 : -1;
+    const newSlide = Math.max(0, Math.min(5, activeSlide + direction));
+    
+    if (newSlide !== activeSlide) {
+      setIsScrolling(true);
+      const element = document.getElementById(`slide-${newSlide}`);
+      element?.scrollIntoView({ behavior: 'smooth' });
+      
+      setTimeout(() => setIsScrolling(false), 800);
+    }
+  }, [activeSlide, isScrolling]);
+
+  // Add/remove wheel event listener
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener('wheel', handleWheel, { passive: false });
+      return () => container.removeEventListener('wheel', handleWheel);
+    }
+  }, [handleWheel]);
 
   // Navigation dots component
   const NavigationDots = () => (
@@ -47,9 +77,8 @@ const Index = () => {
   const Slide = ({ children, id, index }: { children: React.ReactNode; id: string; index: number }) => {
     const controls = useAnimation();
     const ref = React.useRef(null);
-    const [hasAnimated, setHasAnimated] = useState(false);
     const inView = useInView(ref, { 
-      margin: "-30% 0px -30% 0px", // More conservative trigger area
+      margin: "-30% 0px -30% 0px",
       once: false
     });
 
@@ -57,13 +86,13 @@ const Index = () => {
       if (inView) {
         setActiveSlide(index);
         
-        // Only animate if we haven't animated this slide before
-        if (!hasAnimated) {
+        // Only animate if we haven't animated this slide before (global tracking)
+        if (!animatedSlides.has(index)) {
           controls.start("visible");
-          setHasAnimated(true);
+          setAnimatedSlides(prev => new Set([...prev, index]));
         }
       }
-    }, [inView, controls, index, hasAnimated]);
+    }, [inView, controls, index]);
 
     return (
       <motion.section
@@ -83,7 +112,7 @@ const Index = () => {
   };
 
   return (
-    <div className="bg-background text-foreground">
+    <div ref={containerRef} className="bg-background text-foreground overflow-hidden">
       <NavigationDots />
       
       {/* Header */}

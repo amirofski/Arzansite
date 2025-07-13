@@ -104,11 +104,13 @@ const Index = () => {
     </div>
   );
 
+  // Track which slides have been animated globally
+  const [animatedSlides, setAnimatedSlides] = useState(new Set<number>());
+
   // Slide component with intersection observer
   const Slide = ({ children, id, index }: { children: React.ReactNode; id: string; index: number }) => {
     const controls = useAnimation();
     const ref = React.useRef(null);
-    const [hasAnimated, setHasAnimated] = useState(false);
     const inView = useInView(ref, { 
       margin: "-30% 0px -30% 0px", // More conservative trigger area
       once: false
@@ -119,12 +121,12 @@ const Index = () => {
         setActiveSlide(index);
         
         // Only animate if we haven't animated this slide before
-        if (!hasAnimated) {
+        if (!animatedSlides.has(index)) {
           controls.start("visible");
-          setHasAnimated(true);
+          setAnimatedSlides(prev => new Set([...prev, index]));
         }
       }
-    }, [inView, controls, index, hasAnimated]);
+    }, [inView, controls, index, animatedSlides]);
 
     return (
       <motion.section

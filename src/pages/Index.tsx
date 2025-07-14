@@ -18,30 +18,14 @@ import {
   TrendingUp,
   Target
 } from 'lucide-react';
+import Layout from "@/components/ui/Layout";
 
 const Index = () => {
   const [activeSlide, setActiveSlide] = useState(0);
   const navigate = useNavigate();
 
   // Navigation dots component
-  const NavigationDots = () => (
-    <div className="fixed left-8 top-1/2 -translate-y-1/2 z-50 flex flex-col gap-3">
-      {Array.from({ length: 6 }, (_, i) => (
-        <button
-          key={i}
-          onClick={() => {
-            const element = document.getElementById(`slide-${i}`);
-            element?.scrollIntoView({ behavior: 'smooth' });
-          }}
-          className={`w-3 h-3 rounded-full transition-all duration-300 ${
-            activeSlide === i 
-              ? 'bg-primary scale-125' 
-              : 'bg-white/40 hover:bg-white/60'
-          }`}
-        />
-      ))}
-    </div>
-  );
+  // (removed for global layout)
 
   // Slide component with intersection observer
   const Slide = ({ children, id, index }: { children: React.ReactNode; id: string; index: number }) => {
@@ -56,8 +40,6 @@ const Index = () => {
     useEffect(() => {
       if (inView) {
         setActiveSlide(index);
-        
-        // Only animate if we haven't animated this slide before
         if (!hasAnimated) {
           controls.start("visible");
           setHasAnimated(true);
@@ -83,32 +65,8 @@ const Index = () => {
   };
 
   return (
-    <div className="bg-background text-foreground">
-      <NavigationDots />
-      
-      {/* Header */}
-      <motion.header 
-        className="fixed top-0 w-full bg-white/10 backdrop-blur-sm border-b border-white/20 z-40"
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        transition={{ duration: 0.6 }}
-      >
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-primary to-secondary rounded-xl flex items-center justify-center">
-              <Sparkles className="w-6 h-6 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-primary">ارزان سایت</h1>
-          </div>
-          <button 
-            onClick={() => navigate('/wizard')}
-            className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
-          >
-            شروع کنید
-          </button>
-        </div>
-      </motion.header>
-
+    <Layout>
+      {/* All slides and main content here, no header or NavigationDots */}
       {/* Slide 1: Overview */}
       <Slide id="slide-0" index={0}>
         <div className="hero-gradient min-h-screen w-full flex items-center justify-center text-white relative overflow-hidden">
@@ -620,7 +578,7 @@ const Index = () => {
           </div>
         </div>
       </Slide>
-    </div>
+    </Layout>
   );
 };
 

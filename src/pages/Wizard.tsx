@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -9,6 +9,7 @@ import StepThree from '@/components/wizard/StepThree';
 import StepFour from '@/components/wizard/StepFour';
 import StepFive from '@/components/wizard/StepFive';
 import StepSix from '@/components/wizard/StepSix';
+import Layout from "@/components/ui/Layout";
 
 interface WizardData {
   siteType: 'personal' | 'business' | '';
@@ -105,106 +106,98 @@ const Wizard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background py-8">
-      <div className="container mx-auto px-4 max-w-4xl">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gradient mb-2">ساخت وب‌سایت شما</h1>
-          <p className="text-muted-foreground">در چند قدم ساده وب‌سایت خود را بسازید</p>
-        </div>
-
-        {/* Progress */}
-        <div className="mb-8">
-          <Progress value={progress} className="h-2 mb-4" />
-          <div className="flex justify-between text-sm text-muted-foreground">
-            <span>قدم {currentStep} از {totalSteps}</span>
-            <span>{Math.round(progress)}% تکمیل شده</span>
+    <Layout>
+      <div className="min-h-screen bg-background py-8">
+        <div className="container mx-auto px-4 max-w-4xl">
+          {/* Progress */}
+          <div className="mb-8">
+            <Progress value={progress} className="h-2 mb-4" />
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>قدم {currentStep} از {totalSteps}</span>
+              <span>{Math.round(progress)}% تکمیل شده</span>
+            </div>
           </div>
-        </div>
-
-        {/* Steps Indicator */}
-        <div className="flex justify-center mb-8">
-          <div className="flex items-center space-x-4 space-x-reverse">
-            {steps.map((step, index) => (
-              <div key={step.number} className="flex items-center">
-                <div className="flex flex-col items-center">
-                  <div
-                    className={`step-indicator ${
-                      currentStep === step.number
-                        ? 'active'
-                        : currentStep > step.number
-                        ? 'completed'
-                        : 'inactive'
-                    }`}
-                  >
-                    {currentStep > step.number ? (
-                      <Check className="w-5 h-5" />
-                    ) : (
-                      step.number
-                    )}
-                  </div>
-                  <div className="text-center mt-2">
-                    <div className="text-xs font-medium">{step.title}</div>
-                    <div className="text-xs text-muted-foreground hidden sm:block">
-                      {step.description}
+          {/* Steps Indicator */}
+          <div className="flex justify-center mb-8">
+            <div className="flex items-center space-x-4 space-x-reverse">
+              {steps.map((step, index) => (
+                <div key={step.number} className="flex items-center">
+                  <div className="flex flex-col items-center">
+                    <div
+                      className={`step-indicator ${
+                        currentStep === step.number
+                          ? 'active'
+                          : currentStep > step.number
+                          ? 'completed'
+                          : 'inactive'
+                      }`}
+                    >
+                      {currentStep > step.number ? (
+                        <Check className="w-5 h-5" />
+                      ) : (
+                        step.number
+                      )}
+                    </div>
+                    <div className="text-center mt-2">
+                      <div className="text-xs font-medium">{step.title}</div>
+                      <div className="text-xs text-muted-foreground hidden sm:block">
+                        {step.description}
+                      </div>
                     </div>
                   </div>
+                  {index < steps.length - 1 && (
+                    <div className="w-8 h-px bg-border mx-4" />
+                  )}
                 </div>
-                {index < steps.length - 1 && (
-                  <div className="w-8 h-px bg-border mx-4" />
-                )}
+              ))}
+            </div>
+          </div>
+          {/* Step Content */}
+          <Card className="card-modern mb-8">
+            <CardHeader>
+              <CardTitle className="text-xl">
+                {steps[currentStep - 1].title} - {steps[currentStep - 1].description}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="fade-in">
+                {renderStep()}
               </div>
-            ))}
+            </CardContent>
+          </Card>
+          {/* Navigation */}
+          <div className="flex justify-between">
+            <Button
+              onClick={prevStep}
+              disabled={currentStep === 1}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              قدم قبلی
+            </Button>
+            {currentStep < totalSteps ? (
+              <Button
+                onClick={nextStep}
+                disabled={!isStepValid()}
+                className="btn-gradient flex items-center gap-2"
+              >
+                قدم بعدی
+                <ArrowRight className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button
+                disabled={!isStepValid()}
+                className="btn-gradient flex items-center gap-2"
+              >
+                تکمیل سفارش
+                <Check className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
-
-        {/* Step Content */}
-        <Card className="card-modern mb-8">
-          <CardHeader>
-            <CardTitle className="text-xl">
-              {steps[currentStep - 1].title} - {steps[currentStep - 1].description}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="fade-in">
-              {renderStep()}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Navigation */}
-        <div className="flex justify-between">
-          <Button
-            onClick={prevStep}
-            disabled={currentStep === 1}
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            قدم قبلی
-          </Button>
-
-          {currentStep < totalSteps ? (
-            <Button
-              onClick={nextStep}
-              disabled={!isStepValid()}
-              className="btn-gradient flex items-center gap-2"
-            >
-              قدم بعدی
-              <ArrowRight className="w-4 h-4" />
-            </Button>
-          ) : (
-            <Button
-              disabled={!isStepValid()}
-              className="btn-gradient flex items-center gap-2"
-            >
-              تکمیل سفارش
-              <Check className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
       </div>
-    </div>
+    </Layout>
   );
 };
 

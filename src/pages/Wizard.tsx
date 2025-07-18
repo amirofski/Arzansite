@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { Helmet } from "react-helmet-async";
+import { siteConfig } from "@/lib/siteConfig";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -107,7 +109,12 @@ const Wizard = () => {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-background py-8">
+      <Helmet>
+        <title>ساخت سایت | {siteConfig.seo.defaultTitle}</title>
+        <meta name="description" content="فرآیند ساخت سایت با {siteConfig.name}. در چند قدم ساده وب‌سایت خود را بسازید." />
+        <link rel="canonical" href={siteConfig.seo.siteUrl + '/wizard'} />
+      </Helmet>
+      <div className="min-h-screen bg-background py-8 mt-20">
         <div className="container mx-auto px-4 max-w-4xl">
           {/* Progress */}
           <div className="mb-8">

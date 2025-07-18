@@ -20,9 +20,15 @@ const Header: React.FC = () => {
     >
       <div className="max-w-7xl mx-auto px-4 md:px-8 py-3 flex justify-between items-center gap-4">
         {/* Logo & Brand */}
-        <div className="flex items-center gap-3">
+        <button
+          onClick={() => navigate("/")}
+          className="flex items-center gap-3 group focus:outline-none"
+          aria-label="بازگشت به خانه"
+          tabIndex={0}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+        >
           <motion.div
-            className="w-12 h-12 bg-gradient-to-r from-primary to-secondary rounded-2xl flex items-center justify-center shadow-lg"
+            className="w-12 h-12 bg-gradient-to-r from-primary to-secondary rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 group-hover:rotate-6 transition-transform"
             whileHover={{ rotate: 10, scale: 1.1 }}
             transition={{ type: "spring", stiffness: 300 }}
           >
@@ -32,7 +38,7 @@ const Header: React.FC = () => {
             <span className="text-2xl font-extrabold text-primary leading-tight">ارزان سایت</span>
             <span className="text-xs text-accent font-semibold tracking-wide mt-0.5">Arzan Site - بهترین سایت‌ساز ایران</span>
           </div>
-        </div>
+        </button>
         {/* Socials (desktop) */}
         <div className="hidden md:flex items-center gap-3">
           {socials.map(({ icon: Icon, label, href }) => (

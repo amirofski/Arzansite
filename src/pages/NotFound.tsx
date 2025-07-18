@@ -1,4 +1,6 @@
 import React from "react";
+import { Helmet } from "react-helmet-async";
+import { siteConfig } from "@/lib/siteConfig";
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import Layout from "@/components/ui/Layout";
@@ -15,6 +17,10 @@ const NotFound = () => {
 
   return (
     <Layout>
+      <Helmet>
+        <title>یافت نشد | {siteConfig.seo.defaultTitle}</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-4xl font-bold mb-4">404</h1>

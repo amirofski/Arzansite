@@ -1,7 +1,16 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Instagram, Linkedin, Github, Phone, Mail, Menu } from "lucide-react";
+import { Instagram, Linkedin, Github, Phone, Mail, Menu, User, LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const socials = [
   { icon: Instagram, label: "Instagram", href: "https://instagram.com/arzansite" },
@@ -11,6 +20,13 @@ const socials = [
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
+  const { user, signOut, loading } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
   return (
     <motion.header
       className="fixed top-0 w-full z-50 bg-white/30 backdrop-blur-xl border-b border-white/20 shadow-lg"
@@ -72,16 +88,53 @@ const Header: React.FC = () => {
         </div>
         {/* CTA & Contact */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate("/wizard")}
-            className="px-5 py-2 bg-primary text-white rounded-xl font-bold shadow-md hover:bg-primary/90 transition-colors text-base"
-          >
-            شروع کنید
-          </button>
-          <a href="tel:+989123456789" className="hidden md:inline-flex items-center gap-1 bg-white text-primary transition-colors text-sm px-2 rounded-lg font-semibold shadow-sm hover:bg-primary hover:text-white">
+          {!loading && (
+            <>
+              {user ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2 bg-white/90 text-primary border-primary/20 hover:bg-primary hover:text-white"
+                    >
+                      <User className="w-4 h-4" />
+                      <span className="hidden md:inline">حساب کاربری</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => navigate("/wizard")}>
+                      شروع پروژه جدید
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                      <LogOut className="w-4 h-4 ml-2" />
+                      خروج
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <>
+                  <Button
+                    onClick={() => navigate("/auth")}
+                    variant="outline"
+                    className="bg-white/90 text-primary border-primary/20 hover:bg-primary hover:text-white"
+                  >
+                    ورود
+                  </Button>
+                  <Button
+                    onClick={() => navigate("/wizard")}
+                    className="px-5 py-2 bg-primary text-white rounded-xl font-bold shadow-md hover:bg-primary/90 transition-colors text-base"
+                  >
+                    شروع کنید
+                  </Button>
+                </>
+              )}
+            </>
+          )}
+          <a href="tel:+989123456789" className="hidden lg:inline-flex items-center gap-1 bg-white text-primary transition-colors text-sm px-2 rounded-lg font-semibold shadow-sm hover:bg-primary hover:text-white">
             <Phone className="w-4 h-4" /> 0912-345-6789
           </a>
-          <a href="mailto:info@arzansite.com" className="hidden md:inline-flex items-center gap-1 bg-white text-primary transition-colors text-sm px-2 rounded-lg font-semibold shadow-sm hover:bg-primary hover:text-white">
+          <a href="mailto:info@arzansite.com" className="hidden lg:inline-flex items-center gap-1 bg-white text-primary transition-colors text-sm px-2 rounded-lg font-semibold shadow-sm hover:bg-primary hover:text-white">
             <Mail className="w-4 h-4" /> info@arzansite.com
           </a>
         </div>

@@ -1,0 +1,277 @@
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { Helmet } from "react-helmet-async";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+
+const Auth = () => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        navigate("/");
+      }
+    };
+    checkUser();
+  }, [navigate]);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      if (isLogin) {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          toast({
+            title: "خطا در ورود",
+            description: error.message === "Invalid login credentials" 
+              ? "ایمیل یا رمز عبور اشتباه است"
+              : "مشکلی در ورود پیش آمد. لطفاً دوباره تلاش کنید",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "ورود موفقیت‌آمیز",
+            description: "به حساب کاربری خود خوش آمدید",
+          });
+          navigate("/");
+        }
+      } else {
+        if (password !== confirmPassword) {
+          toast({
+            title: "خطا در ثبت‌نام",
+            description: "رمز عبور و تکرار آن یکسان نیستند",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+
+        const redirectUrl = `${window.location.origin}/`;
+        
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: redirectUrl
+          }
+        });
+
+        if (error) {
+          if (error.message.includes("User already registered")) {
+            toast({
+              title: "کاربر قبلاً ثبت‌نام کرده",
+              description: "این ایمیل قبلاً ثبت‌نام شده است. لطفاً وارد شوید",
+              variant: "destructive",
+            });
+          } else {
+            toast({
+              title: "خطا در ثبت‌نام",
+              description: "مشکلی در ثبت‌نام پیش آمد. لطفاً دوباره تلاش کنید",
+              variant: "destructive",
+            });
+          }
+        } else {
+          toast({
+            title: "ثبت‌نام موفقیت‌آمیز",
+            description: "حساب کاربری شما ساخته شد. لطفاً ایمیل خود را چک کنید",
+          });
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "خطا",
+        description: "مشکلی پیش آمد. لطفاً دوباره تلاش کنید",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setEmail("");
+    setPassword("");
+    setConfirmPassword("");
+    setShowPassword(false);
+  };
+
+  const switchMode = () => {
+    setIsLogin(!isLogin);
+    resetForm();
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 px-4">
+      <Helmet>
+        <title>{isLogin ? "ورود" : "ثبت‌نام"} - ارزان سایت</title>
+        <meta name="description" content={isLogin ? "وارد حساب کاربری خود شوید" : "حساب کاربری جدید بسازید"} />
+      </Helmet>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md"
+      >
+        <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
+          <CardHeader className="text-center space-y-2">
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="w-16 h-16 mx-auto bg-gradient-to-r from-primary to-secondary rounded-2xl flex items-center justify-center"
+            >
+              <User className="w-8 h-8 text-white" />
+            </motion.div>
+            <CardTitle className="text-2xl font-bold text-foreground">
+              {isLogin ? "ورود به حساب" : "ساخت حساب جدید"}
+            </CardTitle>
+            <CardDescription>
+              {isLogin 
+                ? "به حساب کاربری خود وارد شوید" 
+                : "برای استفاده از خدمات ارزان سایت ثبت‌نام کنید"
+              }
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            <form onSubmit={handleAuth} className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="email" className="text-sm font-medium text-foreground">
+                  ایمیل
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="example@email.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10 h-12 text-left"
+                    required
+                    dir="ltr"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="password" className="text-sm font-medium text-foreground">
+                  رمز عبور
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="رمز عبور خود را وارد کنید"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 pr-10 h-12"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <AnimatePresence>
+                {!isLogin && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="space-y-2"
+                  >
+                    <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
+                      تکرار رمز عبور
+                    </label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="confirmPassword"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="رمز عبور خود را دوباره وارد کنید"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="pl-10 h-12"
+                        required={!isLogin}
+                        minLength={6}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full h-12 bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover text-white font-semibold text-lg transition-all duration-300"
+              >
+                {loading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <span className="flex items-center gap-2">
+                    {isLogin ? "ورود" : "ثبت‌نام"}
+                    <ArrowRight className="w-4 h-4" />
+                  </span>
+                )}
+              </Button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <button
+                onClick={switchMode}
+                className="text-primary hover:text-primary-hover font-medium transition-colors"
+              >
+                {isLogin 
+                  ? "حساب کاربری ندارید؟ ثبت‌نام کنید" 
+                  : "قبلاً ثبت‌نام کرده‌اید؟ وارد شوید"
+                }
+              </button>
+            </div>
+
+            <div className="mt-4 text-center">
+              <button
+                onClick={() => navigate("/")}
+                className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+              >
+                بازگشت به صفحه اصلی
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </div>
+  );
+};
+
+export default Auth;

@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Sparkles, Instagram, Linkedin, Github, Phone, Mail, Menu } from "lucide-react";
+import { Instagram, Linkedin, Github, Phone, Mail, Menu } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const socials = [
@@ -28,14 +28,30 @@ const Header: React.FC = () => {
           style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
         >
           <motion.div
-            className="w-12 h-12 bg-gradient-to-r from-primary to-secondary rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 group-hover:rotate-6 transition-transform"
+            className="w-12 h-12 flex items-center justify-center group-hover:scale-105 group-hover:rotate-6 transition-transform"
             whileHover={{ rotate: 10, scale: 1.1 }}
             transition={{ type: "spring", stiffness: 300 }}
           >
-            <Sparkles className="w-7 h-7 text-white" />
+            <img src="/logo.png" alt="Arzan Site Logo" className="w-10 h-10 object-contain rounded-xl" />
           </motion.div>
           <div className="flex flex-col rtl:text-right ltr:text-left">
-            <span className="text-2xl font-extrabold text-primary leading-tight">ارزان سایت</span>
+            <motion.span
+              className="text-2xl font-extrabold leading-tight bg-gradient-to-r from-pink-500 via-yellow-400 to-blue-500 bg-clip-text text-transparent"
+              initial={{ backgroundPosition: "0% 50%" }}
+              animate={{ backgroundPosition: "100% 50%" }}
+              transition={{
+                repeat: Infinity,
+                repeatType: "reverse",
+                duration: 2,
+                ease: "linear"
+              }}
+              style={{
+                backgroundSize: "200% 200%",
+                display: "inline-block"
+              }}
+            >
+              ارزان سایت
+            </motion.span>
             <span className="text-xs text-accent font-semibold tracking-wide mt-0.5">Arzan Site - بهترین سایت‌ساز ایران</span>
           </div>
         </button>
@@ -62,10 +78,10 @@ const Header: React.FC = () => {
           >
             شروع کنید
           </button>
-          <a href="tel:+989123456789" className="hidden md:inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors text-sm px-2">
+          <a href="tel:+989123456789" className="hidden md:inline-flex items-center gap-1 text-muted-foreground text-white transition-colors text-sm px-2">
             <Phone className="w-4 h-4" /> 0912-345-6789
           </a>
-          <a href="mailto:info@arzansite.com" className="hidden md:inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors text-sm px-2">
+          <a href="mailto:info@arzansite.com" className="hidden md:inline-flex items-center gap-1 text-muted-foreground text-white transition-colors text-sm px-2">
             <Mail className="w-4 h-4" /> info@arzansite.com
           </a>
         </div>

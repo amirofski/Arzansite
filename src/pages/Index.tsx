@@ -209,7 +209,7 @@ const Index = () => {
                     transition={{ duration: 0.6, delay: 2.4 }}
                   >
                     <motion.button
-                      onClick={() => navigate('/wizard')}
+                      onClick={() => navigate('/dashboard')}
                       className="px-10 py-4 bg-accent text-black text-xl font-bold rounded-xl shadow-2xl hover:shadow-accent/50 transition-all duration-300"
                       whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(var(--accent), 0.5)" }}
                       whileTap={{ scale: 0.95 }}

@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Instagram, Linkedin, Github, Phone, Mail, Menu, User, LogOut } from "lucide-react";
+import { Instagram, Linkedin, Github, Phone, Mail, Menu, User, LogOut, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -21,6 +22,27 @@ const socials = [
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const { user, signOut, loading } = useAuth();
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if (!user) return;
+      
+      try {
+        const { data } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', user.id)
+          .single();
+        
+        setUserRole(data?.role || 'user');
+      } catch (error) {
+        setUserRole('user');
+      }
+    };
+    
+    fetchUserRole();
+  }, [user]);
 
   const handleSignOut = async () => {
     await signOut();
@@ -102,6 +124,15 @@ const Header: React.FC = () => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => navigate("/dashboard")}>
+                      داشبورد
+                    </DropdownMenuItem>
+                    {userRole === 'admin' && (
+                      <DropdownMenuItem onClick={() => navigate("/admin")}>
+                        <Shield className="w-4 h-4 ml-2" />
+                        پنل مدیریت
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onClick={() => navigate("/wizard")}>
                       شروع پروژه جدید
                     </DropdownMenuItem>

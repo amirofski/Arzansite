@@ -8,9 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Package, Search, Trash2, Edit, Shield } from 'lucide-react';
+import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
+import { useSiteMode, type SiteMode } from '@/hooks/useSiteMode';
 
 interface Profile {
   id: string;
@@ -42,6 +43,7 @@ interface Order {
 
 const AdminDashboard = () => {
   const { toast } = useToast();
+  const { mode, updateSiteMode } = useSiteMode();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,6 +191,32 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleSiteModeChange = async (newMode: SiteMode) => {
+    const success = await updateSiteMode(newMode);
+    if (success) {
+      toast({
+        title: 'حالت سایت تغییر کرد',
+        description: `حالت سایت به "${getModeText(newMode)}" تغییر کرد`,
+      });
+    } else {
+      toast({
+        title: 'خطا در تغییر حالت',
+        description: 'مشکلی در تغییر حالت سایت پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const getModeText = (mode: SiteMode) => {
+    switch (mode) {
+      case 'normal': return 'عادی';
+      case 'temporarily_unavailable': return 'موقتاً غیرفعال';
+      case 'update_mode': return 'حالت بروزرسانی';
+      case 'development_mode': return 'حالت توسعه';
+      default: return mode;
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -310,9 +338,10 @@ const AdminDashboard = () => {
           </div>
 
           <Tabs defaultValue="orders" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="orders">مدیریت سفارشات</TabsTrigger>
               <TabsTrigger value="users">مدیریت کاربران</TabsTrigger>
+              <TabsTrigger value="settings">تنظیمات سایت</TabsTrigger>
             </TabsList>
 
             <TabsContent value="orders" className="space-y-6">
@@ -461,6 +490,79 @@ const AdminDashboard = () => {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="settings" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">تنظیمات سایت</h2>
+              </div>
+
+              <div className="grid gap-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Settings className="w-5 h-5" />
+                      حالت عملکرد سایت
+                    </CardTitle>
+                    <CardDescription>
+                      تنظیم حالت عملکرد سایت برای کاربران
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <label className="text-sm font-medium">حالت فعلی:</label>
+                      <Badge variant="outline">{getModeText(mode)}</Badge>
+                    </div>
+                    <div className="flex gap-4">
+                      <Select value={mode} onValueChange={handleSiteModeChange}>
+                        <SelectTrigger className="w-64">
+                          <SelectValue placeholder="انتخاب حالت" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="normal">عادی</SelectItem>
+                          <SelectItem value="development_mode">حالت توسعه</SelectItem>
+                          <SelectItem value="update_mode">حالت بروزرسانی</SelectItem>
+                          <SelectItem value="temporarily_unavailable">موقتاً غیرفعال</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Eye className="w-5 h-5" />
+                      پیش‌نمایش صفحات
+                    </CardTitle>
+                    <CardDescription>
+                      مشاهده و بررسی صفحات مختلف سایت
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex gap-4">
+                      <Button asChild variant="outline">
+                        <a href="/404" target="_blank" rel="noopener noreferrer">
+                          <Eye className="w-4 h-4 ml-2" />
+                          مشاهده صفحه 404
+                        </a>
+                      </Button>
+                      <Button asChild variant="outline">
+                        <a href="/wizard" target="_blank" rel="noopener noreferrer">
+                          <Eye className="w-4 h-4 ml-2" />
+                          مشاهده صفحه ویزارد
+                        </a>
+                      </Button>
+                      <Button asChild variant="outline">
+                        <a href="/" target="_blank" rel="noopener noreferrer">
+                          <Eye className="w-4 h-4 ml-2" />
+                          مشاهده صفحه اصلی
+                        </a>
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
           </Tabs>

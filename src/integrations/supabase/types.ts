@@ -83,6 +83,27 @@ export type Database = {
         }
         Relationships: []
       }
+      site_config: {
+        Row: {
+          created_at: string
+          id: string
+          mode: Database["public"]["Enums"]["site_mode"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mode?: Database["public"]["Enums"]["site_mode"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mode?: Database["public"]["Enums"]["site_mode"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -122,6 +143,11 @@ export type Database = {
       }
     }
     Enums: {
+      site_mode:
+        | "normal"
+        | "temporarily_unavailable"
+        | "update_mode"
+        | "development_mode"
       user_role: "user" | "admin"
     }
     CompositeTypes: {
@@ -250,6 +276,12 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      site_mode: [
+        "normal",
+        "temporarily_unavailable",
+        "update_mode",
+        "development_mode",
+      ],
       user_role: ["user", "admin"],
     },
   },

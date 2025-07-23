@@ -12,8 +12,54 @@ import NotFound from "./pages/NotFound";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { useSiteMode } from "@/hooks/useSiteMode";
+import SiteModeDisplay from "@/components/ui/SiteModeDisplay";
 
 const queryClient = new QueryClient();
+
+const AppContent = () => {
+  const { mode, loading } = useSiteMode();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Show full-page mode displays for maintenance and unavailable modes
+  if (mode === 'temporarily_unavailable' || mode === 'update_mode') {
+    return <SiteModeDisplay mode={mode} />;
+  }
+
+  return (
+    <>
+      {mode === 'development_mode' && (
+        <div className="relative z-50">
+          <SiteModeDisplay mode={mode} />
+        </div>
+      )}
+      <Routes>
+        <Route path="/" element={<Index />} />
+        <Route path="/wizard" element={<Wizard />} />
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/dashboard" element={
+          <ProtectedRoute>
+            <Dashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/admin" element={
+          <ProtectedRoute requireAdmin={true}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } />
+        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
+  );
+};
 
 const App = () => (
   <HelmetProvider>
@@ -23,23 +69,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/wizard" element={<Wizard />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route path="/dashboard" element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin" element={
-                <ProtectedRoute requireAdmin={true}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <AppContent />
           </BrowserRouter>
         </TooltipProvider>
       </AuthProvider>

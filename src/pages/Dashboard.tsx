@@ -188,9 +188,11 @@ const Dashboard = () => {
             <TabsContent value="orders" className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">سفارشات من</h2>
-                <Button onClick={() => setCreateOrderOpen(true)} className="flex items-center gap-2">
-                  <Plus className="w-4 h-4" />
-                  سفارش جدید
+                <Button asChild className="flex items-center gap-2">
+                  <a href="/wizard">
+                    <Plus className="w-4 h-4" />
+                    سفارش جدید
+                  </a>
                 </Button>
               </div>
 
@@ -203,9 +205,11 @@ const Dashboard = () => {
                       <p className="text-muted-foreground mb-4">
                         شما هنوز هیچ سفارشی ندارید. اولین سفارش خود را ایجاد کنید
                       </p>
-                      <Button onClick={() => setCreateOrderOpen(true)}>
-                        <Plus className="w-4 h-4 ml-2" />
-                        سفارش جدید
+                      <Button asChild>
+                        <a href="/wizard">
+                          <Plus className="w-4 h-4 ml-2" />
+                          سفارش جدید
+                        </a>
                       </Button>
                     </div>
                   </CardContent>

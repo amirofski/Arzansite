@@ -154,7 +154,7 @@ const Wizard = () => {
         <link rel="canonical" href={siteConfig.seo.siteUrl + '/wizard'} />
       </Helmet>
       <div className="min-h-screen bg-background py-8 mt-20">
-        <div className="container mx-auto px-4 max-w-4xl">
+        <div className="container mx-auto px-4">
           {/* Progress */}
           <div className="mb-8">
             <Progress value={progress} className="h-2 mb-4" />

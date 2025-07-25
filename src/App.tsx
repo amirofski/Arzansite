@@ -36,7 +36,7 @@ const AppContent = () => {
   return (
     <>
       {mode === 'development_mode' && (
-        <div className="relative z-50">
+        <div className="relative z-50 mt-20">
           <SiteModeDisplay mode={mode} />
         </div>
       )}

@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye, Download, FileText } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteMode, type SiteMode } from '@/hooks/useSiteMode';
@@ -28,6 +29,7 @@ interface Profile {
 
 interface Order {
   id: string;
+  user_id: string;
   title: string;
   description: string;
   status: string;
@@ -49,6 +51,12 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedOrderDesigns, setSelectedOrderDesigns] = useState<any>(null);
+  const [selectedOrderFiles, setSelectedOrderFiles] = useState<any>(null);
+  const [designDialogOpen, setDesignDialogOpen] = useState(false);
+  const [filesDialogOpen, setFilesDialogOpen] = useState(false);
+  const [wireframes, setWireframes] = useState<any[]>([]);
+  const [storageFiles, setStorageFiles] = useState<any[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -258,6 +266,104 @@ const AdminDashboard = () => {
     profile.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const viewOrderDesigns = async (orderId: string) => {
+    try {
+      // Get the order to find the user_id
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      // Fetch wireframes for this user
+      const { data: wireframeData, error } = await supabase
+        .from('wireframes')
+        .select('*')
+        .eq('user_id', order.user_id);
+
+      if (error) throw error;
+
+      setWireframes(wireframeData || []);
+      setSelectedOrderDesigns(order);
+      setDesignDialogOpen(true);
+
+      toast({
+        title: 'طرح‌های کاربر بارگیری شد',
+        description: `${wireframeData?.length || 0} طرح یافت شد`,
+      });
+    } catch (error) {
+      console.error('Error fetching designs:', error);
+      toast({
+        title: 'خطا در بارگیری طرح‌ها',
+        description: 'مشکلی در دریافت طرح‌های کاربر پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const viewOrderFiles = async (orderId: string) => {
+    try {
+      // Get the order to find the user_id
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
+
+      // Fetch files from wireframe-assets bucket for this user
+      const { data: filesData, error } = await supabase.storage
+        .from('wireframe-assets')
+        .list(order.user_id, {
+          limit: 100,
+          sortBy: { column: 'created_at', order: 'desc' }
+        });
+
+      if (error) throw error;
+
+      setStorageFiles(filesData || []);
+      setSelectedOrderFiles(order);
+      setFilesDialogOpen(true);
+
+      toast({
+        title: 'فایل‌های کاربر بارگیری شد',
+        description: `${filesData?.length || 0} فایل یافت شد`,
+      });
+    } catch (error) {
+      console.error('Error fetching files:', error);
+      toast({
+        title: 'خطا در بارگیری فایل‌ها',
+        description: 'مشکلی در دریافت فایل‌های کاربر پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const downloadFile = async (fileName: string, userId: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('wireframe-assets')
+        .download(`${userId}/${fileName}`);
+
+      if (error) throw error;
+
+      // Create download link
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: 'فایل دانلود شد',
+        description: `فایل ${fileName} با موفقیت دانلود شد`,
+      });
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      toast({
+        title: 'خطا در دانلود',
+        description: 'مشکلی در دانلود فایل پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -385,6 +491,26 @@ const AdminDashboard = () => {
                           <p className="text-sm text-muted-foreground mt-2">
                             مشتری: {order.profiles?.full_name} ({order.profiles?.email})
                           </p>
+                          <div className="flex gap-2 mt-3">
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => viewOrderDesigns(order.id)}
+                              className="flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              مشاهده طرح‌ها
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => viewOrderFiles(order.id)}
+                              className="flex items-center gap-1"
+                            >
+                              <Package className="w-3 h-3" />
+                              فایل‌های کاربر
+                            </Button>
+                          </div>
                         </div>
                         <div className="flex gap-2 items-center">
                           <Select
@@ -568,6 +694,113 @@ const AdminDashboard = () => {
           </Tabs>
         </motion.div>
       </div>
+
+      {/* Design Preview Dialog */}
+      <Dialog open={designDialogOpen} onOpenChange={setDesignDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>طرح‌های {selectedOrderDesigns?.profiles?.full_name}</DialogTitle>
+            <DialogDescription>
+              مشاهده تمام طرح‌های ذخیره شده توسط کاربر
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {wireframes.length === 0 ? (
+              <div className="text-center py-8">
+                <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">هیچ طرحی یافت نشد</p>
+              </div>
+            ) : (
+              wireframes.map((wireframe) => (
+                <Card key={wireframe.id}>
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">{wireframe.name}</CardTitle>
+                        {wireframe.description && (
+                          <CardDescription className="mt-1">
+                            {wireframe.description}
+                          </CardDescription>
+                        )}
+                        <p className="text-sm text-muted-foreground mt-2">
+                          تاریخ ایجاد: {formatDate(wireframe.created_at)}
+                        </p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="border rounded-lg p-4 bg-muted/50">
+                      <p className="text-sm text-muted-foreground mb-2">پیش‌نمایش طرح:</p>
+                      <div className="text-xs text-muted-foreground">
+                        صفحات: {wireframe.data?.pages?.length || 0} | 
+                        عناصر: {wireframe.data?.pages?.reduce((total: number, page: any) => total + (page.elements?.length || 0), 0) || 0}
+                      </div>
+                      {wireframe.data?.pages && wireframe.data.pages.length > 0 && (
+                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {wireframe.data.pages.slice(0, 4).map((page: any, index: number) => (
+                            <div key={index} className="border rounded p-2 bg-background">
+                              <p className="text-xs font-medium mb-1">{page.name}</p>
+                              <div className="text-xs text-muted-foreground">
+                                {page.elements?.length || 0} عنصر
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Files Dialog */}
+      <Dialog open={filesDialogOpen} onOpenChange={setFilesDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>فایل‌های {selectedOrderFiles?.profiles?.full_name}</DialogTitle>
+            <DialogDescription>
+              مشاهده و دانلود فایل‌های آپلود شده توسط کاربر
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {storageFiles.length === 0 ? (
+              <div className="text-center py-8">
+                <Package className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">هیچ فایلی یافت نشد</p>
+              </div>
+            ) : (
+              storageFiles.map((file) => (
+                <Card key={file.name} className="p-4">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-8 h-8 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">{file.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          حجم: {Math.round(file.metadata?.size / 1024)} KB | 
+                          آخرین تغییر: {formatDate(file.updated_at)}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadFile(file.name, selectedOrderFiles?.user_id)}
+                      className="flex items-center gap-2"
+                    >
+                      <Download className="w-4 h-4" />
+                      دانلود
+                    </Button>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

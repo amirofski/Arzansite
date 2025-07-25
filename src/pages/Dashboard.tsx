@@ -7,7 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Package, User, Calendar, DollarSign } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Plus, Package, User, Calendar, DollarSign, Eye, FileText, Layers } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
 import CreateOrderDialog from '@/components/dashboard/CreateOrderDialog';
@@ -40,6 +41,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [wireframeDialogOpen, setWireframeDialogOpen] = useState(false);
+  const [userWireframes, setUserWireframes] = useState<any[]>([]);
+  const [selectedWireframe, setSelectedWireframe] = useState<any>(null);
 
   useEffect(() => {
     fetchData();
@@ -78,6 +82,73 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const viewWireframeDesigns = async () => {
+    if (!user) return;
+
+    try {
+      const { data: wireframeData, error } = await supabase
+        .from('wireframes')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      setUserWireframes(wireframeData || []);
+      setWireframeDialogOpen(true);
+
+      toast({
+        title: 'طرح‌های شما بارگیری شد',
+        description: `${wireframeData?.length || 0} طرح یافت شد`,
+      });
+    } catch (error) {
+      console.error('Error fetching wireframes:', error);
+      toast({
+        title: 'خطا در بارگیری طرح‌ها',
+        description: 'مشکلی در دریافت طرح‌های شما پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const viewWireframeDetails = (wireframe: any) => {
+    setSelectedWireframe(wireframe);
+  };
+
+  const renderWireframePreview = (wireframe: any) => {
+    if (!wireframe?.data?.pages) return null;
+
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+        {wireframe.data.pages.slice(0, 4).map((page: any, index: number) => (
+          <div
+            key={index}
+            className="border rounded-lg p-2 bg-background min-h-[80px] relative overflow-hidden"
+          >
+            <div className="text-xs font-medium mb-1 truncate">{page.name}</div>
+            <div className="absolute inset-2 top-6 border border-dashed border-muted-foreground/30 rounded">
+              {page.elements?.slice(0, 3).map((element: any, elemIndex: number) => (
+                <div
+                  key={elemIndex}
+                  className="absolute bg-primary/20 rounded-sm"
+                  style={{
+                    left: `${Math.min(element.x / 10, 60)}%`,
+                    top: `${Math.min(element.y / 10, 60)}%`,
+                    width: `${Math.min(element.width / 15, 30)}%`,
+                    height: `${Math.min(element.height / 20, 20)}%`,
+                  }}
+                />
+              ))}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {page.elements?.length || 0} عنصر
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -225,6 +296,17 @@ const Dashboard = () => {
                             <CardDescription className="mt-1">
                               {order.description}
                             </CardDescription>
+                            <div className="mt-3">
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={viewWireframeDesigns}
+                                className="flex items-center gap-2"
+                              >
+                                <Eye className="w-4 h-4" />
+                                مشاهده طرح‌ها
+                              </Button>
+                            </div>
                           </div>
                           <Badge className={`${getStatusColor(order.status)} border-0`}>
                             {getStatusText(order.status)}
@@ -310,6 +392,133 @@ const Dashboard = () => {
         profile={profile}
         onProfileUpdated={fetchData}
       />
+
+      {/* Wireframe Designs Dialog */}
+      <Dialog open={wireframeDialogOpen} onOpenChange={setWireframeDialogOpen}>
+        <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>طرح‌های وایرفریم شما</DialogTitle>
+            <DialogDescription>
+              مشاهده تمام طرح‌های ذخیره شده در پروژه‌های شما
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            {userWireframes.length === 0 ? (
+              <div className="text-center py-8">
+                <Layers className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">هیچ طرحی یافت نشد</h3>
+                <p className="text-muted-foreground mb-4">
+                  شما هنوز هیچ طرح وایرفریمی ایجاد نکرده‌اید
+                </p>
+                <Button asChild>
+                  <a href="/wizard">
+                    <Plus className="w-4 h-4 ml-2" />
+                    ایجاد طرح جدید
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              userWireframes.map((wireframe) => (
+                <Card key={wireframe.id} className="overflow-hidden">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-xl">{wireframe.name}</CardTitle>
+                        {wireframe.description && (
+                          <CardDescription className="mt-2">
+                            {wireframe.description}
+                          </CardDescription>
+                        )}
+                        <div className="flex gap-4 mt-3 text-sm text-muted-foreground">
+                          <span>تاریخ ایجاد: {formatDate(wireframe.created_at)}</span>
+                          <span>آخرین بروزرسانی: {formatDate(wireframe.updated_at)}</span>
+                          <span>
+                            صفحات: {wireframe.data?.pages?.length || 0}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => viewWireframeDetails(wireframe)}
+                        className={selectedWireframe?.id === wireframe.id ? "bg-primary text-primary-foreground" : ""}
+                      >
+                        {selectedWireframe?.id === wireframe.id ? "انتخاب شده" : "مشاهده جزئیات"}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  
+                  <CardContent>
+                    <div className="border rounded-lg p-4 bg-muted/30">
+                      <div className="flex items-center gap-2 mb-3">
+                        <FileText className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">پیش‌نمایش طرح</span>
+                      </div>
+                      
+                      {renderWireframePreview(wireframe)}
+                      
+                      {wireframe.data?.pages && wireframe.data.pages.length > 4 && (
+                        <div className="mt-3 text-xs text-muted-foreground text-center">
+                          و {wireframe.data.pages.length - 4} صفحه دیگر...
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Detailed view when selected */}
+                    {selectedWireframe?.id === wireframe.id && (
+                      <div className="mt-6 p-4 border rounded-lg bg-background">
+                        <h4 className="font-semibold mb-3 flex items-center gap-2">
+                          <Layers className="w-4 h-4" />
+                          جزئیات کامل طرح
+                        </h4>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                          {wireframe.data?.pages?.map((page: any, index: number) => (
+                            <div key={index} className="border rounded-lg p-3">
+                              <h5 className="font-medium mb-2">{page.name}</h5>
+                              <div className="text-sm text-muted-foreground mb-2">
+                                {page.elements?.length || 0} عنصر در این صفحه
+                              </div>
+                              
+                              {/* Visual representation of page */}
+                              <div className="border rounded bg-white h-32 relative overflow-hidden">
+                                {page.elements?.map((element: any, elemIndex: number) => (
+                                  <div
+                                    key={elemIndex}
+                                    className="absolute border border-primary/40 bg-primary/10 rounded-sm"
+                                    style={{
+                                      left: `${Math.min(element.x / 8, 85)}%`,
+                                      top: `${Math.min(element.y / 8, 85)}%`,
+                                      width: `${Math.min(element.width / 10, 15)}%`,
+                                      height: `${Math.min(element.height / 15, 10)}%`,
+                                    }}
+                                    title={element.type}
+                                  />
+                                ))}
+                              </div>
+                              
+                              {page.elements && page.elements.length > 0 && (
+                                <div className="mt-2 text-xs">
+                                  <div className="flex flex-wrap gap-1">
+                                    {[...new Set(page.elements.map((e: any) => e.type))].map((type: string, i: number) => (
+                                      <span key={i} className="bg-muted px-2 py-1 rounded text-xs">
+                                        {type}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

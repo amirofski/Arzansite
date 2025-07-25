@@ -7,6 +7,12 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { useToast } from '@/hooks/use-toast';
+import ImageUploadSystem from './ImageUploadSystem';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   RectangleHorizontal, 
   Type, 
@@ -43,18 +49,37 @@ import {
   Palette,
   AlignLeft,
   AlignCenter,
-  AlignRight
+  AlignRight,
+  Image as ImageIcon,
+  Play,
+  Images,
+  Upload,
+  Database,
+  Download
 } from 'lucide-react';
 
 interface WireframeElement {
   id: string;
-  type: 'rectangle' | 'text' | 'image' | 'button' | 'circle' | 'line' | 'menu' | 'header' | 'hero' | 'section' | 'footer';
+  type: 'rectangle' | 'text' | 'image' | 'button' | 'circle' | 'line' | 'menu' | 'header' | 'hero' | 'section' | 'footer' | 'logo' | 'navigation' | 'form' | 'video' | 'gallery' | 'testimonial' | 'cta';
   x: number;
   y: number;
   width: number;
   height: number;
   label?: string;
   template?: string;
+  content?: string;
+  src?: string;
+  href?: string;
+  fontSize?: number;
+  fontWeight?: string;
+  textAlign?: 'left' | 'center' | 'right';
+  backgroundColor?: string;
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  opacity?: number;
+  rotation?: number;
+  zIndex?: number;
 }
 
 interface WireframeData {
@@ -85,7 +110,11 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<'elements' | 'templates' | 'layers'>('elements');
+  const [canvasHeight, setCanvasHeight] = useState(wireframe.canvasHeight);
+  const [isSaving, setIsSaving] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const basicTools = [
     { type: 'rectangle', icon: RectangleHorizontal, label: 'مستطیل', width: 120, height: 80 },
@@ -94,6 +123,13 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
     { type: 'button', icon: Square, label: 'دکمه', width: 100, height: 40 },
     { type: 'circle', icon: Circle, label: 'دایره', width: 80, height: 80 },
     { type: 'line', icon: Minus, label: 'خط', width: 150, height: 2 },
+    { type: 'logo', icon: ImageIcon, label: 'لوگو', width: 100, height: 60 },
+    { type: 'navigation', icon: Menu, label: 'منوی ناوبری', width: 300, height: 50 },
+    { type: 'form', icon: FileText, label: 'فرم', width: 250, height: 200 },
+    { type: 'video', icon: Play, label: 'ویدیو', width: 300, height: 200 },
+    { type: 'gallery', icon: Images, label: 'گالری', width: 400, height: 250 },
+    { type: 'testimonial', icon: MessageSquare, label: 'نظرات', width: 300, height: 150 },
+    { type: 'cta', icon: Zap, label: 'فراخوان عمل', width: 200, height: 80 },
   ];
 
   const componentTemplates: Template[] = [
@@ -150,10 +186,32 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
       name: 'ویژگی‌ها - شبکه‌ای',
       type: 'section',
       elements: [
-        { type: 'text', x: 350, y: 550, width: 200, height: 40, label: 'ویژگی‌های ما' },
+        { type: 'text', x: 350, y: 550, width: 200, height: 40, label: 'ویژگی‌های ما', fontSize: 24 },
         { type: 'rectangle', x: 50, y: 620, width: 250, height: 150, label: 'ویژگی ۱' },
         { type: 'rectangle', x: 325, y: 620, width: 250, height: 150, label: 'ویژگی ۲' },
         { type: 'rectangle', x: 600, y: 620, width: 250, height: 150, label: 'ویژگی ۳' },
+      ]
+    },
+    {
+      id: 'pricing-table',
+      name: 'جدول قیمت‌گذاری',
+      type: 'section',
+      elements: [
+        { type: 'text', x: 350, y: 550, width: 200, height: 40, label: 'پکیج‌های قیمتی', fontSize: 24 },
+        { type: 'rectangle', x: 100, y: 620, width: 200, height: 250, label: 'پکیج پایه' },
+        { type: 'rectangle', x: 350, y: 620, width: 200, height: 250, label: 'پکیج حرفه‌ای' },
+        { type: 'rectangle', x: 600, y: 620, width: 200, height: 250, label: 'پکیج پیشرفته' },
+      ]
+    },
+    {
+      id: 'contact-form',
+      name: 'فرم تماس پیشرفته',
+      type: 'section',
+      elements: [
+        { type: 'text', x: 50, y: 550, width: 200, height: 40, label: 'تماس با ما', fontSize: 24 },
+        { type: 'form', x: 50, y: 600, width: 400, height: 300, label: 'فرم تماس کامل' },
+        { type: 'rectangle', x: 500, y: 600, width: 350, height: 200, label: 'اطلاعات تماس' },
+        { type: 'rectangle', x: 500, y: 820, width: 350, height: 120, label: 'نقشه موقعیت' },
       ]
     },
     {
@@ -161,10 +219,36 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
       name: 'نظرات مشتریان',
       type: 'section',
       elements: [
-        { type: 'text', x: 350, y: 800, width: 200, height: 40, label: 'نظرات مشتریان' },
-        { type: 'rectangle', x: 100, y: 870, width: 700, height: 120, label: 'نظر مشتری' },
-        { type: 'circle', x: 400, y: 1010, width: 60, height: 60, label: 'عکس' },
+        { type: 'text', x: 350, y: 800, width: 200, height: 40, label: 'نظرات مشتریان', fontSize: 24 },
+        { type: 'testimonial', x: 100, y: 870, width: 700, height: 120, label: 'نظر مشتری اول' },
+        { type: 'circle', x: 400, y: 1010, width: 60, height: 60, label: 'عکس مشتری' },
         { type: 'text', x: 350, y: 1080, width: 200, height: 30, label: 'نام مشتری' },
+      ]
+    },
+    {
+      id: 'team-section',
+      name: 'تیم ما',
+      type: 'section',
+      elements: [
+        { type: 'text', x: 350, y: 800, width: 200, height: 40, label: 'تیم ما', fontSize: 24 },
+        { type: 'circle', x: 150, y: 870, width: 120, height: 120, label: 'عضو تیم ۱' },
+        { type: 'circle', x: 390, y: 870, width: 120, height: 120, label: 'عضو تیم ۲' },
+        { type: 'circle', x: 630, y: 870, width: 120, height: 120, label: 'عضو تیم ۳' },
+        { type: 'text', x: 150, y: 1010, width: 120, height: 60, label: 'نام و سمت' },
+        { type: 'text', x: 390, y: 1010, width: 120, height: 60, label: 'نام و سمت' },
+        { type: 'text', x: 630, y: 1010, width: 120, height: 60, label: 'نام و سمت' },
+      ]
+    },
+    {
+      id: 'stats-section',
+      name: 'آمار و ارقام',
+      type: 'section',
+      elements: [
+        { type: 'text', x: 350, y: 800, width: 200, height: 40, label: 'آمار ما', fontSize: 24 },
+        { type: 'rectangle', x: 100, y: 870, width: 150, height: 100, label: '۱۰۰+\nمشتری' },
+        { type: 'rectangle', x: 275, y: 870, width: 150, height: 100, label: '۵۰۰+\nپروژه' },
+        { type: 'rectangle', x: 450, y: 870, width: 150, height: 100, label: '۵ سال\nتجربه' },
+        { type: 'rectangle', x: 625, y: 870, width: 150, height: 100, label: '۹۸%\nرضایت' },
       ]
     },
     // Footer Templates
@@ -188,20 +272,82 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
       elements: [
         // Header
         { type: 'rectangle', x: 0, y: 0, width: 900, height: 80, label: 'هدر', template: 'header-bg' },
-        { type: 'text', x: 50, y: 30, width: 100, height: 20, label: 'لوگو' },
-        { type: 'rectangle', x: 650, y: 25, width: 200, height: 30, label: 'منوی ناوبری' },
+        { type: 'logo', x: 50, y: 20, width: 100, height: 40, label: 'لوگو شرکت' },
+        { type: 'navigation', x: 650, y: 25, width: 200, height: 30, label: 'منوی اصلی' },
         // Hero
         { type: 'rectangle', x: 0, y: 80, width: 900, height: 350, label: 'بخش هیرو', template: 'hero-bg' },
-        { type: 'text', x: 300, y: 180, width: 300, height: 40, label: 'عنوان اصلی' },
-        { type: 'text', x: 250, y: 240, width: 400, height: 60, label: 'توضیح محصول' },
-        { type: 'button', x: 350, y: 330, width: 200, height: 50, label: 'شروع کنید' },
+        { type: 'text', x: 300, y: 180, width: 300, height: 40, label: 'عنوان اصلی', fontSize: 32, fontWeight: 'bold' },
+        { type: 'text', x: 250, y: 240, width: 400, height: 60, label: 'توضیح محصول یا خدمات شما' },
+        { type: 'cta', x: 350, y: 330, width: 200, height: 50, label: 'شروع کنید' },
         // Features
-        { type: 'text', x: 350, y: 460, width: 200, height: 40, label: 'ویژگی‌ها' },
+        { type: 'text', x: 350, y: 460, width: 200, height: 40, label: 'ویژگی‌های ما', fontSize: 24, fontWeight: 'bold' },
         { type: 'rectangle', x: 50, y: 520, width: 250, height: 120, label: 'ویژگی ۱' },
         { type: 'rectangle', x: 325, y: 520, width: 250, height: 120, label: 'ویژگی ۲' },
         { type: 'rectangle', x: 600, y: 520, width: 250, height: 120, label: 'ویژگی ۳' },
         // Footer
         { type: 'rectangle', x: 0, y: 680, width: 900, height: 80, label: 'فوتر', template: 'footer-bg' },
+      ]
+    },
+    {
+      id: 'ecommerce-page',
+      name: 'فروشگاه آنلاین',
+      type: 'page',
+      elements: [
+        // Header
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 80, label: 'هدر فروشگاه', template: 'header-bg' },
+        { type: 'logo', x: 50, y: 20, width: 120, height: 40, label: 'لوگو فروشگاه' },
+        { type: 'navigation', x: 200, y: 25, width: 400, height: 30, label: 'منوی محصولات' },
+        { type: 'button', x: 750, y: 25, width: 100, height: 30, label: 'سبد خرید' },
+        // Banner
+        { type: 'rectangle', x: 0, y: 80, width: 900, height: 200, label: 'بنر تبلیغاتی', template: 'hero-bg' },
+        { type: 'text', x: 50, y: 150, width: 400, height: 60, label: 'تخفیف ویژه محصولات', fontSize: 28 },
+        // Products Grid
+        { type: 'text', x: 50, y: 300, width: 200, height: 30, label: 'محصولات پیشنهادی', fontSize: 20 },
+        { type: 'rectangle', x: 50, y: 340, width: 180, height: 220, label: 'محصول ۱' },
+        { type: 'rectangle', x: 250, y: 340, width: 180, height: 220, label: 'محصول ۲' },
+        { type: 'rectangle', x: 450, y: 340, width: 180, height: 220, label: 'محصول ۳' },
+        { type: 'rectangle', x: 650, y: 340, width: 180, height: 220, label: 'محصول ۴' },
+        // Newsletter
+        { type: 'rectangle', x: 0, y: 580, width: 900, height: 100, label: 'عضویت در خبرنامه', template: 'footer-bg' },
+      ]
+    },
+    {
+      id: 'portfolio-page',
+      name: 'نمونه کار',
+      type: 'page',
+      elements: [
+        // Header
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 80, label: 'هدر', template: 'header-bg' },
+        { type: 'logo', x: 50, y: 20, width: 100, height: 40, label: 'نام هنرمند' },
+        { type: 'navigation', x: 650, y: 25, width: 200, height: 30, label: 'منوی نمونه کارها' },
+        // Hero
+        { type: 'text', x: 350, y: 120, width: 200, height: 40, label: 'نمونه کارهای من', fontSize: 28 },
+        // Gallery
+        { type: 'gallery', x: 50, y: 180, width: 800, height: 400, label: 'گالری پروژه‌ها' },
+        // About
+        { type: 'text', x: 50, y: 600, width: 400, height: 100, label: 'درباره من و تجربه‌هایم در این حوزه' },
+        { type: 'image', x: 500, y: 600, width: 350, height: 200, label: 'عکس شخصی' },
+      ]
+    },
+    {
+      id: 'blog-page',
+      name: 'صفحه وبلاگ',
+      type: 'page',
+      elements: [
+        // Header
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 80, label: 'هدر وبلاگ', template: 'header-bg' },
+        { type: 'logo', x: 50, y: 20, width: 100, height: 40, label: 'نام وبلاگ' },
+        { type: 'navigation', x: 650, y: 25, width: 200, height: 30, label: 'منوی دسته‌بندی' },
+        // Featured Post
+        { type: 'rectangle', x: 50, y: 100, width: 500, height: 200, label: 'مقاله ویژه' },
+        { type: 'text', x: 60, y: 120, width: 400, height: 30, label: 'عنوان مقاله اصلی', fontSize: 20 },
+        // Sidebar
+        { type: 'rectangle', x: 600, y: 100, width: 250, height: 400, label: 'نوار کناری' },
+        // Recent Posts
+        { type: 'text', x: 50, y: 320, width: 200, height: 30, label: 'مقالات اخیر', fontSize: 18 },
+        { type: 'rectangle', x: 50, y: 360, width: 500, height: 80, label: 'مقاله ۱' },
+        { type: 'rectangle', x: 50, y: 450, width: 500, height: 80, label: 'مقاله ۲' },
+        { type: 'rectangle', x: 50, y: 540, width: 500, height: 80, label: 'مقاله ۳' },
       ]
     },
     {
@@ -368,6 +514,23 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
     return wireframe.elements.find(el => el.id === selectedElement);
   };
 
+  const exportWireframe = () => {
+    const dataStr = JSON.stringify(wireframe, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `wireframe-${Date.now()}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+    
+    toast({
+      title: "صادر شد",
+      description: "فایل طرح دانلود شد",
+    });
+  };
+
   const renderElement = (element: WireframeElement) => {
     const isSelected = selectedElement === element.id;
 
@@ -425,16 +588,78 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
         content = element.label || '⭕';
         Object.assign(baseStyle, { borderRadius: '50%' });
         break;
-      case 'line':
-        content = '';
-        Object.assign(baseStyle, { 
-          backgroundColor: 'hsl(var(--border))',
-          height: 2,
-        });
-        break;
-      default:
-        content = element.label;
-    }
+        case 'line':
+          content = '';
+          Object.assign(baseStyle, { 
+            backgroundColor: 'hsl(var(--border))',
+            height: 2,
+          });
+          break;
+        case 'logo':
+          content = element.src ? (
+            <img src={element.src} alt={element.label || 'لوگو'} className="w-full h-full object-contain" />
+          ) : '🏢 ' + (element.label || 'لوگو');
+          break;
+        case 'navigation':
+          content = '📋 ' + (element.label || 'منوی ناوبری');
+          Object.assign(baseStyle, {
+            backgroundColor: 'hsl(var(--muted))',
+            justifyContent: 'flex-start',
+            padding: '10px',
+          });
+          break;
+        case 'form':
+          content = '📝 ' + (element.label || 'فرم');
+          Object.assign(baseStyle, {
+            backgroundColor: 'hsl(var(--card))',
+            border: '2px dashed hsl(var(--border))',
+          });
+          break;
+        case 'video':
+          content = '📺 ' + (element.label || 'ویدیو');
+          Object.assign(baseStyle, {
+            backgroundColor: 'hsl(var(--muted))',
+            color: 'hsl(var(--muted-foreground))',
+          });
+          break;
+        case 'gallery':
+          content = '🖼️ ' + (element.label || 'گالری');
+          Object.assign(baseStyle, {
+            backgroundColor: 'hsl(var(--secondary) / 0.1)',
+            border: '2px dashed hsl(var(--secondary))',
+          });
+          break;
+        case 'testimonial':
+          content = '💬 ' + (element.label || 'نظرات');
+          Object.assign(baseStyle, {
+            backgroundColor: 'hsl(var(--accent) / 0.1)',
+            border: '1px solid hsl(var(--accent))',
+          });
+          break;
+        case 'cta':
+          content = element.label || 'فراخوان عمل';
+          Object.assign(baseStyle, {
+            backgroundColor: 'hsl(var(--primary))',
+            color: 'hsl(var(--primary-foreground))',
+            borderRadius: '8px',
+            fontWeight: 'bold',
+          });
+          break;
+        default:
+          content = element.label;
+      }
+
+      // Apply custom styles
+      if (element.fontSize) baseStyle.fontSize = `${element.fontSize}px`;
+      if (element.fontWeight) baseStyle.fontWeight = element.fontWeight;
+      if (element.textAlign) baseStyle.textAlign = element.textAlign;
+      if (element.backgroundColor) baseStyle.backgroundColor = element.backgroundColor;
+      if (element.borderColor) baseStyle.borderColor = element.borderColor;
+      if (element.borderWidth) baseStyle.borderWidth = `${element.borderWidth}px`;
+      if (element.borderRadius) baseStyle.borderRadius = `${element.borderRadius}px`;
+      if (element.opacity) baseStyle.opacity = element.opacity;
+      if (element.rotation) baseStyle.transform = `${baseStyle.transform || ''} rotate(${element.rotation}deg)`;
+      if (element.zIndex) baseStyle.zIndex = element.zIndex;
 
     return (
       <div
@@ -487,6 +712,19 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
                 <Badge variant="outline">
                   {wireframe.elements.length} عنصر
                 </Badge>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="canvas-height" className="text-sm">ارتفاع بوم:</Label>
+                  <Input
+                    id="canvas-height"
+                    type="number"
+                    value={canvasHeight}
+                    onChange={(e) => updateCanvasHeight(Number(e.target.value))}
+                    className="w-20 h-8"
+                    min="400"
+                    max="5000"
+                  />
+                  <span className="text-xs text-muted-foreground">px</span>
+                </div>
                 {selectedElement && (
                   <Badge variant="default">
                     <Move className="h-3 w-3 mr-1" />

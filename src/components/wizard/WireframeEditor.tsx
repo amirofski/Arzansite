@@ -24,7 +24,10 @@ import {
   FileText,
   Star,
   Globe,
-  ChevronDown
+  ChevronDown,
+  Maximize,
+  Minimize,
+  X
 } from 'lucide-react';
 
 interface WireframeElement {
@@ -63,6 +66,7 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const [selectedElement, setSelectedElement] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const basicTools = [
@@ -440,13 +444,110 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   };
 
   return (
-    <div className="space-y-6">
-      <div className="text-center">
-        <h3 className="text-xl font-bold mb-2">ویرایشگر Wireframe حرفه‌ای</h3>
-        <p className="text-muted-foreground">
-          با استفاده از قالب‌های آماده و ابزارهای حرفه‌ای، طرح صفحات خود را طراحی کنید
-        </p>
-      </div>
+    <>
+      {/* Fullscreen Canvas Modal */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-50 bg-background">
+          <div className="h-full flex flex-col">
+            {/* Fullscreen Header */}
+            <div className="border-b p-4 flex justify-between items-center bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <div className="flex items-center gap-4">
+                <h2 className="text-lg font-semibold">بوم طراحی - حالت تمام صفحه</h2>
+                <Badge variant="outline">
+                  {wireframe.elements.length} عنصر
+                </Badge>
+                {selectedElement && (
+                  <Badge variant="default">
+                    <Move className="h-3 w-3 mr-1" />
+                    انتخاب شده
+                  </Badge>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={clearCanvas}
+                  className="text-destructive"
+                >
+                  <Trash2 className="h-4 w-4 ml-1" />
+                  پاک کردن
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsFullscreen(false)}
+                >
+                  <Minimize className="h-4 w-4 ml-1" />
+                  خروج از تمام صفحه
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setIsFullscreen(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Fullscreen Canvas */}
+            <div className="flex-1 overflow-auto p-4">
+              <div className="h-full flex items-center justify-center">
+                <div
+                  className="relative border-2 border-dashed border-border bg-muted/20 overflow-hidden shadow-lg"
+                  style={{
+                    width: Math.max(wireframe.canvasWidth, 1200),
+                    height: Math.max(wireframe.canvasHeight, 800),
+                    minHeight: '800px'
+                  }}
+                  onMouseMove={handleMouseMove}
+                  onMouseUp={handleMouseUp}
+                  onMouseLeave={handleMouseUp}
+                  onClick={() => setSelectedElement(null)}
+                >
+                  {wireframe.elements.length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                      <div className="text-center">
+                        <MoreHorizontal className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                        <h4 className="text-xl font-medium mb-2">بوم خالی است</h4>
+                        <p className="text-base">از قالب‌های آماده یا ابزارهای پایه استفاده کنید</p>
+                      </div>
+                    </div>
+                  )}
+                  {wireframe.elements.map(renderElement)}
+                </div>
+              </div>
+            </div>
+
+            {/* Fullscreen Quick Tools */}
+            <div className="border-t p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <div className="flex justify-center gap-2 flex-wrap">
+                {basicTools.map((tool) => (
+                  <Button
+                    key={tool.type}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addElement(tool.type)}
+                    className="flex items-center gap-2"
+                  >
+                    <tool.icon className="h-4 w-4" />
+                    {tool.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-6">
+        <div className="text-center">
+          <h3 className="text-xl font-bold mb-2">ویرایشگر Wireframe حرفه‌ای</h3>
+          <p className="text-muted-foreground">
+            با استفاده از قالب‌های آماده و ابزارهای حرفه‌ای، طرح صفحات خود را طراحی کنید
+          </p>
+        </div>
 
       <Tabs defaultValue="components" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
@@ -592,6 +693,15 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={() => setIsFullscreen(true)}
+                    className="text-primary"
+                  >
+                    <Maximize className="h-4 w-4 ml-1" />
+                    تمام صفحه
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={clearCanvas}
                     className="text-destructive"
                   >
@@ -658,8 +768,9 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
             </div>
           </div>
         </CardContent>
-      </Card>
-    </div>
+        </Card>
+      </div>
+    </>
   );
 };
 

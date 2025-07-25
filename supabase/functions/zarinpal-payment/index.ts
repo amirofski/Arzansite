@@ -6,109 +6,142 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ZarinPal SDK functionality
-class ZarinPal {
+// ZarinPal SDK implementation following official patterns
+class ZarinPalSDK {
   private merchantId: string;
-  private sandbox: boolean;
+  private isSandbox: boolean;
+  private baseUrl: string;
 
-  constructor(merchantId: string, sandbox = false) {
+  constructor(merchantId: string, isSandbox = false) {
     this.merchantId = merchantId;
-    this.sandbox = sandbox;
+    this.isSandbox = isSandbox;
+    this.baseUrl = isSandbox 
+      ? "https://sandbox.zarinpal.com"
+      : "https://api.zarinpal.com";
   }
 
-  private getApiUrl(endpoint: string): string {
-    const baseUrl = this.sandbox 
-      ? "https://sandbox.zarinpal.com/pg/v4/payment"
-      : "https://api.zarinpal.com/pg/v4/payment";
-    return `${baseUrl}/${endpoint}.json`;
+  get payments() {
+    return new Payments(this);
   }
 
-  private getPaymentUrl(authority: string): string {
-    const baseUrl = this.sandbox 
-      ? "https://sandbox.zarinpal.com/pg/StartPay"
-      : "https://www.zarinpal.com/pg/StartPay";
-    return `${baseUrl}/${authority}`;
+  get verifications() {
+    return new Verifications(this);
   }
 
-  async request(params: {
-    amount: number;
-    description: string;
-    callback_url: string;
-    metadata?: any;
-  }) {
-    const requestData = {
-      merchant_id: this.merchantId,
-      amount: params.amount,
-      description: params.description,
-      callback_url: params.callback_url,
-      metadata: params.metadata || {}
-    };
+  async makeRequest(endpoint: string, data: any) {
+    const url = `${this.baseUrl}${endpoint}`;
+    console.log(`Making request to: ${url}`, data);
 
-    console.log("ZarinPal payment request:", requestData);
-
-    const response = await fetch(this.getApiUrl("request"), {
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Accept": "application/json"
       },
-      body: JSON.stringify(requestData),
+      body: JSON.stringify({
+        merchant_id: this.merchantId,
+        ...data
+      }),
     });
 
     const result = await response.json();
-    console.log("ZarinPal payment response:", result);
+    console.log(`Response from ${endpoint}:`, result);
+    return result;
+  }
+
+  getRedirectUrl(authority: string): string {
+    const baseUrl = this.isSandbox 
+      ? "https://sandbox.zarinpal.com/pg/StartPay"
+      : "https://www.zarinpal.com/pg/StartPay";
+    return `${baseUrl}/${authority}`;
+  }
+}
+
+class Payments {
+  private zarinpal: ZarinPalSDK;
+  private endpoint = "/pg/v4/payment/request.json";
+
+  constructor(zarinpal: ZarinPalSDK) {
+    this.zarinpal = zarinpal;
+  }
+
+  async create(data: {
+    amount: number;
+    callback_url: string;
+    description: string;
+    mobile?: string;
+    email?: string;
+    metadata?: any;
+  }) {
+    // Validate amount (minimum 1000 Tomans)
+    if (data.amount < 1000) {
+      throw new Error("Amount must be at least 1000 Tomans");
+    }
+
+    const result = await this.zarinpal.makeRequest(this.endpoint, {
+      amount: data.amount,
+      callback_url: data.callback_url,
+      description: data.description,
+      mobile: data.mobile,
+      email: data.email,
+      metadata: data.metadata || {}
+    });
 
     if (result.data && result.data.code === 100) {
       return {
         success: true,
         authority: result.data.authority,
-        payment_url: this.getPaymentUrl(result.data.authority)
+        payment_url: this.zarinpal.getRedirectUrl(result.data.authority),
+        data: result.data
       };
     } else {
       return {
         success: false,
         error: result.errors?.message || "Payment request failed",
-        code: result.data?.code
+        code: result.data?.code,
+        errors: result.errors
       };
     }
   }
 
-  async verify(params: {
+  getRedirectUrl(authority: string): string {
+    return this.zarinpal.getRedirectUrl(authority);
+  }
+}
+
+class Verifications {
+  private zarinpal: ZarinPalSDK;
+  private endpoint = "/pg/v4/payment/verify.json";
+
+  constructor(zarinpal: ZarinPalSDK) {
+    this.zarinpal = zarinpal;
+  }
+
+  async verify(data: {
     amount: number;
     authority: string;
   }) {
-    const verifyData = {
-      merchant_id: this.merchantId,
-      amount: params.amount,
-      authority: params.authority
-    };
-
-    console.log("ZarinPal verify request:", verifyData);
-
-    const response = await fetch(this.getApiUrl("verify"), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      },
-      body: JSON.stringify(verifyData),
+    const result = await this.zarinpal.makeRequest(this.endpoint, {
+      amount: data.amount,
+      authority: data.authority
     });
-
-    const result = await response.json();
-    console.log("ZarinPal verify response:", result);
 
     if (result.data && result.data.code === 100) {
       return {
         success: true,
         ref_id: result.data.ref_id,
         card_hash: result.data.card_hash,
-        card_pan: result.data.card_pan
+        card_pan: result.data.card_pan,
+        fee_type: result.data.fee_type,
+        fee: result.data.fee,
+        data: result.data
       };
     } else {
       return {
         success: false,
         error: result.errors?.message || "Payment verification failed",
-        code: result.data?.code
+        code: result.data?.code,
+        errors: result.errors
       };
     }
   }
@@ -127,7 +160,7 @@ serve(async (req) => {
     } else if (action === "verify") {
       return await handlePaymentVerification(req, payload);
     } else {
-      throw new Error("Invalid action");
+      throw new Error("Invalid action. Use 'request' or 'verify'");
     }
   } catch (error) {
     console.error("Error:", error);
@@ -166,16 +199,17 @@ async function handlePaymentRequest(req: Request, payload: any) {
     throw new Error("ZarinPal merchant ID not configured");
   }
 
-  // Initialize ZarinPal (using sandbox for testing)
-  const zarinpal = new ZarinPal(merchantId, true);
+  // Initialize ZarinPal SDK (using sandbox for testing)
+  const zarinpal = new ZarinPalSDK(merchantId, true);
   
   const callbackUrl = `${req.headers.get("origin")}/payment-callback?order_id=${orderId}`;
 
-  // Request payment
-  const result = await zarinpal.request({
+  // Create payment request using SDK
+  const result = await zarinpal.payments.create({
     amount: amount,
     description: description,
     callback_url: callbackUrl,
+    email: user.email || undefined,
     metadata: {
       order_id: orderId,
       user_id: user.id
@@ -207,7 +241,7 @@ async function handlePaymentRequest(req: Request, payload: any) {
       }
     );
   } else {
-    throw new Error("Payment request failed: " + result.error);
+    throw new Error(`Payment request failed: ${result.error} (Code: ${result.code})`);
   }
 }
 
@@ -238,11 +272,11 @@ async function handlePaymentVerification(req: Request, payload: any) {
     throw new Error("ZarinPal merchant ID not configured");
   }
 
-  // Initialize ZarinPal (using sandbox for testing)
-  const zarinpal = new ZarinPal(merchantId, true);
+  // Initialize ZarinPal SDK (using sandbox for testing)
+  const zarinpal = new ZarinPalSDK(merchantId, true);
 
-  // Verify payment
-  const result = await zarinpal.verify({
+  // Verify payment using SDK
+  const result = await zarinpal.verifications.verify({
     authority: authority,
     amount: Math.floor(order.price / 10) // Convert from Rials to Tomans
   });
@@ -262,6 +296,8 @@ async function handlePaymentVerification(req: Request, payload: any) {
         refId: result.ref_id,
         cardHash: result.card_hash,
         cardPan: result.card_pan,
+        fee: result.fee,
+        feeType: result.fee_type,
         message: "Payment verified successfully"
       }),
       {

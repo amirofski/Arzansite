@@ -179,6 +179,43 @@ const Dashboard = () => {
     return new Date(dateString).toLocaleDateString('fa-IR');
   };
 
+  const formatOrderDescription = (description: string) => {
+    try {
+      const parsedData = JSON.parse(description);
+      
+      const siteTypeText = parsedData.siteType === 'personal' ? 'شخصی' : 'تجاری';
+      const modulesCount = parsedData.modules?.length || 0;
+      const hasLogo = parsedData.branding?.logo ? 'بله' : 'خیر';
+      const domain = parsedData.userInfo?.domain || 'نامشخص';
+      
+      return (
+        <div className="space-y-2 text-sm">
+          <div className="grid grid-cols-2 gap-4">
+            <div><span className="font-medium">نوع سایت:</span> {siteTypeText}</div>
+            <div><span className="font-medium">دامنه:</span> {domain}</div>
+            <div><span className="font-medium">تعداد ماژول:</span> {modulesCount}</div>
+            <div><span className="font-medium">لوگو:</span> {hasLogo}</div>
+          </div>
+          {parsedData.modules && parsedData.modules.length > 0 && (
+            <div>
+              <span className="font-medium">ماژول‌ها:</span>
+              <div className="flex flex-wrap gap-1 mt-1">
+                {parsedData.modules.map((module: string, index: number) => (
+                  <span key={index} className="bg-muted px-2 py-1 rounded text-xs">
+                    {module}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    } catch (error) {
+      // Fallback to original description if not JSON
+      return <span className="text-sm text-muted-foreground">{description}</span>;
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -293,9 +330,9 @@ const Dashboard = () => {
                         <div className="flex justify-between items-start">
                           <div>
                             <CardTitle className="text-lg">{order.title}</CardTitle>
-                            <CardDescription className="mt-1">
-                              {order.description}
-                            </CardDescription>
+                            <div className="mt-1">
+                              {formatOrderDescription(order.description)}
+                            </div>
                             <div className="mt-3">
                               <Button 
                                 variant="outline" 

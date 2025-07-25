@@ -55,7 +55,10 @@ import {
   Images,
   Upload,
   Database,
-  Download
+  Download,
+  ZoomIn,
+  ZoomOut,
+  Hand
 } from 'lucide-react';
 
 interface WireframeElement {
@@ -116,6 +119,7 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [panMode, setPanMode] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -482,7 +486,7 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   };
 
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 1) { // Middle mouse button
+    if ((e.button === 1 || (e.button === 0 && panMode)) && !selectedElement) { // Middle mouse button or left click in pan mode
       e.preventDefault();
       setIsPanning(true);
       setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
@@ -500,10 +504,13 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
     }
   };
 
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    const newZoom = Math.min(Math.max(zoom + delta, 0.1), 3);
+  const zoomIn = () => {
+    const newZoom = Math.min(zoom + 0.2, 3);
+    setZoom(newZoom);
+  };
+
+  const zoomOut = () => {
+    const newZoom = Math.max(zoom - 0.2, 0.1);
     setZoom(newZoom);
   };
 
@@ -846,12 +853,11 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
             {/* Fullscreen Canvas */}
             <div 
               className="flex-1 overflow-hidden p-4"
-              onWheel={handleWheel}
               onMouseDown={handleCanvasMouseDown}
               onMouseMove={handleCanvasMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
-              style={{ cursor: isPanning ? 'grabbing' : 'default' }}
+              style={{ cursor: isPanning ? 'grabbing' : (panMode ? 'grab' : 'default') }}
             >
               <div className="h-full flex items-center justify-center">
                 <div
@@ -916,6 +922,36 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
               </div>
             
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 border rounded-md p-1">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={zoomOut}
+                  disabled={zoom <= 0.1}
+                  className="h-8 w-8 p-0"
+                >
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <span className="text-xs min-w-12 text-center">{Math.round(zoom * 100)}%</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={zoomIn}
+                  disabled={zoom >= 3}
+                  className="h-8 w-8 p-0"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPanMode(!panMode)}
+                className={panMode ? "bg-primary/10 text-primary" : ""}
+                title="حالت جابجایی آزاد"
+              >
+                <Hand className="h-4 w-4" />
+              </Button>
               <Button
                 size="sm"
                 variant="outline"
@@ -1109,12 +1145,11 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
           {/* Main Canvas Area */}
           <div 
             className="flex-1 flex flex-col bg-muted/10 overflow-hidden"
-            onWheel={handleWheel}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleCanvasMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
-            style={{ cursor: isPanning ? 'grabbing' : 'default' }}
+            style={{ cursor: isPanning ? 'grabbing' : (panMode ? 'grab' : 'default') }}
           >
             <div className="flex-1 p-6 overflow-hidden">
               <div className="flex items-center justify-center h-full">

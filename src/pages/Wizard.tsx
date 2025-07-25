@@ -6,20 +6,37 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import StepOne from '@/components/wizard/StepOne';
-import StepTwo from '@/components/wizard/StepTwo';
+import ModuleSelector from '@/components/wizard/ModuleSelector';
 import StepThree from '@/components/wizard/StepThree';
-import StepFour from '@/components/wizard/StepFour';
+import PricingCalculator from '@/components/wizard/PricingCalculator';
 import StepFive from '@/components/wizard/StepFive';
 import StepSix from '@/components/wizard/StepSix';
 import Layout from "@/components/ui/Layout";
 
 interface WizardData {
   siteType: 'personal' | 'business' | '';
-  pages: string[];
+  modules: Array<{
+    id: string;
+    name: string;
+    nameEn: string;
+    complexity: number;
+    customizations: {
+      layout: string;
+      colors: string;
+      animations: string;
+    };
+  }>;
   branding: {
     primaryColor: string;
     fontFamily: string;
     logo: string;
+  };
+  pricing: {
+    selectedPackage: string;
+    additionalServices: string[];
+    customizationLevel: number[];
+    rushDelivery: boolean;
+    totalPrice: number;
   };
   userInfo: {
     name: string;
@@ -32,11 +49,18 @@ const Wizard = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [wizardData, setWizardData] = useState<WizardData>({
     siteType: '',
-    pages: [],
+    modules: [],
     branding: {
       primaryColor: '#8B5CF6',
       fontFamily: 'vazir',
       logo: ''
+    },
+    pricing: {
+      selectedPackage: '',
+      additionalServices: [],
+      customizationLevel: [3],
+      rushDelivery: false,
+      totalPrice: 0
     },
     userInfo: {
       name: '',
@@ -50,11 +74,11 @@ const Wizard = () => {
 
   const steps = [
     { number: 1, title: 'نوع سایت', description: 'انتخاب نوع وب‌سایت' },
-    { number: 2, title: 'صفحات', description: 'انتخاب صفحات مورد نیاز' },
-    { number: 3, title: 'برندینگ', description: 'طراحی و رنگ‌بندی' },
-    { number: 4, title: 'قیمت', description: 'محاسبه هزینه' },
+    { number: 2, title: 'ماژول‌ها', description: 'انتخاب ماژول‌های طراحی' },
+    { number: 3, title: 'برندینگ', description: 'طراحی و هویت بصری' },
+    { number: 4, title: 'قیمت‌گذاری', description: 'محاسبه هزینه هوشمند' },
     { number: 5, title: 'اطلاعات', description: 'اطلاعات شخصی' },
-    { number: 6, title: 'پرداخت', description: 'تکمیل سفارش' },
+    { number: 6, title: 'تأیید', description: 'تکمیل و ارسال سفارش' },
   ];
 
   const updateWizardData = (stepData: Partial<WizardData>) => {
@@ -78,11 +102,11 @@ const Wizard = () => {
       case 1:
         return <StepOne data={wizardData} updateData={updateWizardData} />;
       case 2:
-        return <StepTwo data={wizardData} updateData={updateWizardData} />;
+        return <ModuleSelector data={wizardData} updateData={updateWizardData} />;
       case 3:
         return <StepThree data={wizardData} updateData={updateWizardData} />;
       case 4:
-        return <StepFour data={wizardData} updateData={updateWizardData} />;
+        return <PricingCalculator data={wizardData} updateData={updateWizardData} />;
       case 5:
         return <StepFive data={wizardData} updateData={updateWizardData} />;
       case 6:
@@ -97,9 +121,11 @@ const Wizard = () => {
       case 1:
         return wizardData.siteType !== '';
       case 2:
-        return wizardData.pages.length > 0;
+        return wizardData.modules && wizardData.modules.length > 0;
       case 3:
         return wizardData.branding.primaryColor && wizardData.branding.fontFamily;
+      case 4:
+        return wizardData.pricing.selectedPackage !== '';
       case 5:
         return wizardData.userInfo.name && wizardData.userInfo.email && wizardData.userInfo.domain;
       default:

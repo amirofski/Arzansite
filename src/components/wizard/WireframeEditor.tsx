@@ -113,6 +113,10 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const [canvasHeight, setCanvasHeight] = useState(wireframe.canvasHeight);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [zoom, setZoom] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -474,6 +478,38 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
       updateData({ wireframe });
     }
     setIsDragging(false);
+    setIsPanning(false);
+  };
+
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 1) { // Middle mouse button
+      e.preventDefault();
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (isPanning) {
+      setPanOffset({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y
+      });
+    } else if (isDragging) {
+      handleMouseMove(e);
+    }
+  };
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    const newZoom = Math.min(Math.max(zoom + delta, 0.1), 3);
+    setZoom(newZoom);
+  };
+
+  const resetZoomAndPan = () => {
+    setZoom(1);
+    setPanOffset({ x: 0, y: 0 });
   };
 
   const updateCanvasHeight = (height: number) => {
@@ -808,18 +844,25 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
             </div>
 
             {/* Fullscreen Canvas */}
-            <div className="flex-1 overflow-auto p-4">
+            <div 
+              className="flex-1 overflow-hidden p-4"
+              onWheel={handleWheel}
+              onMouseDown={handleCanvasMouseDown}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              style={{ cursor: isPanning ? 'grabbing' : 'default' }}
+            >
               <div className="h-full flex items-center justify-center">
                 <div
                   className="relative border-2 border-dashed border-border bg-muted/20 overflow-hidden shadow-lg"
                   style={{
                     width: Math.max(wireframe.canvasWidth, 1200),
                     height: Math.max(wireframe.canvasHeight, 800),
-                    minHeight: '800px'
+                    minHeight: '800px',
+                    transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
+                    transformOrigin: 'center center'
                   }}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
                   onClick={() => setSelectedElement(null)}
                 >
                   {wireframe.elements.length === 0 && (
@@ -862,12 +905,15 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
         {/* Top Toolbar */}
         <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex items-center justify-between p-3">
-            <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold text-foreground">ویرایشگر حرفه‌ای</h2>
-              <Badge variant="outline" className="text-xs">
-                {wireframe.elements.length} عنصر
-              </Badge>
-            </div>
+              <div className="flex items-center gap-4">
+                <h2 className="text-lg font-semibold text-foreground">ویرایشگر حرفه‌ای</h2>
+                <Badge variant="outline" className="text-xs">
+                  {wireframe.elements.length} عنصر
+                </Badge>
+                <Badge variant="outline" className="text-xs">
+                  زوم: {Math.round(zoom * 100)}%
+                </Badge>
+              </div>
             
             <div className="flex items-center gap-2">
               <Button
@@ -877,6 +923,14 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
                 className={showGrid ? "bg-primary/10 text-primary" : ""}
               >
                 <Grid className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={resetZoomAndPan}
+                title="بازنشانی زوم و جابجایی"
+              >
+                <RotateCcw className="h-4 w-4" />
               </Button>
               <Button
                 size="sm"
@@ -1053,8 +1107,16 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
           </div>
 
           {/* Main Canvas Area */}
-          <div className="flex-1 flex flex-col bg-muted/10">
-            <div className="flex-1 p-6 overflow-auto">
+          <div 
+            className="flex-1 flex flex-col bg-muted/10 overflow-hidden"
+            onWheel={handleWheel}
+            onMouseDown={handleCanvasMouseDown}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            style={{ cursor: isPanning ? 'grabbing' : 'default' }}
+          >
+            <div className="flex-1 p-6 overflow-hidden">
               <div className="flex items-center justify-center h-full">
                 <div
                   ref={canvasRef}
@@ -1068,11 +1130,10 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
                     backgroundImage: showGrid ? 
                       'radial-gradient(circle, hsl(var(--muted-foreground) / 0.15) 1px, transparent 1px)' : 
                       'none',
-                    backgroundSize: showGrid ? '20px 20px' : 'auto'
+                    backgroundSize: showGrid ? `${20 * zoom}px ${20 * zoom}px` : 'auto',
+                    transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
+                    transformOrigin: 'center center'
                   }}
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
                   onClick={() => setSelectedElement(null)}
                 >
                   {wireframe.elements.length === 0 && (

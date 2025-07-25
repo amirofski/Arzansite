@@ -731,20 +731,49 @@ const AdminDashboard = () => {
                   <CardContent>
                     <div className="border rounded-lg p-4 bg-muted/50">
                       <p className="text-sm text-muted-foreground mb-2">پیش‌نمایش طرح:</p>
-                      <div className="text-xs text-muted-foreground">
+                      <div className="text-xs text-muted-foreground mb-3">
                         صفحات: {wireframe.data?.pages?.length || 0} | 
                         عناصر: {wireframe.data?.pages?.reduce((total: number, page: any) => total + (page.elements?.length || 0), 0) || 0}
                       </div>
-                      {wireframe.data?.pages && wireframe.data.pages.length > 0 && (
-                        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      
+                      {/* Visual wireframe preview */}
+                      {wireframe.data?.pages && wireframe.data.pages.length > 0 ? (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                           {wireframe.data.pages.slice(0, 4).map((page: any, index: number) => (
-                            <div key={index} className="border rounded p-2 bg-background">
-                              <p className="text-xs font-medium mb-1">{page.name}</p>
-                              <div className="text-xs text-muted-foreground">
+                            <div
+                              key={index}
+                              className="border rounded-lg p-2 bg-background min-h-[80px] relative overflow-hidden"
+                            >
+                              <div className="text-xs font-medium mb-1 truncate">{page.name}</div>
+                              <div className="absolute inset-2 top-6 border border-dashed border-muted-foreground/30 rounded">
+                                {page.elements?.slice(0, 3).map((element: any, elemIndex: number) => (
+                                  <div
+                                    key={elemIndex}
+                                    className="absolute bg-primary/20 rounded-sm"
+                                    style={{
+                                      left: `${Math.min(element.x / 10, 60)}%`,
+                                      top: `${Math.min(element.y / 10, 60)}%`,
+                                      width: `${Math.min(element.width / 15, 30)}%`,
+                                      height: `${Math.min(element.height / 20, 20)}%`,
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
                                 {page.elements?.length || 0} عنصر
                               </div>
                             </div>
                           ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-4 text-muted-foreground text-sm">
+                          هیچ صفحه‌ای یافت نشد
+                        </div>
+                      )}
+                      
+                      {wireframe.data?.pages && wireframe.data.pages.length > 4 && (
+                        <div className="mt-3 text-xs text-muted-foreground text-center">
+                          و {wireframe.data.pages.length - 4} صفحه دیگر...
                         </div>
                       )}
                     </div>

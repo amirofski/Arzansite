@@ -151,6 +151,117 @@ const Dashboard = () => {
     );
   };
 
+  const renderOrderWireframePreview = (order: Order) => {
+    try {
+      const parsedData = JSON.parse(order.description);
+      
+      return (
+        <div className="space-y-4">
+          {/* Order Configuration Summary */}
+          <div className="border rounded-lg p-4 bg-muted/30">
+            <div className="flex items-center gap-2 mb-3">
+              <Layers className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium">پیکربندی پروژه</span>
+            </div>
+            
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+              <div className="bg-background rounded p-2">
+                <div className="text-xs text-muted-foreground">نوع سایت</div>
+                <div className="font-medium">{parsedData.siteType === 'personal' ? 'شخصی' : 'تجاری'}</div>
+              </div>
+              <div className="bg-background rounded p-2">
+                <div className="text-xs text-muted-foreground">دامنه</div>
+                <div className="font-medium truncate">{parsedData.userInfo?.domain || 'نامشخص'}</div>
+              </div>
+              <div className="bg-background rounded p-2">
+                <div className="text-xs text-muted-foreground">تعداد ماژول</div>
+                <div className="font-medium">{parsedData.modules?.length || 0}</div>
+              </div>
+              <div className="bg-background rounded p-2">
+                <div className="text-xs text-muted-foreground">لوگو</div>
+                <div className="font-medium">{parsedData.branding?.logo ? 'دارد' : 'ندارد'}</div>
+              </div>
+            </div>
+
+            {/* Modules Visual Preview */}
+            {parsedData.modules && parsedData.modules.length > 0 && (
+              <div className="mt-4">
+                <div className="text-sm font-medium mb-2">ماژول‌های انتخاب شده:</div>
+                <div className="flex flex-wrap gap-2">
+                  {parsedData.modules.map((module: string, index: number) => (
+                    <div key={index} className="bg-primary/10 border border-primary/20 rounded px-3 py-1 text-xs">
+                      {module}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Site Structure Mockup */}
+            <div className="mt-4">
+              <div className="text-sm font-medium mb-2">ساختار کلی سایت:</div>
+              <div className="border rounded bg-background p-4 h-32 relative overflow-hidden">
+                {/* Header */}
+                <div className="absolute top-2 left-2 right-2 h-4 bg-primary/20 rounded-sm flex items-center px-2">
+                  <div className="w-2 h-2 bg-primary/40 rounded-full mr-1"></div>
+                  <div className="text-xs opacity-60">Header</div>
+                </div>
+                
+                {/* Main Content Area */}
+                <div className="absolute top-8 left-2 right-2 bottom-6 bg-muted/50 rounded-sm p-2">
+                  <div className="grid grid-cols-3 gap-1 h-full">
+                    {parsedData.modules?.slice(0, 6).map((module: string, index: number) => (
+                      <div
+                        key={index}
+                        className="bg-primary/10 rounded-sm border border-primary/20 flex items-center justify-center"
+                      >
+                        <div className="text-xs text-center opacity-70">
+                          {module.slice(0, 8)}
+                        </div>
+                      </div>
+                    ))}
+                    {parsedData.modules?.length > 6 && (
+                      <div className="bg-muted rounded-sm border border-border flex items-center justify-center">
+                        <div className="text-xs opacity-60">+{parsedData.modules.length - 6}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Footer */}
+                <div className="absolute bottom-2 left-2 right-2 h-3 bg-muted rounded-sm"></div>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <div className="mt-3 flex gap-2">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={viewWireframeDesigns}
+                className="flex items-center gap-2"
+              >
+                <Eye className="w-4 h-4" />
+                مشاهده طرح‌های وایرفریم
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    } catch (error) {
+      // Fallback to original description if not JSON
+      return (
+        <div className="border rounded-lg p-4 bg-muted/30">
+          <div className="flex items-center gap-2 mb-2">
+            <FileText className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium">توضیحات سفارش</span>
+          </div>
+          <p className="text-sm text-muted-foreground">{order.description}</p>
+        </div>
+      );
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -323,26 +434,15 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid gap-6">
+                        <div className="grid gap-6">
                   {orders.map((order) => (
                     <Card key={order.id}>
                       <CardHeader>
                         <div className="flex justify-between items-start">
-                          <div>
+                          <div className="flex-1">
                             <CardTitle className="text-lg">{order.title}</CardTitle>
-                            <div className="mt-1">
-                              {formatOrderDescription(order.description)}
-                            </div>
                             <div className="mt-3">
-                              <Button 
-                                variant="outline" 
-                                size="sm"
-                                onClick={viewWireframeDesigns}
-                                className="flex items-center gap-2"
-                              >
-                                <Eye className="w-4 h-4" />
-                                مشاهده طرح‌ها
-                              </Button>
+                              {renderOrderWireframePreview(order)}
                             </div>
                           </div>
                           <Badge className={`${getStatusColor(order.status)} border-0`}>

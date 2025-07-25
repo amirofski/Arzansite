@@ -16,15 +16,20 @@ import Layout from "@/components/ui/Layout";
 interface WizardData {
   siteType: 'personal' | 'business' | '';
   wireframe?: {
-    elements: Array<{
+    pages: Array<{
       id: string;
-      type: string;
-      x: number;
-      y: number;
-      width: number;
-      height: number;
-      label?: string;
+      name: string;
+      elements: Array<{
+        id: string;
+        type: string;
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+        label?: string;
+      }>;
     }>;
+    currentPageId: string;
     canvasWidth: number;
     canvasHeight: number;
   };
@@ -134,7 +139,7 @@ const Wizard = () => {
       case 1:
         return wizardData.siteType !== '';
       case 2:
-        return wizardData.wireframe && wizardData.wireframe.elements && wizardData.wireframe.elements.length > 0;
+        return wizardData.wireframe && wizardData.wireframe.pages && wizardData.wireframe.pages.length > 0;
       case 3:
         return wizardData.branding.primaryColor && wizardData.branding.fontFamily;
       case 4:

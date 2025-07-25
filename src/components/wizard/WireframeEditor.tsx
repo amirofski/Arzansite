@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { 
   RectangleHorizontal, 
   Type, 
@@ -27,7 +30,20 @@ import {
   ChevronDown,
   Maximize,
   Minimize,
-  X
+  X,
+  Settings,
+  Layers,
+  Eye,
+  EyeOff,
+  Lock,
+  Unlock,
+  RotateCcw,
+  Save,
+  Grid,
+  Palette,
+  AlignLeft,
+  AlignCenter,
+  AlignRight
 } from 'lucide-react';
 
 interface WireframeElement {
@@ -67,6 +83,8 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showGrid, setShowGrid] = useState(true);
+  const [sidebarTab, setSidebarTab] = useState<'elements' | 'templates' | 'layers'>('elements');
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const basicTools = [
@@ -337,6 +355,19 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
     setSelectedElement(null);
   };
 
+  const updateElementProperty = (elementId: string, property: string, value: any) => {
+    const updatedElements = wireframe.elements.map(element =>
+      element.id === elementId
+        ? { ...element, [property]: value }
+        : element
+    );
+    updateWireframe(updatedElements);
+  };
+
+  const getSelectedElementData = () => {
+    return wireframe.elements.find(el => el.id === selectedElement);
+  };
+
   const renderElement = (element: WireframeElement) => {
     const isSelected = selectedElement === element.id;
 
@@ -541,184 +572,218 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
         </div>
       )}
 
-      <div className="space-y-6">
-        <div className="text-center">
-          <h3 className="text-xl font-bold mb-2">ویرایشگر Wireframe حرفه‌ای</h3>
-          <p className="text-muted-foreground">
-            با استفاده از قالب‌های آماده و ابزارهای حرفه‌ای، طرح صفحات خود را طراحی کنید
-          </p>
+      {/* Professional Editor Layout */}
+      <div className="h-screen flex flex-col bg-background">
+        {/* Top Toolbar */}
+        <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex items-center justify-between p-3">
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-semibold text-foreground">ویرایشگر حرفه‌ای</h2>
+              <Badge variant="outline" className="text-xs">
+                {wireframe.elements.length} عنصر
+              </Badge>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowGrid(!showGrid)}
+                className={showGrid ? "bg-primary/10 text-primary" : ""}
+              >
+                <Grid className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsFullscreen(true)}
+              >
+                <Maximize className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="outline">
+                <Save className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={clearCanvas}
+                className="text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
 
-      <Tabs defaultValue="components" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="components">قالب‌های جزء</TabsTrigger>
-          <TabsTrigger value="pages">قالب‌های صفحه</TabsTrigger>
-          <TabsTrigger value="tools">ابزارهای پایه</TabsTrigger>
-          <TabsTrigger value="canvas">بوم طراحی</TabsTrigger>
-        </TabsList>
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left Sidebar */}
+          <div className="w-80 border-r bg-muted/30 flex flex-col">
+            <div className="border-b">
+              <Tabs value={sidebarTab} onValueChange={(v) => setSidebarTab(v as any)} className="w-full">
+                <TabsList className="grid w-full grid-cols-3 rounded-none h-12">
+                  <TabsTrigger value="elements" className="text-xs">عناصر</TabsTrigger>
+                  <TabsTrigger value="templates" className="text-xs">قالب‌ها</TabsTrigger>
+                  <TabsTrigger value="layers" className="text-xs">لایه‌ها</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
 
-        <TabsContent value="components" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Layout className="h-4 w-4" />
-                قالب‌های آماده اجزا
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-64">
-                <div className="grid grid-cols-1 gap-3">
-                  {componentTemplates.map((template) => (
-                    <div
-                      key={template.id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        {template.type === 'header' && <Menu className="h-4 w-4 text-primary" />}
-                        {template.type === 'hero' && <Zap className="h-4 w-4 text-primary" />}
-                        {template.type === 'section' && <RectangleHorizontal className="h-4 w-4 text-primary" />}
-                        {template.type === 'footer' && <Minus className="h-4 w-4 text-primary" />}
-                        <div>
-                          <p className="font-medium text-sm">{template.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {template.elements.length} عنصر
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        onClick={() => addTemplate(template)}
-                        className="text-xs"
-                      >
-                        افزودن
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pages" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Globe className="h-4 w-4" />
-                قالب‌های صفحه کامل
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 gap-4">
-                {pageTemplates.map((template) => (
-                  <div
-                    key={template.id}
-                    className="p-4 border rounded-lg hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-primary" />
-                        <div>
-                          <h4 className="font-medium">{template.name}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {template.elements.length} عنصر - طراحی کامل
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
+            <ScrollArea className="flex-1">
+              {sidebarTab === 'elements' && (
+                <div className="p-4 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium mb-3 text-foreground">ابزارهای پایه</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {basicTools.map((tool) => (
                         <Button
-                          size="sm"
+                          key={tool.type}
                           variant="outline"
-                          onClick={() => addTemplate(template)}
-                        >
-                          افزودن به بوم
-                        </Button>
-                        <Button
                           size="sm"
-                          onClick={() => loadPageTemplate(template)}
+                          onClick={() => addElement(tool.type)}
+                          className="h-16 flex flex-col items-center gap-1 text-xs hover:bg-primary/10 hover:text-primary transition-colors"
                         >
-                          جایگزینی کامل
+                          <tool.icon className="h-5 w-5" />
+                          <span>{tool.label}</span>
                         </Button>
-                      </div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      این قالب شامل تمام بخش‌های مورد نیاز یک صفحه حرفه‌ای است
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="tools" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">ابزارهای پایه</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-3">
-                {basicTools.map((tool) => (
-                  <Button
-                    key={tool.type}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addElement(tool.type)}
-                    className="flex items-center gap-2 justify-start"
-                  >
-                    <tool.icon className="h-4 w-4" />
-                    {tool.label}
-                  </Button>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="canvas" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-sm">بوم طراحی</CardTitle>
-                <div className="flex gap-2 items-center">
-                  <Badge variant="outline">
-                    {wireframe.elements.length} عنصر
-                  </Badge>
-                  {selectedElement && (
-                    <Badge variant="default">
-                      <Move className="h-3 w-3 mr-1" />
-                      انتخاب شده
-                    </Badge>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsFullscreen(true)}
-                    className="text-primary"
-                  >
-                    <Maximize className="h-4 w-4 ml-1" />
-                    تمام صفحه
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={clearCanvas}
-                    className="text-destructive"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-96">
+              )}
+
+              {sidebarTab === 'templates' && (
+                <div className="p-4 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium mb-3">قالب‌های اجزا</h3>
+                    <div className="space-y-2">
+                      {componentTemplates.map((template) => (
+                        <div
+                          key={template.id}
+                          className="p-3 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                          onClick={() => addTemplate(template)}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            {template.type === 'header' && <Menu className="h-4 w-4 text-primary" />}
+                            {template.type === 'hero' && <Zap className="h-4 w-4 text-primary" />}
+                            {template.type === 'section' && <RectangleHorizontal className="h-4 w-4 text-primary" />}
+                            {template.type === 'footer' && <Minus className="h-4 w-4 text-primary" />}
+                            <span className="text-sm font-medium">{template.name}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{template.elements.length} عنصر</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div>
+                    <h3 className="text-sm font-medium mb-3">قالب‌های صفحه</h3>
+                    <div className="space-y-2">
+                      {pageTemplates.map((template) => (
+                        <div
+                          key={template.id}
+                          className="p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <FileText className="h-4 w-4 text-primary" />
+                            <span className="text-sm font-medium">{template.name}</span>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => addTemplate(template)}
+                              className="text-xs"
+                            >
+                              افزودن
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => loadPageTemplate(template)}
+                              className="text-xs"
+                            >
+                              جایگزینی
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {sidebarTab === 'layers' && (
+                <div className="p-4 space-y-2">
+                  <h3 className="text-sm font-medium mb-3">لایه‌ها</h3>
+                  {wireframe.elements.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">هیچ عنصری وجود ندارد</p>
+                  ) : (
+                    wireframe.elements.map((element) => (
+                      <div
+                        key={element.id}
+                        className={`p-2 rounded border cursor-pointer transition-colors ${
+                          selectedElement === element.id 
+                            ? 'bg-primary/10 border-primary' 
+                            : 'hover:bg-muted/50'
+                        }`}
+                        onClick={() => setSelectedElement(element.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Layers className="h-4 w-4" />
+                            <span className="text-sm">{element.label || element.type}</span>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                duplicateElement(element.id);
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteElement(element.id);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </ScrollArea>
+          </div>
+
+          {/* Main Canvas Area */}
+          <div className="flex-1 flex flex-col bg-muted/10">
+            <div className="flex-1 p-6 overflow-auto">
+              <div className="flex items-center justify-center h-full">
                 <div
                   ref={canvasRef}
-                  className="relative border-2 border-dashed border-border bg-muted/20 overflow-hidden"
+                  className={`relative bg-background shadow-xl overflow-hidden transition-all duration-200 ${
+                    showGrid ? 'bg-grid-pattern' : ''
+                  }`}
                   style={{
                     width: wireframe.canvasWidth,
                     height: wireframe.canvasHeight,
-                    minHeight: '600px'
+                    minHeight: '600px',
+                    backgroundImage: showGrid ? 
+                      'radial-gradient(circle, hsl(var(--muted-foreground) / 0.15) 1px, transparent 1px)' : 
+                      'none',
+                    backgroundSize: showGrid ? '20px 20px' : 'auto'
                   }}
                   onMouseMove={handleMouseMove}
                   onMouseUp={handleMouseUp}
@@ -728,50 +793,133 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
                   {wireframe.elements.length === 0 && (
                     <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
                       <div className="text-center">
-                        <MoreHorizontal className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <h4 className="text-lg font-medium mb-2">بوم خالی است</h4>
-                        <p className="text-sm">از قالب‌های آماده یا ابزارهای پایه استفاده کنید</p>
+                        <Layout className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                        <h4 className="text-xl font-medium mb-2">بوم خالی است</h4>
+                        <p className="text-sm">از عناصر یا قالب‌های سمت چپ استفاده کنید</p>
                       </div>
                     </div>
                   )}
                   {wireframe.elements.map(renderElement)}
                 </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
-
-      {/* Quick Stats */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-primary">{wireframe.elements.length}</div>
-              <div className="text-sm text-muted-foreground">کل عناصر</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-primary">
-                {wireframe.elements.filter(el => el.template).length}
               </div>
-              <div className="text-sm text-muted-foreground">قالب‌های اعمال شده</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-primary">{wireframe.canvasWidth}×{wireframe.canvasHeight}</div>
-              <div className="text-sm text-muted-foreground">اندازه بوم</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-primary">
-                {selectedElement ? '✓' : '○'}
-              </div>
-              <div className="text-sm text-muted-foreground">عنصر انتخاب شده</div>
             </div>
           </div>
-        </CardContent>
-        </Card>
+
+          {/* Right Properties Panel */}
+          {selectedElement && (
+            <div className="w-80 border-l bg-muted/30 flex flex-col">
+              <div className="border-b p-4">
+                <h3 className="text-sm font-medium flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  تنظیمات عنصر
+                </h3>
+              </div>
+              
+              <ScrollArea className="flex-1">
+                <div className="p-4 space-y-4">
+                  {(() => {
+                    const element = getSelectedElementData();
+                    if (!element) return null;
+                    
+                    return (
+                      <>
+                        <div>
+                          <Label className="text-xs">نام عنصر</Label>
+                          <Input
+                            value={element.label || ''}
+                            onChange={(e) => updateElementProperty(element.id, 'label', e.target.value)}
+                            className="mt-1"
+                            placeholder="نام عنصر"
+                          />
+                        </div>
+                        
+                        <Separator />
+                        
+                        <div>
+                          <Label className="text-xs mb-2 block">موقعیت</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">X</Label>
+                              <Input
+                                type="number"
+                                value={element.x}
+                                onChange={(e) => updateElementProperty(element.id, 'x', parseInt(e.target.value))}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">Y</Label>
+                              <Input
+                                type="number"
+                                value={element.y}
+                                onChange={(e) => updateElementProperty(element.id, 'y', parseInt(e.target.value))}
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <Label className="text-xs mb-2 block">اندازه</Label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-xs text-muted-foreground">عرض</Label>
+                              <Input
+                                type="number"
+                                value={element.width}
+                                onChange={(e) => updateElementProperty(element.id, 'width', parseInt(e.target.value))}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-xs text-muted-foreground">ارتفاع</Label>
+                              <Input
+                                type="number"
+                                value={element.height}
+                                onChange={(e) => updateElementProperty(element.id, 'height', parseInt(e.target.value))}
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <Separator />
+                        
+                        <div className="space-y-2">
+                          <Label className="text-xs">اعمال</Label>
+                          <div className="flex gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => duplicateElement(element.id)}
+                              className="flex-1"
+                            >
+                              <Copy className="h-3 w-3 ml-1" />
+                              کپی
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => deleteElement(element.id)}
+                              className="flex-1 text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-3 w-3 ml-1" />
+                              حذف
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );
+
 };
 
 export default WireframeEditor;

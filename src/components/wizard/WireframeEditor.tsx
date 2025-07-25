@@ -101,12 +101,19 @@ interface WireframeData {
   canvasHeight: number;
 }
 
-interface WireframeEditorPagesProps {
+interface Template {
+  id: string;
+  name: string;
+  type: string;
+  elements: Omit<WireframeElement, 'id'>[];
+}
+
+interface WireframeEditorProps {
   data: any;
   updateData: (data: any) => void;
 }
 
-const WireframeEditorPages: React.FC<WireframeEditorPagesProps> = ({ data, updateData }) => {
+const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) => {
   // Initialize wireframe data with pages support
   const initializeWireframe = (): WireframeData => {
     if (data.wireframe && data.wireframe.pages) {
@@ -147,6 +154,73 @@ const WireframeEditorPages: React.FC<WireframeEditorPagesProps> = ({ data, updat
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  const basicTools = [
+    { type: 'rectangle', icon: RectangleHorizontal, label: 'مستطیل', width: 120, height: 80 },
+    { type: 'text', icon: Type, label: 'متن', width: 100, height: 30 },
+    { type: 'image', icon: Image, label: 'تصویر', width: 150, height: 100 },
+    { type: 'button', icon: Square, label: 'دکمه', width: 100, height: 40 },
+    { type: 'circle', icon: Circle, label: 'دایره', width: 80, height: 80 },
+    { type: 'line', icon: Minus, label: 'خط', width: 150, height: 2 },
+    { type: 'logo', icon: ImageIcon, label: 'لوگو', width: 100, height: 60 },
+    { type: 'navigation', icon: Menu, label: 'منوی ناوبری', width: 300, height: 50 },
+    { type: 'form', icon: FileText, label: 'فرم', width: 250, height: 200 },
+    { type: 'video', icon: Play, label: 'ویدیو', width: 300, height: 200 },
+    { type: 'gallery', icon: Images, label: 'گالری', width: 400, height: 250 },
+    { type: 'testimonial', icon: MessageSquare, label: 'نظرات', width: 300, height: 150 },
+    { type: 'cta', icon: Zap, label: 'فراخوان عمل', width: 200, height: 80 },
+  ];
+
+  const componentTemplates: Template[] = [
+    // Header Templates
+    {
+      id: 'header-minimal',
+      name: 'هدر مینیمال',
+      type: 'header',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 80, label: 'هدر', template: 'header-bg' },
+        { type: 'logo', x: 50, y: 20, width: 120, height: 40, label: 'لوگو' },
+        { type: 'navigation', x: 650, y: 20, width: 200, height: 40, label: 'منوی اصلی' }
+      ]
+    },
+    {
+      id: 'header-modern',
+      name: 'هدر مدرن',
+      type: 'header',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 100, label: 'هدر مدرن', backgroundColor: '#1f2937' },
+        { type: 'logo', x: 60, y: 25, width: 100, height: 50, label: 'لوگو برند' },
+        { type: 'navigation', x: 300, y: 25, width: 300, height: 50, label: 'منوی ناوبری' },
+        { type: 'button', x: 750, y: 30, width: 100, height: 40, label: 'ورود', backgroundColor: '#3b82f6' }
+      ]
+    },
+    // Hero Section Templates
+    {
+      id: 'hero-center',
+      name: 'هیرو مرکزی',
+      type: 'hero',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 400, label: 'بخش هیرو', backgroundColor: '#f8fafc' },
+        { type: 'text', x: 200, y: 120, width: 500, height: 60, label: 'عنوان اصلی', fontSize: 48, textAlign: 'center' },
+        { type: 'text', x: 150, y: 200, width: 600, height: 40, label: 'توضیحات کوتاه', fontSize: 18, textAlign: 'center' },
+        { type: 'button', x: 375, y: 280, width: 150, height: 50, label: 'شروع کنید', backgroundColor: '#10b981' }
+      ]
+    },
+    // Card Templates
+    {
+      id: 'card-product',
+      name: 'کارت محصول',
+      type: 'card',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 280, height: 350, label: 'کارت محصول', backgroundColor: '#ffffff', borderWidth: 1 },
+        { type: 'image', x: 20, y: 20, width: 240, height: 180, label: 'تصویر محصول' },
+        { type: 'text', x: 20, y: 220, width: 240, height: 30, label: 'نام محصول', fontSize: 18, fontWeight: 'bold' },
+        { type: 'text', x: 20, y: 250, width: 240, height: 40, label: 'توضیحات محصول', fontSize: 14 },
+        { type: 'text', x: 20, y: 300, width: 120, height: 30, label: '۲۵۰٬۰۰۰ تومان', fontSize: 16, fontWeight: 'bold' },
+        { type: 'button', x: 160, y: 300, width: 100, height: 30, label: 'خرید', backgroundColor: '#3b82f6' }
+      ]
+    }
+  ];
 
   // Helper functions for page management
   const getCurrentPage = (): WireframePage => {
@@ -222,15 +296,10 @@ const WireframeEditorPages: React.FC<WireframeEditorPagesProps> = ({ data, updat
     updateData({ wireframe });
   }, [wireframe, updateData]);
 
-  // Basic tools
-  const basicTools = [
-    { type: 'rectangle', icon: RectangleHorizontal, label: 'مستطیل', width: 120, height: 80 },
-    { type: 'text', icon: Type, label: 'متن', width: 100, height: 30 },
-    { type: 'image', icon: Image, label: 'تصویر', width: 150, height: 100 },
-    { type: 'button', icon: Square, label: 'دکمه', width: 100, height: 40 },
-    { type: 'circle', icon: Circle, label: 'دایره', width: 80, height: 80 },
-    { type: 'line', icon: Minus, label: 'خط', width: 150, height: 2 },
-  ];
+  const updateCanvasHeight = (height: number) => {
+    setCanvasHeight(height);
+    setWireframe(prev => ({ ...prev, canvasHeight: height }));
+  };
 
   const addElement = (type: string) => {
     const tool = basicTools.find(t => t.type === type);
@@ -239,14 +308,98 @@ const WireframeEditorPages: React.FC<WireframeEditorPagesProps> = ({ data, updat
     const newElement: WireframeElement = {
       id: `${type}-${Date.now()}`,
       type: type as any,
-      x: 50,
-      y: 50,
+      x: 50 + Math.random() * 100,
+      y: 50 + Math.random() * 100,
       width: tool.width,
       height: tool.height,
       label: tool.label,
+      backgroundColor: type === 'button' ? '#3b82f6' : '#f8f9fa',
+      borderWidth: 1,
+      borderColor: '#e5e7eb',
+      borderRadius: type === 'circle' ? 50 : type === 'button' ? 8 : 4,
+      opacity: 1,
+      zIndex: 1
     };
 
     updateCurrentPageElements([...getCurrentElements(), newElement]);
+  };
+
+  const addTemplate = (template: Template) => {
+    const newElements = template.elements.map((element, index) => ({
+      ...element,
+      id: `${element.type}-${Date.now()}-${index}`,
+      x: element.x + Math.random() * 50,
+      y: element.y + Math.random() * 50
+    }));
+
+    updateCurrentPageElements([...getCurrentElements(), ...newElements]);
+  };
+
+  const handleElementMouseDown = (e: React.MouseEvent, elementId: string) => {
+    e.stopPropagation();
+    setSelectedElement(elementId);
+    setIsDragging(true);
+    
+    const element = getCurrentElements().find(el => el.id === elementId);
+    if (element && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      setDragOffset({
+        x: (e.clientX - rect.left) / zoom - element.x,
+        y: (e.clientY - rect.top) / zoom - element.y
+      });
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (isPanning && canvasRef.current) {
+      setPanOffset({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y
+      });
+      return;
+    }
+
+    if (isDragging && selectedElement && canvasRef.current) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const newX = (e.clientX - rect.left) / zoom - dragOffset.x;
+      const newY = (e.clientY - rect.top) / zoom - dragOffset.y;
+
+      const updatedElements = getCurrentElements().map(element =>
+        element.id === selectedElement
+          ? { ...element, x: Math.max(0, newX), y: Math.max(0, newY) }
+          : element
+      );
+
+      updateCurrentPageElements(updatedElements);
+    }
+  };
+
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    if ((e.button === 1 || (e.button === 0 && panMode)) && !selectedElement) {
+      e.preventDefault();
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+      return;
+    }
+
+    if (e.button === 0 && !panMode) {
+      setSelectedElement(null);
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setIsPanning(false);
+  };
+
+  const zoomIn = () => {
+    const newZoom = Math.min(zoom + 0.2, 3);
+    setZoom(newZoom);
+  };
+
+  const zoomOut = () => {
+    const newZoom = Math.max(zoom - 0.2, 0.1);
+    setZoom(newZoom);
   };
 
   const deleteElement = (elementId: string) => {
@@ -255,13 +408,73 @@ const WireframeEditorPages: React.FC<WireframeEditorPagesProps> = ({ data, updat
     setSelectedElement(null);
   };
 
+  const duplicateElement = (elementId: string) => {
+    const element = getCurrentElements().find(el => el.id === elementId);
+    if (!element) return;
+
+    const newElement = {
+      ...element,
+      id: `${element.type}-${Date.now()}`,
+      x: element.x + 20,
+      y: element.y + 20
+    };
+
+    updateCurrentPageElements([...getCurrentElements(), newElement]);
+  };
+
+  const clearCanvas = () => {
+    updateCurrentPageElements([]);
+    setSelectedElement(null);
+  };
+
+  const updateElementProperty = (elementId: string, property: string, value: any) => {
+    const updatedElements = getCurrentElements().map(element =>
+      element.id === elementId
+        ? { ...element, [property]: value }
+        : element
+    );
+    updateCurrentPageElements(updatedElements);
+  };
+
+  const getSelectedElementData = () => {
+    return getCurrentElements().find(el => el.id === selectedElement);
+  };
+
+  const saveWireframe = async () => {
+    try {
+      setIsSaving(true);
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "خطا", description: "لطفاً ابتدا وارد شوید" });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('wireframes')
+        .insert({
+          user_id: user.id,
+          name: `وایرفریم ${new Date().toLocaleDateString('fa-IR')}`,
+          data: wireframe as any
+        });
+
+      if (error) throw error;
+      toast({ title: "موفقیت", description: "وایرفریم با موفقیت ذخیره شد" });
+    } catch (error) {
+      console.error('Error saving wireframe:', error);
+      toast({ title: "خطا", description: "خطا در ذخیره‌سازی وایرفریم" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const renderElement = (element: WireframeElement) => {
     const isSelected = selectedElement === element.id;
     
     return (
       <div
         key={element.id}
-        className={`absolute border-2 cursor-move transition-all ${
+        className={`absolute border-2 cursor-move transition-all select-none ${
           isSelected 
             ? 'border-primary border-dashed shadow-lg z-10' 
             : 'border-border border-solid hover:border-muted-foreground'
@@ -273,10 +486,13 @@ const WireframeEditorPages: React.FC<WireframeEditorPagesProps> = ({ data, updat
           height: element.height,
           backgroundColor: element.backgroundColor || '#f8f9fa',
           borderRadius: element.borderRadius || 0,
+          borderWidth: element.borderWidth || 1,
+          borderColor: element.borderColor || '#e5e7eb',
           transform: element.rotation ? `rotate(${element.rotation}deg)` : undefined,
           opacity: element.opacity || 1,
           zIndex: element.zIndex || 1,
         }}
+        onMouseDown={(e) => handleElementMouseDown(e, element.id)}
         onClick={(e) => {
           e.stopPropagation();
           setSelectedElement(element.id);
@@ -284,26 +500,35 @@ const WireframeEditorPages: React.FC<WireframeEditorPagesProps> = ({ data, updat
       >
         <div className="w-full h-full flex items-center justify-center text-xs text-muted-foreground p-1 overflow-hidden">
           {element.type === 'text' ? (
-            <span style={{ fontSize: element.fontSize, textAlign: element.textAlign }}>
+            <span 
+              style={{ 
+                fontSize: element.fontSize || 14, 
+                fontWeight: element.fontWeight || 'normal',
+                textAlign: element.textAlign || 'center',
+                width: '100%'
+              }}
+            >
               {element.content || element.label}
             </span>
           ) : element.type === 'image' ? (
             element.src ? (
-              <img src={element.src} alt={element.label} className="w-full h-full object-cover" />
+              <img src={element.src} alt={element.label} className="w-full h-full object-cover rounded" />
             ) : (
               <div className="flex flex-col items-center">
-                <Image className="h-4 w-4 mb-1" />
-                <span>{element.label}</span>
+                <Image className="h-6 w-6 mb-1" />
+                <span className="text-center">{element.label}</span>
               </div>
             )
+          ) : element.type === 'button' ? (
+            <span className="text-white font-medium">{element.content || element.label}</span>
           ) : (
-            <span>{element.label}</span>
+            <span className="text-center">{element.label}</span>
           )}
         </div>
         
         {isSelected && (
           <>
-            <div className="absolute -top-6 left-0 bg-primary text-primary-foreground px-2 py-1 rounded text-xs">
+            <div className="absolute -top-6 left-0 bg-primary text-primary-foreground px-2 py-1 rounded text-xs whitespace-nowrap">
               {element.label}
             </div>
             <Button
@@ -317,201 +542,747 @@ const WireframeEditorPages: React.FC<WireframeEditorPagesProps> = ({ data, updat
             >
               <X className="h-3 w-3" />
             </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="absolute -bottom-2 -right-2 h-6 w-6 p-0"
+              onClick={(e) => {
+                e.stopPropagation();
+                duplicateElement(element.id);
+              }}
+            >
+              <Copy className="h-3 w-3" />
+            </Button>
           </>
         )}
       </div>
     );
   };
 
+  const selectedElementData = getSelectedElementData();
+
   return (
-    <div className="h-screen flex flex-col bg-background">
-      {/* Page Management */}
-      <div className="border-b px-3 py-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 overflow-x-auto">
-            {wireframe.pages.map((page) => (
-              <div
-                key={page.id}
-                className={`flex items-center gap-1 px-3 py-1 rounded-md text-sm cursor-pointer transition-colors ${
-                  page.id === wireframe.currentPageId
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted hover:bg-muted/80'
-                }`}
-                onClick={() => switchPage(page.id)}
-              >
-                {editingPageName === page.id ? (
-                  <Input
-                    value={newPageName}
-                    onChange={(e) => setNewPageName(e.target.value)}
-                    onBlur={() => {
-                      if (newPageName.trim()) {
-                        renamePage(page.id, newPageName.trim());
-                      }
-                      setEditingPageName(null);
-                      setNewPageName('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+    <>
+      {/* Fullscreen Canvas Modal */}
+      {isFullscreen && (
+        <div className="fixed inset-0 z-50 bg-background">
+          <div className="h-full flex flex-col">
+            {/* Fullscreen Header */}
+            <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              {/* Page Management in Fullscreen */}
+              <div className="border-b px-4 py-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 overflow-x-auto">
+                    {wireframe.pages.map((page) => (
+                      <div
+                        key={page.id}
+                        className={`flex items-center gap-1 px-3 py-1 rounded-md text-sm cursor-pointer transition-colors ${
+                          page.id === wireframe.currentPageId
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted hover:bg-muted/80'
+                        }`}
+                        onClick={() => switchPage(page.id)}
+                      >
+                        <span>{page.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={addPage}
+                    className="flex items-center gap-1"
+                  >
+                    <Plus className="h-4 w-4" />
+                    صفحه جدید
+                  </Button>
+                </div>
+              </div>
+              <div className="p-4 flex justify-between items-center">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-semibold">بوم طراحی - حالت تمام صفحه</h2>
+                  <Badge variant="outline">
+                    {getCurrentElements().length} عنصر
+                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="canvas-height" className="text-sm">ارتفاع بوم:</Label>
+                    <Input
+                      id="canvas-height"
+                      type="number"
+                      value={canvasHeight}
+                      onChange={(e) => updateCanvasHeight(Number(e.target.value))}
+                      className="w-20 h-8"
+                      min="400"
+                      max="5000"
+                    />
+                    <span className="text-xs text-muted-foreground">px</span>
+                  </div>
+                  {selectedElement && (
+                    <Badge variant="default">
+                      <Move className="h-3 w-3 mr-1" />
+                      انتخاب شده
+                    </Badge>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 border rounded-md p-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={zoomOut}
+                      disabled={zoom <= 0.1}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ZoomOut className="h-4 w-4" />
+                    </Button>
+                    <span className="text-xs min-w-12 text-center">{Math.round(zoom * 100)}%</span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={zoomIn}
+                      disabled={zoom >= 3}
+                      className="h-8 w-8 p-0"
+                    >
+                      <ZoomIn className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setPanMode(!panMode)}
+                    className={panMode ? "bg-primary/10 text-primary" : ""}
+                    title="حالت جابجایی آزاد"
+                  >
+                    <Hand className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowGrid(!showGrid)}
+                    className={showGrid ? "bg-primary/10 text-primary" : ""}
+                  >
+                    <Grid className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={clearCanvas}
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => setIsFullscreen(false)}
+                  >
+                    <Minimize className="h-4 w-4 mr-2" />
+                    خروج از حالت تمام صفحه
+                  </Button>
+                </div>
+              </div>
+            </div>
+            
+            {/* Fullscreen Canvas */}
+            <div 
+              className="flex-1 overflow-hidden p-4"
+              onMouseDown={handleCanvasMouseDown}
+              onMouseMove={handleCanvasMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              style={{ cursor: isPanning ? 'grabbing' : (panMode ? 'grab' : 'default') }}
+            >
+              <div className="h-full flex items-center justify-center">
+                <div
+                  ref={canvasRef}
+                  className="relative bg-white border shadow-lg mx-auto"
+                  style={{
+                    width: wireframe.canvasWidth,
+                    height: Math.max(wireframe.canvasHeight, 800),
+                    minHeight: '800px',
+                    transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
+                    transformOrigin: 'center center'
+                  }}
+                  onClick={() => setSelectedElement(null)}
+                >
+                  {getCurrentElements().length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                      <div className="text-center">
+                        <MoreHorizontal className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                        <h4 className="text-xl font-medium mb-2">بوم خالی است</h4>
+                        <p className="text-base">از قالب‌های آماده یا ابزارهای پایه استفاده کنید</p>
+                      </div>
+                    </div>
+                  )}
+                  {getCurrentElements().map(renderElement)}
+                </div>
+              </div>
+            </div>
+
+            {/* Fullscreen Quick Tools */}
+            <div className="border-t p-4 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+              <div className="flex justify-center gap-2 flex-wrap">
+                {basicTools.map((tool) => (
+                  <Button
+                    key={tool.type}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addElement(tool.type)}
+                    className="flex items-center gap-2"
+                  >
+                    <tool.icon className="h-4 w-4" />
+                    {tool.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Professional Editor Layout */}
+      <div className="h-screen flex flex-col bg-background">
+        {/* Page Management */}
+        <div className="border-b px-3 py-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 overflow-x-auto">
+              {wireframe.pages.map((page) => (
+                <div
+                  key={page.id}
+                  className={`flex items-center gap-1 px-3 py-1 rounded-md text-sm cursor-pointer transition-colors ${
+                    page.id === wireframe.currentPageId
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted hover:bg-muted/80'
+                  }`}
+                  onClick={() => switchPage(page.id)}
+                >
+                  {editingPageName === page.id ? (
+                    <Input
+                      value={newPageName}
+                      onChange={(e) => setNewPageName(e.target.value)}
+                      onBlur={() => {
                         if (newPageName.trim()) {
                           renamePage(page.id, newPageName.trim());
                         }
                         setEditingPageName(null);
                         setNewPageName('');
-                      }
-                      if (e.key === 'Escape') {
-                        setEditingPageName(null);
-                        setNewPageName('');
-                      }
-                    }}
-                    className="h-6 w-24 text-xs"
-                    autoFocus
-                  />
-                ) : (
-                  <>
-                    <span>{page.name}</span>
-                    <div className="flex items-center gap-1 ml-1">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-4 w-4 p-0 opacity-60 hover:opacity-100"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingPageName(page.id);
-                          setNewPageName(page.name);
-                        }}
-                      >
-                        <Edit2 className="h-3 w-3" />
-                      </Button>
-                      {wireframe.pages.length > 1 && (
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (newPageName.trim()) {
+                            renamePage(page.id, newPageName.trim());
+                          }
+                          setEditingPageName(null);
+                          setNewPageName('');
+                        }
+                        if (e.key === 'Escape') {
+                          setEditingPageName(null);
+                          setNewPageName('');
+                        }
+                      }}
+                      className="h-6 w-24 text-xs"
+                      autoFocus
+                    />
+                  ) : (
+                    <>
+                      <span>{page.name}</span>
+                      <div className="flex items-center gap-1 ml-1">
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-4 w-4 p-0 opacity-60 hover:opacity-100 text-destructive"
+                          className="h-4 w-4 p-0 opacity-60 hover:opacity-100"
                           onClick={(e) => {
                             e.stopPropagation();
-                            deletePage(page.id);
+                            setEditingPageName(page.id);
+                            setNewPageName(page.name);
                           }}
                         >
-                          <Trash className="h-3 w-3" />
+                          <Edit2 className="h-3 w-3" />
                         </Button>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={addPage}
-            className="flex items-center gap-1"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">صفحه جدید</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Top Toolbar */}
-      <div className="border-b p-3 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h2 className="text-lg font-semibold text-foreground">ویرایشگر صفحات</h2>
-            <Badge variant="outline" className="text-xs">
-              صفحه: {getCurrentPage().name}
-            </Badge>
-            <Badge variant="outline" className="text-xs">
-              {getCurrentElements().length} عنصر
-            </Badge>
-          </div>
-          
-          <div className="flex items-center gap-2">
+                        {wireframe.pages.length > 1 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-4 w-4 p-0 opacity-60 hover:opacity-100 text-destructive"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deletePage(page.id);
+                            }}
+                          >
+                            <Trash className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setShowGrid(!showGrid)}
-              className={showGrid ? "bg-primary/10 text-primary" : ""}
+              onClick={addPage}
+              className="flex items-center gap-1"
             >
-              <Grid className="h-4 w-4" />
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">صفحه جدید</span>
             </Button>
           </div>
         </div>
-      </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Tools */}
-        <div className="w-64 border-r bg-muted/30 flex flex-col">
-          <div className="p-4">
-            <h3 className="text-sm font-medium mb-3">ابزارهای پایه</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {basicTools.map((tool) => (
+        {/* Top Toolbar */}
+        <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="flex items-center justify-between p-3">
+            <div className="flex items-center gap-4">
+              <h2 className="text-lg font-semibold text-foreground">ویرایشگر حرفه‌ای</h2>
+              <Badge variant="outline" className="text-xs">
+                {getCurrentElements().length} عنصر
+              </Badge>
+              <Badge variant="outline" className="text-xs">
+                زوم: {Math.round(zoom * 100)}%
+              </Badge>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 border rounded-md p-1">
                 <Button
-                  key={tool.type}
-                  variant="outline"
                   size="sm"
-                  onClick={() => addElement(tool.type)}
-                  className="flex flex-col items-center gap-1 h-auto py-2"
+                  variant="ghost"
+                  onClick={zoomOut}
+                  disabled={zoom <= 0.1}
+                  className="h-8 w-8 p-0"
                 >
-                  <tool.icon className="h-4 w-4" />
-                  <span className="text-xs">{tool.label}</span>
+                  <ZoomOut className="h-4 w-4" />
                 </Button>
-              ))}
+                <span className="text-xs min-w-12 text-center">{Math.round(zoom * 100)}%</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={zoomIn}
+                  disabled={zoom >= 3}
+                  className="h-8 w-8 p-0"
+                >
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setPanMode(!panMode)}
+                className={panMode ? "bg-primary/10 text-primary" : ""}
+                title="حالت جابجایی آزاد"
+              >
+                <Hand className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowGrid(!showGrid)}
+                className={showGrid ? "bg-primary/10 text-primary" : ""}
+              >
+                <Grid className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsFullscreen(true)}
+              >
+                <Maximize className="h-4 w-4" />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={saveWireframe}
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <Upload className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Database className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={clearCanvas}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
             </div>
           </div>
         </div>
 
-        {/* Main Canvas Area */}
-        <div className="flex-1 flex flex-col bg-muted/10 overflow-hidden">
-          <div className="flex-1 p-6 overflow-hidden">
-            <div className="flex items-center justify-center h-full">
-              <div
-                ref={canvasRef}
-                className="relative bg-white border shadow-lg mx-auto"
-                style={{
-                  width: wireframe.canvasWidth,
-                  height: wireframe.canvasHeight,
-                  minHeight: '600px',
-                  backgroundImage: showGrid 
-                    ? `radial-gradient(circle, #e5e7eb 1px, transparent 1px)` 
-                    : 'none',
-                  backgroundSize: showGrid ? '20px 20px' : 'auto',
-                }}
-                onClick={() => setSelectedElement(null)}
-              >
-                {getCurrentElements().length === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                    <div className="text-center">
-                      <Layout className="h-16 w-16 mx-auto mb-4 opacity-30" />
-                      <h4 className="text-xl font-medium mb-2">صفحه خالی است</h4>
-                      <p className="text-sm">از ابزارهای سمت چپ برای افزودن عناصر استفاده کنید</p>
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left Sidebar */}
+          <div className="w-80 border-r bg-muted/30 flex flex-col">
+            <Tabs value={sidebarTab} onValueChange={(value) => setSidebarTab(value as any)} className="flex-1 flex flex-col">
+              <TabsList className="grid w-full grid-cols-3 m-2">
+                <TabsTrigger value="elements" className="text-xs">عناصر</TabsTrigger>
+                <TabsTrigger value="templates" className="text-xs">قالب‌ها</TabsTrigger>
+                <TabsTrigger value="layers" className="text-xs">لایه‌ها</TabsTrigger>
+              </TabsList>
+
+              {sidebarTab === 'elements' && (
+                <div className="flex-1 p-4 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium mb-3">ابزارهای پایه</h3>
+                    <div className="grid grid-cols-2 gap-2">
+                      {basicTools.map((tool) => (
+                        <Button
+                          key={tool.type}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => addElement(tool.type)}
+                          className="flex flex-col items-center gap-1 h-auto py-3"
+                        >
+                          <tool.icon className="h-4 w-4" />
+                          <span className="text-xs">{tool.label}</span>
+                        </Button>
+                      ))}
                     </div>
                   </div>
-                )}
-                {getCurrentElements().map(renderElement)}
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Right Properties Panel */}
-        {selectedElement && (
-          <div className="w-80 border-l bg-muted/30 flex flex-col">
-            <div className="border-b p-4">
-              <h3 className="text-sm font-medium">ویژگی‌های عنصر</h3>
-            </div>
-            <ScrollArea className="flex-1 p-4">
-              <div className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  عنصر انتخاب شده: {selectedElement}
-                </p>
-              </div>
-            </ScrollArea>
+                  <Separator />
+
+                  <div>
+                    <h3 className="text-sm font-medium mb-3">آپلود تصاویر</h3>
+                    <ImageUploadSystem onFilesUploaded={setUploadedFiles} />
+                    {uploadedFiles.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        <h4 className="text-xs font-medium">تصاویر آپلود شده:</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          {uploadedFiles.map((file, index) => (
+                            <div
+                              key={index}
+                              className="relative border rounded cursor-pointer hover:border-primary"
+                              onClick={() => {
+                                const newElement: WireframeElement = {
+                                  id: `image-${Date.now()}`,
+                                  type: 'image',
+                                  x: 50,
+                                  y: 50,
+                                  width: 150,
+                                  height: 100,
+                                  label: 'تصویر آپلود شده',
+                                  src: file.url,
+                                  borderWidth: 1,
+                                  borderColor: '#e5e7eb',
+                                  borderRadius: 4
+                                };
+                                updateCurrentPageElements([...getCurrentElements(), newElement]);
+                              }}
+                            >
+                              <img
+                                src={file.url}
+                                alt={file.name}
+                                className="w-full h-16 object-cover rounded"
+                              />
+                              <p className="text-xs text-center p-1 truncate">{file.name}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {sidebarTab === 'templates' && (
+                <div className="p-4 space-y-2">
+                  <h3 className="text-sm font-medium mb-3">قالب‌های آماده</h3>
+                  {componentTemplates.map((template) => (
+                    <Card key={template.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
+                      <CardContent className="p-3" onClick={() => addTemplate(template)}>
+                        <div className="flex items-center gap-2">
+                          <Layout className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <h4 className="text-sm font-medium">{template.name}</h4>
+                            <p className="text-xs text-muted-foreground">{template.type}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {sidebarTab === 'layers' && (
+                <div className="p-4 space-y-2">
+                  <h3 className="text-sm font-medium mb-3">لایه‌ها</h3>
+                  {getCurrentElements().length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">هیچ عنصری وجود ندارد</p>
+                  ) : (
+                    getCurrentElements().map((element) => (
+                      <div
+                        key={element.id}
+                        className={`p-2 rounded border cursor-pointer transition-colors ${
+                          selectedElement === element.id 
+                            ? 'bg-primary/10 border-primary' 
+                            : 'hover:bg-muted/50'
+                        }`}
+                        onClick={() => setSelectedElement(element.id)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded border" style={{ backgroundColor: element.backgroundColor }} />
+                            <span className="text-sm">{element.label}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                duplicateElement(element.id);
+                              }}
+                            >
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0 text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteElement(element.id);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </Tabs>
           </div>
-        )}
+
+          {/* Main Canvas Area */}
+          <div 
+            className="flex-1 flex flex-col bg-muted/10 overflow-hidden"
+            onMouseDown={handleCanvasMouseDown}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            style={{ cursor: isPanning ? 'grabbing' : (panMode ? 'grab' : 'default') }}
+          >
+            <div className="flex-1 p-6 overflow-hidden">
+              <div className="flex items-center justify-center h-full">
+                <div
+                  ref={canvasRef}
+                  className="relative bg-white border shadow-lg mx-auto"
+                  style={{
+                    width: wireframe.canvasWidth,
+                    height: wireframe.canvasHeight,
+                    minHeight: '600px',
+                    backgroundImage: showGrid 
+                      ? `radial-gradient(circle, #e5e7eb 1px, transparent 1px)` 
+                      : 'none',
+                    backgroundSize: showGrid ? `${20 * zoom}px ${20 * zoom}px` : 'auto',
+                    transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
+                    transformOrigin: 'center center'
+                  }}
+                  onClick={() => setSelectedElement(null)}
+                >
+                  {getCurrentElements().length === 0 && (
+                    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                      <div className="text-center">
+                        <Layout className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                        <h4 className="text-xl font-medium mb-2">بوم خالی است</h4>
+                        <p className="text-sm">از عناصر یا قالب‌های سمت چپ استفاده کنید</p>
+                      </div>
+                    </div>
+                  )}
+                  {getCurrentElements().map(renderElement)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Properties Panel */}
+          {selectedElement && selectedElementData && (
+            <div className="w-80 border-l bg-muted/30 flex flex-col">
+              <div className="border-b p-4">
+                <h3 className="text-sm font-medium">ویژگی‌های عنصر</h3>
+                <p className="text-xs text-muted-foreground mt-1">{selectedElementData.label}</p>
+              </div>
+              <ScrollArea className="flex-1 p-4">
+                <div className="space-y-4">
+                  {/* Position and Size */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium">موقعیت و اندازه</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs">X</Label>
+                        <Input
+                          type="number"
+                          value={selectedElementData.x}
+                          onChange={(e) => updateElementProperty(selectedElement, 'x', Number(e.target.value))}
+                          className="h-8"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Y</Label>
+                        <Input
+                          type="number"
+                          value={selectedElementData.y}
+                          onChange={(e) => updateElementProperty(selectedElement, 'y', Number(e.target.value))}
+                          className="h-8"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">عرض</Label>
+                        <Input
+                          type="number"
+                          value={selectedElementData.width}
+                          onChange={(e) => updateElementProperty(selectedElement, 'width', Number(e.target.value))}
+                          className="h-8"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">ارتفاع</Label>
+                        <Input
+                          type="number"
+                          value={selectedElementData.height}
+                          onChange={(e) => updateElementProperty(selectedElement, 'height', Number(e.target.value))}
+                          className="h-8"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  {/* Content */}
+                  {(selectedElementData.type === 'text' || selectedElementData.type === 'button') && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium">محتوا</h4>
+                      <div>
+                        <Label className="text-xs">متن</Label>
+                        <Textarea
+                          value={selectedElementData.content || selectedElementData.label || ''}
+                          onChange={(e) => updateElementProperty(selectedElement, 'content', e.target.value)}
+                          className="min-h-16"
+                          placeholder="متن خود را وارد کنید..."
+                        />
+                      </div>
+                      {selectedElementData.type === 'text' && (
+                        <>
+                          <div>
+                            <Label className="text-xs">اندازه فونت</Label>
+                            <Input
+                              type="number"
+                              value={selectedElementData.fontSize || 14}
+                              onChange={(e) => updateElementProperty(selectedElement, 'fontSize', Number(e.target.value))}
+                              className="h-8"
+                              min="8"
+                              max="72"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs">تراز متن</Label>
+                            <Select
+                              value={selectedElementData.textAlign || 'center'}
+                              onValueChange={(value) => updateElementProperty(selectedElement, 'textAlign', value)}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="left">راست</SelectItem>
+                                <SelectItem value="center">وسط</SelectItem>
+                                <SelectItem value="right">چپ</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedElementData.type === 'image' && (
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium">تصویر</h4>
+                      <div>
+                        <Label className="text-xs">آدرس تصویر</Label>
+                        <Input
+                          value={selectedElementData.src || ''}
+                          onChange={(e) => updateElementProperty(selectedElement, 'src', e.target.value)}
+                          className="h-8"
+                          placeholder="https://example.com/image.jpg"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <Separator />
+
+                  {/* Appearance */}
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-medium">ظاهر</h4>
+                    <div>
+                      <Label className="text-xs">رنگ پس‌زمینه</Label>
+                      <Input
+                        type="color"
+                        value={selectedElementData.backgroundColor || '#f8f9fa'}
+                        onChange={(e) => updateElementProperty(selectedElement, 'backgroundColor', e.target.value)}
+                        className="h-8"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">رنگ حاشیه</Label>
+                      <Input
+                        type="color"
+                        value={selectedElementData.borderColor || '#e5e7eb'}
+                        onChange={(e) => updateElementProperty(selectedElement, 'borderColor', e.target.value)}
+                        className="h-8"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">ضخامت حاشیه</Label>
+                      <Input
+                        type="number"
+                        value={selectedElementData.borderWidth || 1}
+                        onChange={(e) => updateElementProperty(selectedElement, 'borderWidth', Number(e.target.value))}
+                        className="h-8"
+                        min="0"
+                        max="10"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">شعاع گرد کردن</Label>
+                      <Input
+                        type="number"
+                        value={selectedElementData.borderRadius || 0}
+                        onChange={(e) => updateElementProperty(selectedElement, 'borderRadius', Number(e.target.value))}
+                        className="h-8"
+                        min="0"
+                        max="50"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">شفافیت: {Math.round((selectedElementData.opacity || 1) * 100)}%</Label>
+                      <Slider
+                        value={[(selectedElementData.opacity || 1) * 100]}
+                        onValueChange={(value) => updateElementProperty(selectedElement, 'opacity', value[0] / 100)}
+                        max={100}
+                        min={0}
+                        step={5}
+                        className="mt-2"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
-export default WireframeEditorPages;
+export default WireframeEditor;

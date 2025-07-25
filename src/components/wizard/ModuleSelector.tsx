@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -280,22 +280,24 @@ const ModuleSelector = ({ data, updateData }: ModuleSelectorProps) => {
   };
 
   // Add required modules by default
-  if (!data.modules || data.modules.length === 0) {
-    const requiredModules = modules
-      .filter(m => m.required)
-      .map(m => ({
-        id: m.id,
-        name: m.name,
-        nameEn: m.nameEn,
-        complexity: m.complexity,
-        customizations: {
-          layout: 'default',
-          colors: 'inherit',
-          animations: 'subtle'
-        }
-      }));
-    updateData({ modules: requiredModules });
-  }
+  useEffect(() => {
+    if (!data.modules || data.modules.length === 0) {
+      const requiredModules = modules
+        .filter(m => m.required)
+        .map(m => ({
+          id: m.id,
+          name: m.name,
+          nameEn: m.nameEn,
+          complexity: m.complexity,
+          customizations: {
+            layout: 'default',
+            colors: 'inherit',
+            animations: 'subtle'
+          }
+        }));
+      updateData({ modules: requiredModules });
+    }
+  }, []);
 
   return (
     <div className="space-y-8">

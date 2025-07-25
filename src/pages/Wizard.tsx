@@ -6,11 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import StepOne from '@/components/wizard/StepOne';
-import ModuleSelector from '@/components/wizard/ModuleSelector';
+import ModuleLayoutDesigner from '@/components/wizard/ModuleLayoutDesigner';
 import StepThree from '@/components/wizard/StepThree';
 import PricingCalculator from '@/components/wizard/PricingCalculator';
 import StepFive from '@/components/wizard/StepFive';
-import StepSix from '@/components/wizard/StepSix';
+import OrderSubmissionStep from '@/components/wizard/OrderSubmissionStep';
 import Layout from "@/components/ui/Layout";
 
 interface WizardData {
@@ -102,7 +102,7 @@ const Wizard = () => {
       case 1:
         return <StepOne data={wizardData} updateData={updateWizardData} />;
       case 2:
-        return <ModuleSelector data={wizardData} updateData={updateWizardData} />;
+        return <ModuleLayoutDesigner data={wizardData} updateData={updateWizardData} />;
       case 3:
         return <StepThree data={wizardData} updateData={updateWizardData} />;
       case 4:
@@ -110,7 +110,7 @@ const Wizard = () => {
       case 5:
         return <StepFive data={wizardData} updateData={updateWizardData} />;
       case 6:
-        return <StepSix data={wizardData} updateData={updateWizardData} />;
+        return <OrderSubmissionStep data={wizardData} updateData={updateWizardData} />;
       default:
         return <StepOne data={wizardData} updateData={updateWizardData} />;
     }

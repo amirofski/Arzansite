@@ -118,30 +118,43 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
       if (data.userInfo) {
         const { error: profileError } = await supabase
           .from('profiles')
-          .upsert({
-            user_id: user.id,
-            full_name: data.userInfo.name,
-            email: data.userInfo.email,
-            updated_at: new Date().toISOString()
-          });
+          .upsert(
+            {
+              user_id: user.id,
+              full_name: data.userInfo.name,
+              email: data.userInfo.email,
+              updated_at: new Date().toISOString()
+            },
+            {
+              onConflict: 'user_id'
+            }
+          );
 
-        if (profileError && profileError.code !== '23505') { // Ignore duplicate key errors
+        if (profileError) {
           console.warn('Profile update warning:', profileError);
+          // Don't throw error for profile issues, continue with order
         }
       }
 
       // Now initiate Zarinpal payment
+      const paymentRequest = {
+        action: 'request',
+        amount: Math.floor(calculateTotalPrice() / 10), // Convert from Rials to Tomans
+        description: `پرداخت سفارش وب‌سایت - ${data.userInfo?.domain || 'mywebsite'}`,
+        orderId: newOrder.id
+      };
+
+      console.log('Payment request data:', paymentRequest);
+
       const { data: paymentData, error: paymentError } = await supabase.functions.invoke('zarinpal-payment', {
-        body: {
-          action: 'request',
-          amount: Math.floor(calculateTotalPrice() / 10), // Convert from Rials to Tomans
-          description: `پرداخت سفارش وب‌سایت - ${data.userInfo?.domain || 'mywebsite'}`,
-          orderId: newOrder.id
-        }
+        body: paymentRequest
       });
 
+      console.log('Payment response:', { paymentData, paymentError });
+
       if (paymentError) {
-        throw paymentError;
+        console.error('Payment error details:', paymentError);
+        throw new Error(`Payment initialization failed: ${paymentError.message}`);
       }
 
       if (paymentData.success) {

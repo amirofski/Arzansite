@@ -83,6 +83,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
     setIsProcessing(true);
 
     try {
+      // First create the order in database
       const orderData = {
         user_id: user.id,
         title: `وب‌سایت ${data.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${data.userInfo?.domain || 'mywebsite'}`,
@@ -99,12 +100,15 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
         }),
         price: calculateTotalPrice(),
         status: 'pending',
+        payment_status: 'pending',
         comments: `دامنه: ${data.userInfo?.domain || 'mywebsite'}.ir`
       };
 
-      const { error } = await supabase
+      const { data: newOrder, error } = await supabase
         .from('orders')
-        .insert([orderData]);
+        .insert([orderData])
+        .select()
+        .single();
 
       if (error) {
         throw error;
@@ -126,15 +130,26 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
         }
       }
 
-      toast({
-        title: "✅ سفارش با موفقیت ثبت شد",
-        description: "سفارش شما ثبت شد و به زودی با شما تماس گرفته می‌شود",
+      // Now initiate Zarinpal payment
+      const { data: paymentData, error: paymentError } = await supabase.functions.invoke('zarinpal-payment', {
+        body: {
+          action: 'request',
+          amount: Math.floor(calculateTotalPrice() / 10), // Convert from Rials to Tomans
+          description: `پرداخت سفارش وب‌سایت - ${data.userInfo?.domain || 'mywebsite'}`,
+          orderId: newOrder.id
+        }
       });
 
-      // Redirect to dashboard after successful submission
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 2000);
+      if (paymentError) {
+        throw paymentError;
+      }
+
+      if (paymentData.success) {
+        // Redirect to Zarinpal payment page
+        window.location.href = paymentData.paymentUrl;
+      } else {
+        throw new Error('Failed to create payment request');
+      }
 
     } catch (error: any) {
       console.error('Order submission error:', error);
@@ -188,16 +203,9 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
     {
       id: 'zarinpal',
       name: 'زرین‌پال',
-      description: 'پرداخت امن با کارت‌های بانکی',
+      description: 'پرداخت امن با کارت‌های بانکی ایرانی',
       icon: CreditCard,
       recommended: true
-    },
-    {
-      id: 'mellat',
-      name: 'درگاه بانک ملت',
-      description: 'پرداخت مستقیم بانکی',
-      icon: Smartphone,
-      recommended: false
     }
   ];
 

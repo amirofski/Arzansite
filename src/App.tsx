@@ -8,6 +8,7 @@ import Wizard from "./pages/Wizard";
 import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import Auth from "./pages/Auth";
+import PaymentCallback from "./pages/PaymentCallback";
 import NotFound from "./pages/NotFound";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
@@ -54,6 +55,7 @@ const AppContent = () => {
             <AdminDashboard />
           </ProtectedRoute>
         } />
+        <Route path="/payment-callback" element={<PaymentCallback />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

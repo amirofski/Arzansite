@@ -476,6 +476,53 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
     setIsDragging(false);
   };
 
+  const updateCanvasHeight = (height: number) => {
+    setCanvasHeight(height);
+    const updatedWireframe = { ...wireframe, canvasHeight: height };
+    setWireframe(updatedWireframe);
+    updateData({ wireframe: updatedWireframe });
+  };
+
+  const saveToDatabase = async () => {
+    setIsSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: "خطا",
+          description: "برای ذخیره طرح باید وارد شوید",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const wireframeData = {
+        user_id: user.id,
+        name: `طرح ${new Date().toLocaleDateString('fa-IR')}`,
+        data: wireframe as any,
+      };
+
+      const { error } = await supabase
+        .from('wireframes')
+        .insert(wireframeData);
+
+      if (error) throw error;
+      
+      toast({
+        title: "ذخیره شد",
+        description: "طرح شما با موفقیت ذخیره شد",
+      });
+    } catch (error) {
+      toast({
+        title: "خطا",
+        description: "خطا در ذخیره طرح",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const deleteElement = (elementId: string) => {
     const updatedElements = wireframe.elements.filter(el => el.id !== elementId);
     updateWireframe(updatedElements);

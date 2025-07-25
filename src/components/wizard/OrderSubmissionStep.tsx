@@ -362,7 +362,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
             ) : (
               <div className="flex items-center justify-center gap-2">
                 <Check className="w-5 h-5" />
-                ثبت سفارش {formatPrice(totalCost)} تومان
+                پرداخت امن {formatPrice(totalCost)} تومان
               </div>
             )}
           </Button>

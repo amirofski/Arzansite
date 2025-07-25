@@ -20,33 +20,42 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          payment_status: string | null
           price: number | null
           status: string
           title: string
           updated_at: string
           user_id: string
+          zarinpal_authority: string | null
+          zarinpal_ref_id: string | null
         }
         Insert: {
           comments?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          payment_status?: string | null
           price?: number | null
           status?: string
           title: string
           updated_at?: string
           user_id: string
+          zarinpal_authority?: string | null
+          zarinpal_ref_id?: string | null
         }
         Update: {
           comments?: string | null
           created_at?: string
           description?: string | null
           id?: string
+          payment_status?: string | null
           price?: number | null
           status?: string
           title?: string
           updated_at?: string
           user_id?: string
+          zarinpal_authority?: string | null
+          zarinpal_ref_id?: string | null
         }
         Relationships: []
       }

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import StepOne from '@/components/wizard/StepOne';
-import ModuleLayoutDesigner from '@/components/wizard/ModuleLayoutDesigner';
+import WireframeEditor from '@/components/wizard/WireframeEditor';
 import StepThree from '@/components/wizard/StepThree';
 import PricingCalculator from '@/components/wizard/PricingCalculator';
 import StepFive from '@/components/wizard/StepFive';
@@ -15,6 +15,19 @@ import Layout from "@/components/ui/Layout";
 
 interface WizardData {
   siteType: 'personal' | 'business' | '';
+  wireframe?: {
+    elements: Array<{
+      id: string;
+      type: string;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      label?: string;
+    }>;
+    canvasWidth: number;
+    canvasHeight: number;
+  };
   modules: Array<{
     id: string;
     name: string;
@@ -74,7 +87,7 @@ const Wizard = () => {
 
   const steps = [
     { number: 1, title: 'نوع سایت', description: 'انتخاب نوع وب‌سایت' },
-    { number: 2, title: 'ماژول‌ها', description: 'انتخاب ماژول‌های طراحی' },
+    { number: 2, title: 'Wireframe', description: 'طراحی الگوی صفحه' },
     { number: 3, title: 'برندینگ', description: 'طراحی و هویت بصری' },
     { number: 4, title: 'قیمت‌گذاری', description: 'محاسبه هزینه هوشمند' },
     { number: 5, title: 'اطلاعات', description: 'اطلاعات شخصی' },
@@ -102,7 +115,7 @@ const Wizard = () => {
       case 1:
         return <StepOne data={wizardData} updateData={updateWizardData} />;
       case 2:
-        return <ModuleLayoutDesigner data={wizardData} updateData={updateWizardData} />;
+        return <WireframeEditor data={wizardData} updateData={updateWizardData} />;
       case 3:
         return <StepThree data={wizardData} updateData={updateWizardData} />;
       case 4:
@@ -121,7 +134,7 @@ const Wizard = () => {
       case 1:
         return wizardData.siteType !== '';
       case 2:
-        return wizardData.modules && wizardData.modules.length > 0;
+        return wizardData.wireframe && wizardData.wireframe.elements && wizardData.wireframe.elements.length > 0;
       case 3:
         return wizardData.branding.primaryColor && wizardData.branding.fontFamily;
       case 4:

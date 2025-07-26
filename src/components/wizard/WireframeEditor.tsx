@@ -144,6 +144,7 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<'elements' | 'templates' | 'layers'>('elements');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [canvasHeight, setCanvasHeight] = useState(wireframe.canvasHeight);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
@@ -1202,17 +1203,32 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
 
         <div className="flex-1 flex overflow-hidden">
           {/* Left Sidebar */}
-          <div className="w-80 border-r bg-muted/30 flex flex-col">
-            <Tabs value={sidebarTab} onValueChange={(value) => setSidebarTab(value as any)} className="flex-1 flex flex-col">
-              <TabsList className="grid w-full grid-cols-3 m-2">
-                <TabsTrigger value="elements" className="text-xs">عناصر</TabsTrigger>
-                <TabsTrigger value="templates" className="text-xs">قالب‌ها</TabsTrigger>
-                <TabsTrigger value="layers" className="text-xs">لایه‌ها</TabsTrigger>
-              </TabsList>
+          <div className={`${sidebarCollapsed ? 'w-12' : 'w-80'} border-r bg-muted/30 flex flex-col transition-all duration-300`}>
+            {/* Collapse Toggle */}
+            <div className="flex items-center justify-between p-2 border-b">
+              {!sidebarCollapsed && <span className="text-sm font-medium">پنل ابزار</span>}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="h-8 w-8 p-0"
+              >
+                {sidebarCollapsed ? <ChevronDown className="h-4 w-4 rotate-90" /> : <X className="h-4 w-4" />}
+              </Button>
+            </div>
+            
+            {!sidebarCollapsed && (
+              <Tabs value={sidebarTab} onValueChange={(value) => setSidebarTab(value as any)} className="flex-1 flex flex-col">
+                <TabsList className="grid w-full grid-cols-3 m-2">
+                  <TabsTrigger value="elements" className="text-xs">عناصر</TabsTrigger>
+                  <TabsTrigger value="templates" className="text-xs">قالب‌ها</TabsTrigger>
+                  <TabsTrigger value="layers" className="text-xs">لایه‌ها</TabsTrigger>
+                </TabsList>
 
               {sidebarTab === 'elements' && (
-                <div className="flex-1 p-4 space-y-4">
-                  <div>
+                <ScrollArea className="flex-1">
+                   <div className="p-4 space-y-4">
+                    <div>
                     <h3 className="text-sm font-medium mb-3">ابزارهای پایه</h3>
                     <div className="grid grid-cols-2 gap-2">
                       {basicTools.map((tool) => (
@@ -1270,13 +1286,15 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
                           ))}
                         </div>
                       </div>
-                    )}
+                     )}
+                    </div>
                   </div>
-                </div>
+                </ScrollArea>
               )}
 
               {sidebarTab === 'templates' && (
-                <div className="p-4 space-y-2">
+                <ScrollArea className="flex-1">
+                  <div className="p-4 space-y-2">
                   <h3 className="text-sm font-medium mb-3">قالب‌های آماده</h3>
                   {componentTemplates.map((template) => (
                     <Card key={template.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
@@ -1290,12 +1308,14 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
                         </div>
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
+                   ))}
+                  </div>
+                </ScrollArea>
               )}
 
               {sidebarTab === 'layers' && (
-                <div className="p-4 space-y-2">
+                <ScrollArea className="flex-1">
+                  <div className="p-4 space-y-2">
                   <h3 className="text-sm font-medium mb-3">لایه‌ها</h3>
                   {getCurrentElements().length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">هیچ عنصری وجود ندارد</p>
@@ -1343,9 +1363,11 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
                       </div>
                     ))
                   )}
-                </div>
+                  </div>
+                </ScrollArea>
               )}
-            </Tabs>
+              </Tabs>
+            )}
           </div>
 
           {/* Main Canvas Area */}

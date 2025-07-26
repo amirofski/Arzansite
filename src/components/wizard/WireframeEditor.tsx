@@ -152,6 +152,11 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const [isPanning, setIsPanning] = useState(false);
   const [panMode, setPanMode] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeDirection, setResizeDirection] = useState<'width' | 'height' | null>(null);
+  const [resizeStart, setResizeStart] = useState({ x: 0, y: 0, width: 0, height: 0 });
+  const [canvasWidth, setCanvasWidth] = useState(wireframe.canvasWidth);
+  const [dimensionInput, setDimensionInput] = useState({ width: wireframe.canvasWidth, height: wireframe.canvasHeight });
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -526,6 +531,34 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const updateCanvasHeight = (height: number) => {
     setCanvasHeight(height);
     setWireframe(prev => ({ ...prev, canvasHeight: height }));
+    setDimensionInput(prev => ({ ...prev, height }));
+  };
+
+  const updateCanvasWidth = (width: number) => {
+    setCanvasWidth(width);
+    setWireframe(prev => ({ ...prev, canvasWidth: width }));
+    setDimensionInput(prev => ({ ...prev, width }));
+  };
+
+  const handleDimensionInputChange = (dimension: 'width' | 'height', value: string) => {
+    const numValue = parseInt(value) || 0;
+    setDimensionInput(prev => ({ ...prev, [dimension]: numValue }));
+    
+    if (numValue >= 300 && numValue <= 3000) {
+      if (dimension === 'width') {
+        updateCanvasWidth(numValue);
+      } else {
+        updateCanvasHeight(numValue);
+      }
+    }
+  };
+
+  // Enhanced mouse wheel zoom with limits
+  const handleWheelZoom = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.1 : 0.1;
+    const newZoom = Math.min(Math.max(0.2, zoom + delta), 3);
+    setZoom(newZoom);
   };
 
   const addElement = (type: string) => {
@@ -586,6 +619,20 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
       return;
     }
 
+    if (isResizing && canvasRef.current) {
+      const deltaX = e.clientX - resizeStart.x;
+      const deltaY = e.clientY - resizeStart.y;
+      
+      if (resizeDirection === 'width') {
+        const newWidth = Math.max(300, resizeStart.width + deltaX);
+        updateCanvasWidth(newWidth);
+      } else if (resizeDirection === 'height') {
+        const newHeight = Math.max(300, resizeStart.height + deltaY);
+        updateCanvasHeight(newHeight);
+      }
+      return;
+    }
+
     if (isDragging && selectedElement && canvasRef.current) {
       const rect = canvasRef.current.getBoundingClientRect();
       const newX = (e.clientX - rect.left) / zoom - dragOffset.x;
@@ -617,6 +664,20 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const handleMouseUp = () => {
     setIsDragging(false);
     setIsPanning(false);
+    setIsResizing(false);
+    setResizeDirection(null);
+  };
+
+  const handleResizeStart = (direction: 'width' | 'height', e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsResizing(true);
+    setResizeDirection(direction);
+    setResizeStart({
+      x: e.clientX,
+      y: e.clientY,
+      width: canvasWidth,
+      height: canvasHeight
+    });
   };
 
   const zoomIn = () => {
@@ -1294,36 +1355,53 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
             onMouseMove={handleCanvasMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
+            onWheel={handleWheelZoom}
             style={{ cursor: isPanning ? 'grabbing' : (panMode ? 'grab' : 'default') }}
           >
-            <div className="flex-1 p-6 overflow-hidden">
+            <div className="flex-1 p-6 overflow-hidden relative">
               <div className="flex items-center justify-center h-full">
-                <div
-                  ref={canvasRef}
-                  className="relative bg-white border shadow-lg mx-auto"
-                  style={{
-                    width: wireframe.canvasWidth,
-                    height: wireframe.canvasHeight,
-                    minHeight: '600px',
-                    backgroundImage: showGrid 
-                      ? `radial-gradient(circle, #e5e7eb 1px, transparent 1px)` 
-                      : 'none',
-                    backgroundSize: showGrid ? `${20 * zoom}px ${20 * zoom}px` : 'auto',
-                    transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
-                    transformOrigin: 'center center'
-                  }}
-                  onClick={() => setSelectedElement(null)}
-                >
-                  {getCurrentElements().length === 0 && (
-                    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
-                      <div className="text-center">
-                        <Layout className="h-16 w-16 mx-auto mb-4 opacity-30" />
-                        <h4 className="text-xl font-medium mb-2">بوم خالی است</h4>
-                        <p className="text-sm">از عناصر یا قالب‌های سمت چپ استفاده کنید</p>
+                <div className="relative">
+                  {/* Canvas Container with Resize Handles */}
+                  <div
+                    ref={canvasRef}
+                    className="relative bg-white border shadow-lg mx-auto"
+                    style={{
+                      width: canvasWidth,
+                      height: canvasHeight,
+                      minHeight: '300px',
+                      minWidth: '300px',
+                      backgroundImage: showGrid 
+                        ? `radial-gradient(circle, #e5e7eb 1px, transparent 1px)` 
+                        : 'none',
+                      backgroundSize: showGrid ? `${20 * zoom}px ${20 * zoom}px` : 'auto',
+                      transform: `scale(${zoom}) translate(${panOffset.x / zoom}px, ${panOffset.y / zoom}px)`,
+                      transformOrigin: 'center center'
+                    }}
+                    onClick={() => setSelectedElement(null)}
+                  >
+                    {/* Resize Handles */}
+                    <div
+                      className="absolute -right-1 top-0 bottom-0 w-2 cursor-ew-resize bg-primary/20 hover:bg-primary/40 opacity-0 hover:opacity-100 transition-opacity"
+                      onMouseDown={(e) => handleResizeStart('width', e)}
+                      title="اندازه عرض را تغییر دهید"
+                    />
+                    <div
+                      className="absolute left-0 right-0 -bottom-1 h-2 cursor-ns-resize bg-primary/20 hover:bg-primary/40 opacity-0 hover:opacity-100 transition-opacity"
+                      onMouseDown={(e) => handleResizeStart('height', e)}
+                      title="اندازه ارتفاع را تغییر دهید"
+                    />
+                    
+                    {getCurrentElements().length === 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                        <div className="text-center">
+                          <Layout className="h-16 w-16 mx-auto mb-4 opacity-30" />
+                          <h4 className="text-xl font-medium mb-2">بوم خالی است</h4>
+                          <p className="text-sm">از عناصر یا قالب‌های سمت چپ استفاده کنید</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                  {getCurrentElements().map(renderElement)}
+                    )}
+                    {getCurrentElements().map(renderElement)}
+                  </div>
                 </div>
               </div>
             </div>

@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye, Download, FileText, Filter } from 'lucide-react';
+import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye, Download, FileText, Filter, Layers } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteMode, type SiteMode } from '@/hooks/useSiteMode';
@@ -46,6 +46,18 @@ interface Order {
   } | null;
 }
 
+interface WireframeElement {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  [key: string]: any;
+}
+interface WireframePage {
+  name: string;
+  elements: WireframeElement[];
+}
+
 const AdminDashboard = () => {
   const { toast } = useToast();
   const { mode, updateSiteMode } = useSiteMode();
@@ -57,8 +69,8 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [userSearchTerm, setUserSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedOrderDesigns, setSelectedOrderDesigns] = useState<any>(null);
-  const [selectedOrderFiles, setSelectedOrderFiles] = useState<any>(null);
+  const [selectedOrderDesigns, setSelectedOrderDesigns] = useState<Order | null>(null);
+  const [selectedOrderFiles, setSelectedOrderFiles] = useState<Order | null>(null);
   const [designDialogOpen, setDesignDialogOpen] = useState(false);
   const [filesDialogOpen, setFilesDialogOpen] = useState(false);
   const [wireframes, setWireframes] = useState<any[]>([]);
@@ -323,88 +335,155 @@ const AdminDashboard = () => {
     }
   };
 
+  const renderWireframePreview = (wireframeData: { pages?: WireframePage[] }) => {
+    if (!wireframeData?.pages) return null;
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+        {wireframeData.pages.slice(0, 4).map((page: WireframePage, index: number) => (
+          <div
+            key={index}
+            className="border rounded-lg p-2 bg-background min-h-[80px] relative overflow-hidden"
+          >
+            <div className="text-xs font-medium mb-1 truncate">{page.name}</div>
+            <div className="absolute inset-2 top-6 border border-dashed border-muted-foreground/30 rounded">
+              {page.elements?.slice(0, 3).map((element: WireframeElement, elemIndex: number) => (
+                <div
+                  key={elemIndex}
+                  className="absolute bg-primary/20 rounded-sm"
+                  style={{
+                    left: `${Math.min(element.x / 10, 60)}%`,
+                    top: `${Math.min(element.y / 10, 60)}%`,
+                    width: `${Math.min(element.width / 15, 30)}%`,
+                    height: `${Math.min(element.height / 20, 20)}%`,
+                  }}
+                />
+              ))}
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {page.elements?.length || 0} عنصر
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderModuleLayoutPreview = (parsedData: any) => {
+    const modules = parsedData.moduleLayout || parsedData.modules;
+    if (!modules || !Array.isArray(modules)) return null;
+    return (
+      <div className="border rounded-lg p-4 bg-muted/30">
+        <div className="text-sm font-medium mb-2">پیش‌نمایش ساختار سایت</div>
+        <div className="flex flex-wrap gap-2">
+          {modules.map((mod: any, idx: number) => (
+            <div
+              key={mod.id || idx}
+              className="flex flex-col items-center justify-center bg-primary/10 border border-primary/20 rounded px-4 py-2 min-w-[80px]"
+            >
+              <span className="font-bold text-xs">{mod.name}</span>
+              <span className="text-[10px] text-muted-foreground">{mod.nameEn}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderOrderWireframePreview = (order: Order) => {
     try {
       const parsedData = JSON.parse(order.description);
-      
+      if ((parsedData.moduleLayout && Array.isArray(parsedData.moduleLayout)) || (parsedData.modules && Array.isArray(parsedData.modules))) {
+        return (
+          <div className="space-y-4">
+            {renderModuleLayoutPreview(parsedData)}
+          </div>
+        );
+      }
       return (
         <div className="space-y-4">
-          {/* Order Configuration Summary */}
-          <div className="border rounded-lg p-4 bg-muted/30">
-            <div className="flex items-center gap-2 mb-3">
-              <FileText className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">پیکربندی پروژه</span>
+          {/* Visual wireframe preview if available */}
+          {parsedData.pages && (
+            <div className="border rounded-lg p-4 bg-muted/30">
+              <div className="flex items-center gap-2 mb-3">
+                <FileText className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">پیش‌نمایش وایرفریم</span>
+              </div>
+              {renderWireframePreview(parsedData)}
+              {parsedData.pages.length > 4 && (
+                <div className="mt-3 text-xs text-muted-foreground text-center">
+                  و {parsedData.pages.length - 4} صفحه دیگر...
+                </div>
+              )}
             </div>
-            
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-              <div className="bg-background rounded p-2">
-                <div className="text-xs text-muted-foreground">نوع سایت</div>
-                <div className="font-medium">{parsedData.siteType === 'personal' ? 'شخصی' : 'تجاری'}</div>
+          )}
+          {/* Fallback to summary/mockup if no pages */}
+          {!parsedData.pages && (
+            <div className="border rounded-lg p-4 bg-muted/30">
+              <div className="flex items-center gap-2 mb-3">
+                <Layers className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">پیکربندی پروژه</span>
               </div>
-              <div className="bg-background rounded p-2">
-                <div className="text-xs text-muted-foreground">دامنه</div>
-                <div className="font-medium truncate">{parsedData.userInfo?.domain || 'نامشخص'}</div>
-              </div>
-              <div className="bg-background rounded p-2">
-                <div className="text-xs text-muted-foreground">تعداد ماژول</div>
-                <div className="font-medium">{parsedData.modules?.length || 0}</div>
-              </div>
-              <div className="bg-background rounded p-2">
-                <div className="text-xs text-muted-foreground">لوگو</div>
-                <div className="font-medium">{parsedData.branding?.logo ? 'دارد' : 'ندارد'}</div>
-              </div>
-            </div>
-
-            {/* Modules Visual Preview */}
-            {parsedData.modules && parsedData.modules.length > 0 && (
-              <div className="mt-4">
-                <div className="text-sm font-medium mb-2">ماژول‌های انتخاب شده:</div>
-                <div className="flex flex-wrap gap-2">
-                  {parsedData.modules.map((module: string, index: number) => (
-                    <div key={index} className="bg-primary/10 border border-primary/20 rounded px-3 py-1 text-xs">
-                      {module}
-                    </div>
-                  ))}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                <div className="bg-background rounded p-2">
+                  <div className="text-xs text-muted-foreground">نوع سایت</div>
+                  <div className="font-medium">{parsedData.siteType === 'personal' ? 'شخصی' : 'تجاری'}</div>
+                </div>
+                <div className="bg-background rounded p-2">
+                  <div className="text-xs text-muted-foreground">دامنه</div>
+                  <div className="font-medium truncate">{parsedData.userInfo?.domain || 'نامشخص'}</div>
+                </div>
+                <div className="bg-background rounded p-2">
+                  <div className="text-xs text-muted-foreground">تعداد ماژول</div>
+                  <div className="font-medium">{parsedData.modules?.length || 0}</div>
+                </div>
+                <div className="bg-background rounded p-2">
+                  <div className="text-xs text-muted-foreground">لوگو</div>
+                  <div className="font-medium">{parsedData.branding?.logo ? 'دارد' : 'ندارد'}</div>
                 </div>
               </div>
-            )}
-
-            {/* Site Structure Mockup */}
-            <div className="mt-4">
-              <div className="text-sm font-medium mb-2">ساختار کلی سایت:</div>
-              <div className="border rounded bg-background p-4 h-32 relative overflow-hidden">
-                {/* Header */}
-                <div className="absolute top-2 left-2 right-2 h-4 bg-primary/20 rounded-sm flex items-center px-2">
-                  <div className="w-2 h-2 bg-primary/40 rounded-full mr-1"></div>
-                  <div className="text-xs opacity-60">Header</div>
-                </div>
-                
-                {/* Main Content Area */}
-                <div className="absolute top-8 left-2 right-2 bottom-6 bg-muted/50 rounded-sm p-2">
-                  <div className="grid grid-cols-3 gap-1 h-full">
-                    {parsedData.modules?.slice(0, 6).map((module: string, index: number) => (
-                      <div
-                        key={index}
-                        className="bg-primary/10 rounded-sm border border-primary/20 flex items-center justify-center"
-                      >
-                        <div className="text-xs text-center opacity-70">
-                          {module.slice(0, 8)}
-                        </div>
+              {parsedData.modules && parsedData.modules.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-sm font-medium mb-2">ماژول‌های انتخاب شده:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {parsedData.modules.map((module: string, index: number) => (
+                      <div key={index} className="bg-primary/10 border border-primary/20 rounded px-3 py-1 text-xs">
+                        {module}
                       </div>
                     ))}
-                    {parsedData.modules?.length > 6 && (
-                      <div className="bg-muted rounded-sm border border-border flex items-center justify-center">
-                        <div className="text-xs opacity-60">+{parsedData.modules.length - 6}</div>
-                      </div>
-                    )}
                   </div>
                 </div>
-                
-                {/* Footer */}
-                <div className="absolute bottom-2 left-2 right-2 h-3 bg-muted rounded-sm"></div>
+              )}
+              <div className="mt-4">
+                <div className="text-sm font-medium mb-2">ساختار کلی سایت:</div>
+                <div className="border rounded bg-background p-4 h-32 relative overflow-hidden">
+                  <div className="absolute top-2 left-2 right-2 h-4 bg-primary/20 rounded-sm flex items-center px-2">
+                    <div className="w-2 h-2 bg-primary/40 rounded-full mr-1"></div>
+                    <div className="text-xs opacity-60">Header</div>
+                  </div>
+                  <div className="absolute top-8 left-2 right-2 bottom-6 bg-muted/50 rounded-sm p-2">
+                    <div className="grid grid-cols-3 gap-1 h-full">
+                      {parsedData.modules?.slice(0, 6).map((module: string, index: number) => (
+                        <div
+                          key={index}
+                          className="bg-primary/10 rounded-sm border border-primary/20 flex items-center justify-center"
+                        >
+                          <div className="text-xs text-center opacity-70">
+                            {module.slice(0, 8)}
+                          </div>
+                        </div>
+                      ))}
+                      {parsedData.modules?.length > 6 && (
+                        <div className="bg-muted rounded-sm border border-border flex items-center justify-center">
+                          <div className="text-xs opacity-60">+{parsedData.modules.length - 6}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="absolute bottom-2 left-2 right-2 h-3 bg-muted rounded-sm"></div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       );
     } catch (error) {

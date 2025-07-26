@@ -1,14 +1,31 @@
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { User, Mail, Globe, Shield, Clock } from 'lucide-react';
+import { User, Mail, Globe, Shield, Clock, Check, X, Loader2 } from 'lucide-react';
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface StepFiveProps {
   data: any;
   updateData: (data: any) => void;
 }
 
+interface DomainAvailability {
+  available: boolean;
+  domain: string;
+  message: string;
+  error?: string;
+  checkedAt?: string;
+}
+
 const StepFive = ({ data, updateData }: StepFiveProps) => {
+  const [domainCheck, setDomainCheck] = useState<DomainAvailability | null>(null);
+  const [isChecking, setIsChecking] = useState(false);
+  const [checkTimeout, setCheckTimeout] = useState<NodeJS.Timeout | null>(null);
+  const { toast } = useToast();
+
   const updateUserInfo = (field: string, value: string) => {
     updateData({
       userInfo: {
@@ -16,12 +33,71 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
         [field]: value
       }
     });
+    
+    // Reset domain check when domain changes
+    if (field === 'domain') {
+      setDomainCheck(null);
+      
+      // Clear existing timeout
+      if (checkTimeout) {
+        clearTimeout(checkTimeout);
+      }
+      
+      // Set new timeout for domain checking
+      if (value && validateDomain(value)) {
+        const timeout = setTimeout(() => {
+          checkDomainAvailability(value);
+        }, 1000); // Check after 1 second of no typing
+        setCheckTimeout(timeout);
+      }
+    }
   };
 
   const validateDomain = (domain: string) => {
     const domainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?$/;
-    return domainRegex.test(domain);
+    return domainRegex.test(domain) && domain.length >= 2;
   };
+
+  const checkDomainAvailability = async (domain: string) => {
+    if (!domain || !validateDomain(domain)) return;
+
+    setIsChecking(true);
+    try {
+      const { data: result, error } = await supabase.functions.invoke('check-ir-domain', {
+        body: { domain }
+      });
+
+      if (error) {
+        console.error('Domain check error:', error);
+        toast({
+          title: "خطا در بررسی دامنه",
+          description: "نتوانستیم وضعیت دامنه را بررسی کنیم. لطفاً دوباره تلاش کنید.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setDomainCheck(result);
+    } catch (error) {
+      console.error('Domain check failed:', error);
+      toast({
+        title: "خطا در بررسی دامنه",
+        description: "مشکلی در ارتباط با سرور پیش آمد.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  // Cleanup timeout on component unmount
+  useEffect(() => {
+    return () => {
+      if (checkTimeout) {
+        clearTimeout(checkTimeout);
+      }
+    };
+  }, [checkTimeout]);
 
   const isValidEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -101,24 +177,84 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                 نام دامنه مورد نظر *
               </Label>
               <div className="flex items-center gap-2">
-                <Input
-                  id="domain"
-                  type="text"
-                  placeholder="mywebsite"
-                  value={data.userInfo?.domain || ''}
-                  onChange={(e) => updateUserInfo('domain', e.target.value.toLowerCase())}
-                  className={`input-modern flex-1 ${
-                    data.userInfo?.domain && !validateDomain(data.userInfo.domain)
-                      ? 'border-destructive focus:ring-destructive'
-                      : ''
-                  }`}
-                />
+                <div className="flex-1 relative">
+                  <Input
+                    id="domain"
+                    type="text"
+                    placeholder="mywebsite"
+                    value={data.userInfo?.domain || ''}
+                    onChange={(e) => updateUserInfo('domain', e.target.value.toLowerCase())}
+                    className={`input-modern ${
+                      data.userInfo?.domain && !validateDomain(data.userInfo.domain)
+                        ? 'border-destructive focus:ring-destructive'
+                        : domainCheck?.available === false
+                        ? 'border-destructive focus:ring-destructive'
+                        : domainCheck?.available === true
+                        ? 'border-success focus:ring-success'
+                        : ''
+                    }`}
+                  />
+                  {isChecking && (
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                  {!isChecking && domainCheck && (
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                      {domainCheck.available ? (
+                        <Check className="w-4 h-4 text-success" />
+                      ) : (
+                        <X className="w-4 h-4 text-destructive" />
+                      )}
+                    </div>
+                  )}
+                </div>
                 <span className="text-muted-foreground whitespace-nowrap">.ir</span>
+                {data.userInfo?.domain && validateDomain(data.userInfo.domain) && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => checkDomainAvailability(data.userInfo.domain)}
+                    disabled={isChecking}
+                    className="whitespace-nowrap"
+                  >
+                    {isChecking ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin ml-1" />
+                        بررسی...
+                      </>
+                    ) : (
+                      'بررسی دامنه'
+                    )}
+                  </Button>
+                )}
               </div>
               {data.userInfo?.domain && !validateDomain(data.userInfo.domain) && (
                 <p className="text-sm text-destructive">
-                  نام دامنه باید شامل حروف انگلیسی، اعداد و خط تیره باشد
+                  نام دامنه باید شامل حروف انگلیسی، اعداد و خط تیره باشد و حداقل 2 کاراکتر داشته باشد
                 </p>
+              )}
+              {domainCheck && (
+                <div className={`text-sm p-3 rounded-lg ${
+                  domainCheck.available 
+                    ? 'bg-success/10 text-success border border-success/20' 
+                    : 'bg-destructive/10 text-destructive border border-destructive/20'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    {domainCheck.available ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <X className="w-4 h-4" />
+                    )}
+                    <span className="font-medium">{domainCheck.message}</span>
+                  </div>
+                  {domainCheck.checkedAt && (
+                    <div className="text-xs mt-1 opacity-75">
+                      بررسی شده در: {new Date(domainCheck.checkedAt).toLocaleString('fa-IR')}
+                    </div>
+                  )}
+                </div>
               )}
               <p className="text-sm text-muted-foreground">
                 نام دامنه شما: <strong>{data.userInfo?.domain || 'mywebsite'}.ir</strong>

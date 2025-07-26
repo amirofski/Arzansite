@@ -146,11 +146,11 @@ const Wizard = () => {
                (wizardData.modules && wizardData.modules.length > 0)) && 
                wizardData.pageMode !== '';
       case 3:
-        return wizardData.branding.primaryColor && wizardData.branding.fontFamily;
+        return wizardData.branding.primaryColor !== '' && wizardData.branding.fontFamily !== '';
       case 4:
         return wizardData.pricing.selectedPackage !== '';
       case 5:
-        return wizardData.userInfo.name && wizardData.userInfo.email && wizardData.userInfo.domain;
+        return !!(wizardData.userInfo.name && wizardData.userInfo.email && wizardData.userInfo.domain);
       default:
         return true;
     }

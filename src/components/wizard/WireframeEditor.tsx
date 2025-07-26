@@ -565,6 +565,7 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   // Enhanced mouse wheel zoom with limits
   const handleWheelZoom = (e: React.WheelEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent scroll event from bubbling up to parent elements
     const delta = e.deltaY > 0 ? -0.1 : 0.1;
     const newZoom = Math.min(Math.max(0.2, zoom + delta), 3);
     setZoom(newZoom);

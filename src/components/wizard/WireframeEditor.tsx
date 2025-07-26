@@ -194,6 +194,19 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
         { type: 'button', x: 750, y: 30, width: 100, height: 40, label: 'ورود', backgroundColor: '#3b82f6' }
       ]
     },
+    {
+      id: 'header-ecommerce',
+      name: 'هدر فروشگاهی',
+      type: 'header',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 120, label: 'هدر فروشگاه', backgroundColor: '#ffffff', borderWidth: 1 },
+        { type: 'logo', x: 40, y: 20, width: 140, height: 40, label: 'لوگو فروشگاه' },
+        { type: 'text', x: 250, y: 25, width: 300, height: 30, label: 'جستجو در محصولات...', backgroundColor: '#f3f4f6' },
+        { type: 'button', x: 570, y: 25, width: 80, height: 30, label: 'جستجو', backgroundColor: '#059669' },
+        { type: 'navigation', x: 40, y: 70, width: 500, height: 30, label: 'دسته‌بندی ها | ویژه | تخفیفات | تماس' },
+        { type: 'button', x: 780, y: 70, width: 80, height: 30, label: 'سبد خرید', backgroundColor: '#dc2626' }
+      ]
+    },
     // Hero Section Templates
     {
       id: 'hero-center',
@@ -204,6 +217,30 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
         { type: 'text', x: 200, y: 120, width: 500, height: 60, label: 'عنوان اصلی', fontSize: 48, textAlign: 'center' },
         { type: 'text', x: 150, y: 200, width: 600, height: 40, label: 'توضیحات کوتاه', fontSize: 18, textAlign: 'center' },
         { type: 'button', x: 375, y: 280, width: 150, height: 50, label: 'شروع کنید', backgroundColor: '#10b981' }
+      ]
+    },
+    {
+      id: 'hero-split',
+      name: 'هیرو دو قسمتی',
+      type: 'hero',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 500, label: 'بخش هیرو', backgroundColor: '#f1f5f9' },
+        { type: 'text', x: 50, y: 100, width: 400, height: 50, label: 'راه‌حل جدید برای کسب‌وکار شما', fontSize: 36, fontWeight: 'bold' },
+        { type: 'text', x: 50, y: 170, width: 380, height: 60, label: 'با استفاده از تکنولوژی‌های روز دنیا، کسب‌وکار خود را متحول کنید', fontSize: 16 },
+        { type: 'button', x: 50, y: 250, width: 140, height: 45, label: 'مشاهده دمو', backgroundColor: '#3b82f6' },
+        { type: 'button', x: 210, y: 250, width: 120, height: 45, label: 'تماس با ما', backgroundColor: '#6b7280' },
+        { type: 'image', x: 500, y: 80, width: 350, height: 300, label: 'تصویر اصلی محصول' }
+      ]
+    },
+    {
+      id: 'hero-video',
+      name: 'هیرو ویدیویی',
+      type: 'hero',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 600, label: 'پس‌زمینه ویدیو', backgroundColor: '#1e293b' },
+        { type: 'rectangle', x: 200, y: 150, width: 500, height: 300, label: 'ویدیو معرفی', backgroundColor: '#000000' },
+        { type: 'circle', x: 425, y: 275, width: 50, height: 50, label: '▶', backgroundColor: '#ffffff', textAlign: 'center' },
+        { type: 'text', x: 250, y: 480, width: 400, height: 40, label: 'مشاهده ویدیو معرفی محصول', fontSize: 18, textAlign: 'center' }
       ]
     },
     // Card Templates
@@ -218,6 +255,196 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
         { type: 'text', x: 20, y: 250, width: 240, height: 40, label: 'توضیحات محصول', fontSize: 14 },
         { type: 'text', x: 20, y: 300, width: 120, height: 30, label: '۲۵۰٬۰۰۰ تومان', fontSize: 16, fontWeight: 'bold' },
         { type: 'button', x: 160, y: 300, width: 100, height: 30, label: 'خرید', backgroundColor: '#3b82f6' }
+      ]
+    },
+    {
+      id: 'card-service',
+      name: 'کارت خدمات',
+      type: 'card',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 300, height: 250, label: 'کارت خدمات', backgroundColor: '#ffffff', borderWidth: 1, borderRadius: 12 },
+        { type: 'circle', x: 125, y: 30, width: 50, height: 50, label: '🚀', backgroundColor: '#3b82f6', textAlign: 'center' },
+        { type: 'text', x: 20, y: 100, width: 260, height: 30, label: 'خدمات طراحی', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
+        { type: 'text', x: 20, y: 140, width: 260, height: 60, label: 'طراحی حرفه‌ای وب‌سایت و اپلیکیشن موبایل', fontSize: 14, textAlign: 'center' },
+        { type: 'button', x: 100, y: 210, width: 100, height: 30, label: 'اطلاعات بیشتر', backgroundColor: '#10b981' }
+      ]
+    },
+    {
+      id: 'card-team',
+      name: 'کارت عضو تیم',
+      type: 'card',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 250, height: 300, label: 'کارت تیم', backgroundColor: '#ffffff', borderWidth: 1 },
+        { type: 'circle', x: 100, y: 30, width: 50, height: 50, label: 'عکس', backgroundColor: '#e5e7eb' },
+        { type: 'text', x: 20, y: 100, width: 210, height: 25, label: 'علی احمدی', fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+        { type: 'text', x: 20, y: 130, width: 210, height: 20, label: 'مدیر فنی', fontSize: 14, textAlign: 'center' },
+        { type: 'text', x: 20, y: 160, width: 210, height: 80, label: 'متخصص در زمینه توسعه نرم‌افزار با بیش از ۵ سال تجربه', fontSize: 12, textAlign: 'center' },
+        { type: 'text', x: 20, y: 260, width: 210, height: 20, label: '📧 ali@example.com', fontSize: 12, textAlign: 'center' }
+      ]
+    },
+    // Form Templates
+    {
+      id: 'form-contact',
+      name: 'فرم تماس',
+      type: 'form',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 400, height: 350, label: 'فرم تماس', backgroundColor: '#ffffff', borderWidth: 1 },
+        { type: 'text', x: 30, y: 20, width: 340, height: 30, label: 'تماس با ما', fontSize: 24, fontWeight: 'bold' },
+        { type: 'text', x: 30, y: 60, width: 100, height: 20, label: 'نام و نام خانوادگی', fontSize: 14 },
+        { type: 'text', x: 30, y: 85, width: 340, height: 35, label: 'نام خود را وارد کنید...', backgroundColor: '#f9fafb', borderWidth: 1 },
+        { type: 'text', x: 30, y: 135, width: 100, height: 20, label: 'ایمیل', fontSize: 14 },
+        { type: 'text', x: 30, y: 160, width: 340, height: 35, label: 'example@email.com', backgroundColor: '#f9fafb', borderWidth: 1 },
+        { type: 'text', x: 30, y: 210, width: 100, height: 20, label: 'پیام', fontSize: 14 },
+        { type: 'text', x: 30, y: 235, width: 340, height: 60, label: 'پیام خود را بنویسید...', backgroundColor: '#f9fafb', borderWidth: 1 },
+        { type: 'button', x: 30, y: 310, width: 120, height: 35, label: 'ارسال پیام', backgroundColor: '#3b82f6' }
+      ]
+    },
+    {
+      id: 'form-newsletter',
+      name: 'فرم خبرنامه',
+      type: 'form',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 450, height: 180, label: 'خبرنامه', backgroundColor: '#1f2937', borderRadius: 8 },
+        { type: 'text', x: 30, y: 30, width: 390, height: 30, label: 'عضویت در خبرنامه', fontSize: 20, fontWeight: 'bold' },
+        { type: 'text', x: 30, y: 65, width: 390, height: 25, label: 'آخرین اخبار و تخفیفات را دریافت کنید', fontSize: 14 },
+        { type: 'text', x: 30, y: 105, width: 280, height: 40, label: 'ایمیل شما...', backgroundColor: '#ffffff', borderRadius: 4 },
+        { type: 'button', x: 320, y: 105, width: 100, height: 40, label: 'عضویت', backgroundColor: '#059669' }
+      ]
+    },
+    // Navigation Templates
+    {
+      id: 'nav-horizontal',
+      name: 'منوی افقی',
+      type: 'navigation',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 600, height: 50, label: 'منوی ناوبری', backgroundColor: '#ffffff', borderWidth: 1 },
+        { type: 'text', x: 20, y: 15, width: 80, height: 20, label: 'خانه', fontSize: 14, textAlign: 'center' },
+        { type: 'text', x: 120, y: 15, width: 80, height: 20, label: 'محصولات', fontSize: 14, textAlign: 'center' },
+        { type: 'text', x: 220, y: 15, width: 80, height: 20, label: 'خدمات', fontSize: 14, textAlign: 'center' },
+        { type: 'text', x: 320, y: 15, width: 80, height: 20, label: 'درباره ما', fontSize: 14, textAlign: 'center' },
+        { type: 'text', x: 420, y: 15, width: 80, height: 20, label: 'تماس', fontSize: 14, textAlign: 'center' }
+      ]
+    },
+    {
+      id: 'nav-vertical',
+      name: 'منوی عمودی',
+      type: 'navigation',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 200, height: 300, label: 'منوی کناری', backgroundColor: '#1f2937' },
+        { type: 'text', x: 20, y: 20, width: 160, height: 40, label: 'داشبورد', fontSize: 16 },
+        { type: 'text', x: 20, y: 70, width: 160, height: 40, label: 'کاربران', fontSize: 16 },
+        { type: 'text', x: 20, y: 120, width: 160, height: 40, label: 'محصولات', fontSize: 16 },
+        { type: 'text', x: 20, y: 170, width: 160, height: 40, label: 'گزارشات', fontSize: 16 },
+        { type: 'text', x: 20, y: 220, width: 160, height: 40, label: 'تنظیمات', fontSize: 16 }
+      ]
+    },
+    // Footer Templates
+    {
+      id: 'footer-simple',
+      name: 'فوتر ساده',
+      type: 'footer',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 100, label: 'فوتر', backgroundColor: '#374151' },
+        { type: 'text', x: 50, y: 25, width: 200, height: 25, label: 'شرکت نمونه', fontSize: 18, fontWeight: 'bold' },
+        { type: 'text', x: 50, y: 50, width: 300, height: 20, label: '© ۲۰۲۴ تمامی حقوق محفوظ است', fontSize: 12 },
+        { type: 'text', x: 650, y: 25, width: 200, height: 50, label: 'شبکه‌های اجتماعی | حریم خصوصی | قوانین', fontSize: 12, textAlign: 'right' }
+      ]
+    },
+    {
+      id: 'footer-detailed',
+      name: 'فوتر کامل',
+      type: 'footer',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 900, height: 200, label: 'فوتر کامل', backgroundColor: '#1f2937' },
+        { type: 'text', x: 50, y: 30, width: 150, height: 25, label: 'درباره شرکت', fontSize: 16, fontWeight: 'bold' },
+        { type: 'text', x: 50, y: 60, width: 150, height: 80, label: 'خدمات\nمحصولات\nتیم ما\nاخبار', fontSize: 12 },
+        { type: 'text', x: 250, y: 30, width: 150, height: 25, label: 'خدمات', fontSize: 16, fontWeight: 'bold' },
+        { type: 'text', x: 250, y: 60, width: 150, height: 80, label: 'طراحی وب\nتوسعه اپ\nمشاوره\nپشتیبانی', fontSize: 12 },
+        { type: 'text', x: 450, y: 30, width: 150, height: 25, label: 'تماس با ما', fontSize: 16, fontWeight: 'bold' },
+        { type: 'text', x: 450, y: 60, width: 150, height: 80, label: 'تهران، ایران\n+98 21 1234 5678\ninfo@example.com', fontSize: 12 },
+        { type: 'text', x: 650, y: 30, width: 200, height: 25, label: 'عضویت در خبرنامه', fontSize: 16, fontWeight: 'bold' },
+        { type: 'text', x: 650, y: 60, width: 150, height: 30, label: 'ایمیل شما...', backgroundColor: '#374151' },
+        { type: 'button', x: 810, y: 60, width: 70, height: 30, label: 'عضویت', backgroundColor: '#3b82f6' },
+        { type: 'rectangle', x: 0, y: 160, width: 900, height: 40, label: 'خط جداکننده', backgroundColor: '#374151' },
+        { type: 'text', x: 50, y: 170, width: 400, height: 20, label: '© ۲۰۲۴ شرکت نمونه. تمامی حقوق محفوظ است.', fontSize: 12 }
+      ]
+    },
+    // Dashboard Templates
+    {
+      id: 'dashboard-stats',
+      name: 'آمار داشبورد',
+      type: 'dashboard',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 800, height: 300, label: 'پنل آماری', backgroundColor: '#f8fafc' },
+        { type: 'rectangle', x: 20, y: 20, width: 180, height: 120, label: 'کارت آمار ۱', backgroundColor: '#ffffff', borderWidth: 1, borderRadius: 8 },
+        { type: 'text', x: 40, y: 40, width: 140, height: 20, label: 'کل فروش', fontSize: 14 },
+        { type: 'text', x: 40, y: 65, width: 140, height: 30, label: '۱۲٬۳۴۵٬۰۰۰', fontSize: 24, fontWeight: 'bold' },
+        { type: 'text', x: 40, y: 100, width: 140, height: 15, label: '+۱۲% نسبت به ماه قبل', fontSize: 10 },
+        
+        { type: 'rectangle', x: 220, y: 20, width: 180, height: 120, label: 'کارت آمار ۲', backgroundColor: '#ffffff', borderWidth: 1, borderRadius: 8 },
+        { type: 'text', x: 240, y: 40, width: 140, height: 20, label: 'کاربران جدید', fontSize: 14 },
+        { type: 'text', x: 240, y: 65, width: 140, height: 30, label: '۲٬۴۵۳', fontSize: 24, fontWeight: 'bold' },
+        { type: 'text', x: 240, y: 100, width: 140, height: 15, label: '+۸% نسبت به ماه قبل', fontSize: 10 },
+        
+        { type: 'rectangle', x: 420, y: 20, width: 180, height: 120, label: 'کارت آمار ۳', backgroundColor: '#ffffff', borderWidth: 1, borderRadius: 8 },
+        { type: 'text', x: 440, y: 40, width: 140, height: 20, label: 'سفارشات', fontSize: 14 },
+        { type: 'text', x: 440, y: 65, width: 140, height: 30, label: '۹۸۷', fontSize: 24, fontWeight: 'bold' },
+        { type: 'text', x: 440, y: 100, width: 140, height: 15, label: '-۳% نسبت به ماه قبل', fontSize: 10 },
+        
+        { type: 'rectangle', x: 620, y: 20, width: 160, height: 120, label: 'کارت آمار ۴', backgroundColor: '#ffffff', borderWidth: 1, borderRadius: 8 },
+        { type: 'text', x: 640, y: 40, width: 120, height: 20, label: 'درآمد ماهانه', fontSize: 14 },
+        { type: 'text', x: 640, y: 65, width: 120, height: 30, label: '۴۵٬۶۷۸٬۰۰۰', fontSize: 20, fontWeight: 'bold' },
+        { type: 'text', x: 640, y: 100, width: 120, height: 15, label: '+۱۵% نسبت به ماه قبل', fontSize: 10 },
+        
+        { type: 'rectangle', x: 20, y: 160, width: 760, height: 120, label: 'نمودار فروش', backgroundColor: '#ffffff', borderWidth: 1, borderRadius: 8 },
+        { type: 'text', x: 40, y: 180, width: 200, height: 20, label: 'نمودار فروش ۶ ماه گذشته', fontSize: 16, fontWeight: 'bold' },
+        { type: 'rectangle', x: 40, y: 210, width: 720, height: 60, label: 'نمودار خطی', backgroundColor: '#f1f5f9' }
+      ]
+    },
+    // Blog Templates
+    {
+      id: 'blog-post',
+      name: 'پست وبلاگ',
+      type: 'blog',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 600, height: 500, label: 'مقاله وبلاگ', backgroundColor: '#ffffff' },
+        { type: 'image', x: 20, y: 20, width: 560, height: 200, label: 'تصویر شاخص مقاله' },
+        { type: 'text', x: 20, y: 240, width: 560, height: 40, label: 'عنوان مقاله: راهنمای کامل طراحی UX/UI', fontSize: 24, fontWeight: 'bold' },
+        { type: 'text', x: 20, y: 290, width: 200, height: 20, label: 'نویسنده: احمد رضایی | ۱۵ مهر ۱۴۰۳', fontSize: 12 },
+        { type: 'text', x: 20, y: 320, width: 560, height: 100, label: 'در این مقاله به بررسی اصول طراحی تجربه کاربری و رابط کاربری می‌پردازیم. طراحی UX/UI یکی از مهم‌ترین عوامل موفقیت محصولات دیجیتال است که...', fontSize: 14 },
+        { type: 'button', x: 20, y: 440, width: 120, height: 35, label: 'ادامه مطلب', backgroundColor: '#3b82f6' },
+        { type: 'text', x: 460, y: 450, width: 120, height: 20, label: '👁 ۱۲۳ بازدید | 💬 ۵ نظر', fontSize: 12 }
+      ]
+    },
+    // Pricing Templates
+    {
+      id: 'pricing-table',
+      name: 'جدول قیمت',
+      type: 'pricing',
+      elements: [
+        { type: 'rectangle', x: 0, y: 0, width: 750, height: 400, label: 'جدول قیمت‌گذاری', backgroundColor: '#f8fafc' },
+        { type: 'text', x: 300, y: 20, width: 150, height: 30, label: 'پلان‌های قیمت‌گذاری', fontSize: 20, fontWeight: 'bold', textAlign: 'center' },
+        
+        // Basic Plan
+        { type: 'rectangle', x: 50, y: 70, width: 200, height: 300, label: 'پلان پایه', backgroundColor: '#ffffff', borderWidth: 1, borderRadius: 8 },
+        { type: 'text', x: 70, y: 90, width: 160, height: 25, label: 'پایه', fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+        { type: 'text', x: 70, y: 120, width: 160, height: 30, label: '۹۹٬۰۰۰ تومان', fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
+        { type: 'text', x: 70, y: 155, width: 160, height: 80, label: '• ۵ صفحه\n• پشتیبانی ایمیل\n• ۱ GB فضای ذخیره\n• SSL رایگان', fontSize: 12 },
+        { type: 'button', x: 80, y: 320, width: 140, height: 35, label: 'انتخاب پلان', backgroundColor: '#6b7280' },
+        
+        // Premium Plan
+        { type: 'rectangle', x: 275, y: 70, width: 200, height: 300, label: 'پلان حرفه‌ای', backgroundColor: '#ffffff', borderWidth: 2, borderColor: '#3b82f6', borderRadius: 8 },
+        { type: 'text', x: 295, y: 90, width: 160, height: 25, label: 'حرفه‌ای', fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+        { type: 'text', x: 295, y: 120, width: 160, height: 30, label: '۱۹۹٬۰۰۰ تومان', fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
+        { type: 'text', x: 295, y: 155, width: 160, height: 80, label: '• ۲۰ صفحه\n• پشتیبانی ۲۴/۷\n• ۱۰ GB فضای ذخیره\n• تحلیلات پیشرفته', fontSize: 12 },
+        { type: 'button', x: 305, y: 320, width: 140, height: 35, label: 'انتخاب پلان', backgroundColor: '#3b82f6' },
+        
+        // Enterprise Plan
+        { type: 'rectangle', x: 500, y: 70, width: 200, height: 300, label: 'پلان سازمانی', backgroundColor: '#ffffff', borderWidth: 1, borderRadius: 8 },
+        { type: 'text', x: 520, y: 90, width: 160, height: 25, label: 'سازمانی', fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+        { type: 'text', x: 520, y: 120, width: 160, height: 30, label: '۴۹۹٬۰۰۰ تومان', fontSize: 24, fontWeight: 'bold', textAlign: 'center' },
+        { type: 'text', x: 520, y: 155, width: 160, height: 80, label: '• نامحدود\n• مدیر اختصاصی\n• ۱۰۰ GB فضا\n• API دسترسی', fontSize: 12 },
+        { type: 'button', x: 530, y: 320, width: 140, height: 35, label: 'تماس با فروش', backgroundColor: '#059669' }
       ]
     }
   ];

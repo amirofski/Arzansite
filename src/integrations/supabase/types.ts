@@ -364,3 +364,35 @@ export const Constants = {
     },
   },
 } as const
+
+export type TransactionType = 'deposit' | 'withdrawal' | 'payment' | 'refund' | 'credit' | 'debit';
+export type TransactionStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
+
+export interface Wallet {
+  id: string;
+  user_id: string;
+  balance: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Transaction {
+  id: string;
+  wallet_id: string;
+  user_id: string;
+  type: TransactionType;
+  status: TransactionStatus;
+  amount: number;
+  balance_before: number;
+  balance_after: number;
+  description: string | null;
+  reference_id: string | null;
+  reference_type: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WalletWithTransactions extends Wallet {
+  transactions: Transaction[];
+}

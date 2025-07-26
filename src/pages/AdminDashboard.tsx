@@ -9,13 +9,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye, Download, FileText, Filter, Layers } from 'lucide-react';
+import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye, Download, FileText, Filter, Layers, Wallet as WalletIcon } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteMode, type SiteMode } from '@/hooks/useSiteMode';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/ui/PaginationControls';
 import { Skeleton } from '@/components/ui/skeleton';
+import { WalletService } from '@/lib/walletService';
+import AdminWalletManager from '@/components/dashboard/AdminWalletManager';
 
 interface Profile {
   id: string;
@@ -75,6 +77,10 @@ const AdminDashboard = () => {
   const [filesDialogOpen, setFilesDialogOpen] = useState(false);
   const [wireframes, setWireframes] = useState<any[]>([]);
   const [storageFiles, setStorageFiles] = useState<any[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [selectedUserForWallet, setSelectedUserForWallet] = useState<Profile | null>(null);
+  const [walletDialogOpen, setWalletDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -639,6 +645,42 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDeleteOrder = async (order: Order) => {
+    setDeleteDialogOpen(false);
+    if (!order) return;
+    try {
+      // First, try to refund the order to wallet if it has a price
+      if (order.price && order.price > 0) {
+        try {
+          await WalletService.refundOrder(order.id);
+          toast({
+            title: 'بازپرداخت موفق',
+            description: `${WalletService.formatAmount(order.price)} به کیف پول کاربر بازپرداخت شد`,
+          });
+        } catch (refundError) {
+          console.error('Error refunding order:', refundError);
+          // Continue with deletion even if refund fails
+        }
+      }
+
+      // Delete the order
+      const { error } = await supabase.from('orders').delete().eq('id', order.id);
+      if (error) throw error;
+      
+      setOrders((prev) => prev.filter((o) => o.id !== order.id));
+      toast({
+        title: 'سفارش حذف شد',
+        description: 'سفارش با موفقیت حذف شد',
+      });
+    } catch (error) {
+      toast({
+        title: 'خطا در حذف سفارش',
+        description: 'مشکلی در حذف سفارش پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -821,6 +863,17 @@ const AdminDashboard = () => {
                               <Package className="w-3 h-3" />
                               فایل‌های کاربر
                             </Button>
+                            {order.status === 'pending' && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="flex items-center gap-1"
+                                onClick={() => { setOrderToDelete(order); setDeleteDialogOpen(true); }}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                حذف سفارش
+                              </Button>
+                            )}
                           </div>
                         </div>
                         <div className="flex gap-2 items-center">
@@ -962,6 +1015,17 @@ const AdminDashboard = () => {
                           >
                             <Shield className="w-4 h-4 ml-2" />
                             {profile.user_roles?.[0]?.role === 'admin' ? 'حذف ادمین' : 'ادمین کردن'}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedUserForWallet(profile);
+                              setWalletDialogOpen(true);
+                            }}
+                          >
+                            <WalletIcon className="w-4 h-4 ml-2" />
+                            کیف پول
                           </Button>
                           <Button
                             variant="destructive"
@@ -1198,6 +1262,44 @@ const AdminDashboard = () => {
               ))
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Order Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>حذف سفارش</DialogTitle>
+            <DialogDescription>
+              آیا از حذف این سفارش اطمینان دارید؟ این عملیات غیرقابل بازگشت است.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              انصراف
+            </Button>
+            <Button variant="destructive" onClick={() => orderToDelete && handleDeleteOrder(orderToDelete)}>
+              حذف سفارش
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Wallet Management Dialog */}
+      <Dialog open={walletDialogOpen} onOpenChange={setWalletDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>مدیریت کیف پول کاربر</DialogTitle>
+            <DialogDescription>
+              مشاهده و مدیریت کیف پول و تراکنش‌های کاربر
+            </DialogDescription>
+          </DialogHeader>
+          {selectedUserForWallet && (
+            <AdminWalletManager
+              userId={selectedUserForWallet.user_id}
+              userName={selectedUserForWallet.full_name}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </Layout>

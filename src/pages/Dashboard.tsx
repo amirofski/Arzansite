@@ -9,14 +9,16 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Plus, Package, User, Calendar, DollarSign, Eye, FileText, Layers, Search } from 'lucide-react';
+import { Plus, Package, User, Calendar, DollarSign, Eye, FileText, Layers, Search, Trash2 } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/ui/PaginationControls';
 import { Skeleton } from '@/components/ui/skeleton';
+import { WalletService } from '@/lib/walletService';
 import CreateOrderDialog from '@/components/dashboard/CreateOrderDialog';
 import EditProfileDialog from '@/components/dashboard/EditProfileDialog';
+import WalletCard from '@/components/dashboard/WalletCard';
 
 interface Order {
   id: string;
@@ -50,6 +52,8 @@ const Dashboard = () => {
   const [wireframeDialogOpen, setWireframeDialogOpen] = useState(false);
   const [userWireframes, setUserWireframes] = useState<any[]>([]);
   const [selectedWireframe, setSelectedWireframe] = useState<any>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -336,6 +340,42 @@ const Dashboard = () => {
     filterFunction: filterOrders
   });
 
+  const handleDeleteOrder = async (order: Order) => {
+    setDeleteDialogOpen(false);
+    if (!order) return;
+    try {
+      // First, try to refund the order to wallet if it has a price
+      if (order.price && order.price > 0) {
+        try {
+          await WalletService.refundOrder(order.id);
+          toast({
+            title: 'بازپرداخت موفق',
+            description: `${WalletService.formatAmount(order.price)} به کیف پول شما بازپرداخت شد`,
+          });
+        } catch (refundError) {
+          console.error('Error refunding order:', refundError);
+          // Continue with deletion even if refund fails
+        }
+      }
+
+      // Delete the order
+      const { error } = await supabase.from('orders').delete().eq('id', order.id);
+      if (error) throw error;
+      
+      setOrders((prev) => prev.filter((o) => o.id !== order.id));
+      toast({
+        title: 'سفارش حذف شد',
+        description: 'سفارش با موفقیت حذف شد',
+      });
+    } catch (error) {
+      toast({
+        title: 'خطا در حذف سفارش',
+        description: 'مشکلی در حذف سفارش پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -408,8 +448,9 @@ const Dashboard = () => {
           </div>
 
           <Tabs defaultValue="orders" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="orders">سفارشات من</TabsTrigger>
+              <TabsTrigger value="wallet">کیف پول</TabsTrigger>
               <TabsTrigger value="profile">اطلاعات حساب</TabsTrigger>
             </TabsList>
 
@@ -494,13 +535,24 @@ const Dashboard = () => {
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
                             <CardTitle className="text-lg">{order.title}</CardTitle>
-                            <div className="mt-3">
-                              {renderOrderWireframePreview(order)}
-                            </div>
+                            <div className="mt-3">{renderOrderWireframePreview(order)}</div>
                           </div>
-                          <Badge className={`${getStatusColor(order.status)} border-0`}>
-                            {getStatusText(order.status)}
-                          </Badge>
+                          <div className="flex gap-2 items-center">
+                            <Badge className={`${getStatusColor(order.status)} border-0`}>
+                              {getStatusText(order.status)}
+                            </Badge>
+                            {order.status === 'pending' && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="flex items-center gap-1"
+                                onClick={() => { setOrderToDelete(order); setDeleteDialogOpen(true); }}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                حذف سفارش
+                              </Button>
+                            )}
+                          </div>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -538,6 +590,13 @@ const Dashboard = () => {
                   />
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="wallet" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">کیف پول</h2>
+              </div>
+              <WalletCard userId={user?.id || ''} />
             </TabsContent>
 
             <TabsContent value="profile" className="space-y-6">
@@ -715,6 +774,25 @@ const Dashboard = () => {
                 </Card>
               ))
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>حذف سفارش</DialogTitle>
+            <DialogDescription>
+              آیا از حذف این سفارش اطمینان دارید؟ این عملیات غیرقابل بازگشت است.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
+              انصراف
+            </Button>
+            <Button variant="destructive" onClick={() => orderToDelete && handleDeleteOrder(orderToDelete)}>
+              حذف سفارش
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

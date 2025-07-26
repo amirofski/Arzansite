@@ -11,6 +11,7 @@ import StepThree from '@/components/wizard/StepThree';
 import PricingCalculator from '@/components/wizard/PricingCalculator';
 import StepFive from '@/components/wizard/StepFive';
 import OrderSubmissionStep from '@/components/wizard/OrderSubmissionStep';
+import FinalStepButton from '@/components/wizard/FinalStepButton';
 import Layout from "@/components/ui/Layout";
 
 interface WizardData {
@@ -241,13 +242,11 @@ const Wizard = () => {
                 <ArrowRight className="w-4 h-4" />
               </Button>
             ) : (
-              <Button
-                disabled={!isStepValid()}
-                className="btn-gradient flex items-center gap-2"
-              >
-                تکمیل سفارش
-                <Check className="w-4 h-4" />
-              </Button>
+              <FinalStepButton 
+                wizardData={wizardData} 
+                isStepValid={isStepValid()}
+                updateWizardData={updateWizardData}
+              />
             )}
           </div>
         </div>

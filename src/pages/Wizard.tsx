@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import StepOne from '@/components/wizard/StepOne';
-import WireframeEditor from '@/components/wizard/WireframeEditor';
+import DesignSelector from '@/components/wizard/DesignSelector';
 import StepThree from '@/components/wizard/StepThree';
 import PricingCalculator from '@/components/wizard/PricingCalculator';
 import StepFive from '@/components/wizard/StepFive';
@@ -92,7 +92,7 @@ const Wizard = () => {
 
   const steps = [
     { number: 1, title: 'نوع سایت', description: 'انتخاب نوع وب‌سایت' },
-    { number: 2, title: 'Wireframe', description: 'طراحی الگوی صفحه' },
+    { number: 2, title: 'طراحی', description: 'روش طراحی سایت' },
     { number: 3, title: 'برندینگ', description: 'طراحی و هویت بصری' },
     { number: 4, title: 'قیمت‌گذاری', description: 'محاسبه هزینه هوشمند' },
     { number: 5, title: 'اطلاعات', description: 'اطلاعات شخصی' },
@@ -120,7 +120,7 @@ const Wizard = () => {
       case 1:
         return <StepOne data={wizardData} updateData={updateWizardData} />;
       case 2:
-        return <WireframeEditor data={wizardData} updateData={updateWizardData} />;
+        return <DesignSelector data={wizardData} updateData={updateWizardData} />;
       case 3:
         return <StepThree data={wizardData} updateData={updateWizardData} />;
       case 4:
@@ -139,7 +139,8 @@ const Wizard = () => {
       case 1:
         return wizardData.siteType !== '';
       case 2:
-        return wizardData.wireframe && wizardData.wireframe.pages && wizardData.wireframe.pages.length > 0;
+        return (wizardData.wireframe && wizardData.wireframe.pages && wizardData.wireframe.pages.length > 0) || 
+               (wizardData.modules && wizardData.modules.length > 0);
       case 3:
         return wizardData.branding.primaryColor && wizardData.branding.fontFamily;
       case 4:

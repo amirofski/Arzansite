@@ -9,10 +9,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye, Download, FileText } from 'lucide-react';
+import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye, Download, FileText, Filter } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteMode, type SiteMode } from '@/hooks/useSiteMode';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/ui/PaginationControls';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface Profile {
   id: string;
@@ -49,7 +52,10 @@ const AdminDashboard = () => {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [userSearchTerm, setUserSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedOrderDesigns, setSelectedOrderDesigns] = useState<any>(null);
   const [selectedOrderFiles, setSelectedOrderFiles] = useState<any>(null);
@@ -63,6 +69,22 @@ const AdminDashboard = () => {
   }, []);
 
   const fetchData = async () => {
+    try {
+      await Promise.all([fetchUsers(), fetchOrders()]);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      toast({
+        title: 'خطا در بارگیری اطلاعات',
+        description: 'مشکلی در دریافت اطلاعات پیش آمد',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchUsers = async () => {
+    setUsersLoading(true);
     try {
       // Fetch all profiles with user roles
       const { data: profilesData, error: profilesError } = await supabase
@@ -86,7 +108,16 @@ const AdminDashboard = () => {
       }));
 
       setProfiles(profilesWithRoles);
+    } catch (error) {
+      throw error;
+    } finally {
+      setUsersLoading(false);
+    }
+  };
 
+  const fetchOrders = async () => {
+    setOrdersLoading(true);
+    try {
       // Fetch all orders
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
@@ -94,6 +125,13 @@ const AdminDashboard = () => {
         .order('created_at', { ascending: false });
 
       if (ordersError) throw ordersError;
+
+      // Fetch profiles to combine with orders
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, full_name, email');
+
+      if (profilesError) throw profilesError;
 
       // Combine orders with profile data
       const ordersWithProfiles = (ordersData || []).map(order => {
@@ -109,14 +147,9 @@ const AdminDashboard = () => {
 
       setOrders(ordersWithProfiles);
     } catch (error) {
-      console.error('Error fetching data:', error);
-      toast({
-        title: 'خطا در بارگیری اطلاعات',
-        description: 'مشکلی در دریافت اطلاعات پیش آمد',
-        variant: 'destructive',
-      });
+      throw error;
     } finally {
-      setLoading(false);
+      setOrdersLoading(false);
     }
   };
 
@@ -158,7 +191,7 @@ const AdminDashboard = () => {
 
       if (error) throw error;
 
-      await fetchData(); // Refresh data
+      await fetchUsers(); // Refresh users only
 
       toast({
         title: 'نقش کاربر تغییر کرد',
@@ -183,7 +216,7 @@ const AdminDashboard = () => {
 
       if (error) throw error;
 
-      await fetchData(); // Refresh data
+      await fetchUsers(); // Refresh users only
 
       toast({
         title: 'کاربر حذف شد',
@@ -388,18 +421,46 @@ const AdminDashboard = () => {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
+  // Filter functions for pagination
+  const filterOrders = (order: Order, searchTerm: string) => {
     const matchesSearch = order.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          order.profiles?.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          order.profiles?.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     return matchesSearch && matchesStatus;
+  };
+
+  const filterUsers = (profile: Profile, searchTerm: string) => {
+    return profile.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           profile.email.toLowerCase().includes(searchTerm.toLowerCase());
+  };
+
+  // Pagination hooks
+  const {
+    currentItems: currentOrders,
+    totalPages: ordersTotalPages,
+    currentPage: ordersCurrentPage,
+    setCurrentPage: setOrdersCurrentPage,
+    totalItems: ordersTotalItems
+  } = usePagination({
+    data: orders,
+    itemsPerPage: 6,
+    searchTerm,
+    filterFunction: filterOrders
   });
 
-  const filteredProfiles = profiles.filter(profile => 
-    profile.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    profile.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const {
+    currentItems: currentUsers,
+    totalPages: usersTotalPages,
+    currentPage: usersCurrentPage,
+    setCurrentPage: setUsersCurrentPage,
+    totalItems: usersTotalItems
+  } = usePagination({
+    data: profiles,
+    itemsPerPage: 8,
+    searchTerm: userSearchTerm,
+    filterFunction: filterUsers
+  });
 
   const viewOrderDesigns = async (orderId: string) => {
     try {
@@ -613,8 +674,44 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              <div className="grid gap-6">
-                {filteredOrders.map((order) => (
+              {ordersLoading ? (
+                <div className="space-y-6">
+                  {[...Array(6)].map((_, i) => (
+                    <Card key={i}>
+                      <CardHeader>
+                        <Skeleton className="h-6 w-1/3" />
+                        <Skeleton className="h-4 w-full mt-2" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-1/2" />
+                          <Skeleton className="h-4 w-1/3" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : currentOrders.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center py-8">
+                      <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">هیچ سفارشی یافت نشد</h3>
+                      <p className="text-muted-foreground mb-4">
+                        {searchTerm ? `سفارشی با عبارت "${searchTerm}" پیدا نشد` : 'هیچ سفارشی در سیستم ثبت نشده است'}
+                      </p>
+                      {searchTerm && (
+                        <Button variant="outline" onClick={() => setSearchTerm('')}>
+                          حذف فیلتر
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid gap-6">
+                    {currentOrders.map((order) => (
                   <Card key={order.id}>
                     <CardHeader>
                       <div className="flex justify-between items-start">
@@ -690,27 +787,76 @@ const AdminDashboard = () => {
                         </div>
                       )}
                     </CardContent>
-                  </Card>
-                ))}
-              </div>
+                    </Card>
+                    ))}
+                  </div>
+                  
+                  <PaginationControls
+                    currentPage={ordersCurrentPage}
+                    totalPages={ordersTotalPages}
+                    onPageChange={setOrdersCurrentPage}
+                    totalItems={ordersTotalItems}
+                    itemsPerPage={6}
+                  />
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="users" className="space-y-6">
               <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                 <h2 className="text-2xl font-bold">مدیریت کاربران</h2>
-                <div className="relative w-full md:w-80">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="جستجو در کاربران..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+                  <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="جستجو در کاربران..."
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
               </div>
 
-              <div className="grid gap-4">
-                {filteredProfiles.map((profile) => (
+                {usersLoading ? (
+                  <div className="space-y-4">
+                    {[...Array(8)].map((_, i) => (
+                      <Card key={i}>
+                        <CardContent className="pt-6">
+                          <div className="flex justify-between items-center">
+                            <div className="flex-1">
+                              <Skeleton className="h-5 w-1/3" />
+                              <Skeleton className="h-4 w-1/2 mt-2" />
+                              <Skeleton className="h-3 w-1/4 mt-1" />
+                            </div>
+                            <div className="flex gap-2">
+                              <Skeleton className="h-8 w-20" />
+                              <Skeleton className="h-8 w-16" />
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : currentUsers.length === 0 ? (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-center py-8">
+                        <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold mb-2">هیچ کاربری یافت نشد</h3>
+                        <p className="text-muted-foreground mb-4">
+                          {userSearchTerm ? `کاربری با عبارت "${userSearchTerm}" پیدا نشد` : 'هیچ کاربری در سیستم ثبت نشده است'}
+                        </p>
+                        {userSearchTerm && (
+                          <Button variant="outline" onClick={() => setUserSearchTerm('')}>
+                            حذف فیلتر
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="grid gap-4">
+                      {currentUsers.map((profile) => (
                   <Card key={profile.id}>
                     <CardContent className="pt-6">
                       <div className="flex justify-between items-center">
@@ -749,9 +895,19 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                     </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      </Card>
+                      ))}
+                    </div>
+                    
+                    <PaginationControls
+                      currentPage={usersCurrentPage}
+                      totalPages={usersTotalPages}
+                      onPageChange={setUsersCurrentPage}
+                      totalItems={usersTotalItems}
+                      itemsPerPage={8}
+                    />
+                  </div>
+                )}
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-6">

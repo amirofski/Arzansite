@@ -8,9 +8,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Plus, Package, User, Calendar, DollarSign, Eye, FileText, Layers } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Plus, Package, User, Calendar, DollarSign, Eye, FileText, Layers, Search } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/ui/PaginationControls';
+import { Skeleton } from '@/components/ui/skeleton';
 import CreateOrderDialog from '@/components/dashboard/CreateOrderDialog';
 import EditProfileDialog from '@/components/dashboard/EditProfileDialog';
 
@@ -39,6 +43,8 @@ const Dashboard = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [wireframeDialogOpen, setWireframeDialogOpen] = useState(false);
@@ -53,17 +59,7 @@ const Dashboard = () => {
     if (!user) return;
 
     try {
-      // Fetch user orders
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (ordersError) throw ordersError;
-      setOrders(ordersData || []);
-
-      // Fetch user profile
+      // Fetch user profile first
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
@@ -72,6 +68,9 @@ const Dashboard = () => {
 
       if (profileError) throw profileError;
       setProfile(profileData);
+
+      // Fetch user orders with loading state
+      await fetchOrders();
     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -81,6 +80,31 @@ const Dashboard = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOrders = async () => {
+    if (!user) return;
+
+    setOrdersLoading(true);
+    try {
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (ordersError) throw ordersError;
+      setOrders(ordersData || []);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+      toast({
+        title: 'خطا در بارگیری سفارشات',
+        description: 'مشکلی در دریافت سفارشات پیش آمد',
+        variant: 'destructive',
+      });
+    } finally {
+      setOrdersLoading(false);
     }
   };
 
@@ -327,6 +351,27 @@ const Dashboard = () => {
     }
   };
 
+  // Filter function for orders
+  const filterOrders = (order: Order, searchTerm: string) => {
+    return order.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           order.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           getStatusText(order.status).toLowerCase().includes(searchTerm.toLowerCase());
+  };
+
+  // Use pagination hook for orders
+  const {
+    currentItems: currentOrders,
+    totalPages: ordersTotalPages,
+    currentPage: ordersCurrentPage,
+    setCurrentPage: setOrdersCurrentPage,
+    totalItems: ordersTotalItems
+  } = usePagination({
+    data: orders,
+    itemsPerPage: 5,
+    searchTerm,
+    filterFunction: filterOrders
+  });
+
   if (loading) {
     return (
       <Layout>
@@ -405,17 +450,45 @@ const Dashboard = () => {
             </TabsList>
 
             <TabsContent value="orders" className="space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                 <h2 className="text-2xl font-bold">سفارشات من</h2>
-                <Button asChild className="flex items-center gap-2">
-                  <a href="/wizard">
-                    <Plus className="w-4 h-4" />
-                    سفارش جدید
-                  </a>
-                </Button>
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      placeholder="جستجو در سفارشات..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 w-full sm:w-64"
+                    />
+                  </div>
+                  <Button asChild className="flex items-center gap-2">
+                    <a href="/wizard">
+                      <Plus className="w-4 h-4" />
+                      سفارش جدید
+                    </a>
+                  </Button>
+                </div>
               </div>
 
-              {orders.length === 0 ? (
+              {ordersLoading ? (
+                <div className="space-y-6">
+                  {[...Array(3)].map((_, i) => (
+                    <Card key={i}>
+                      <CardHeader>
+                        <Skeleton className="h-6 w-1/3" />
+                        <Skeleton className="h-4 w-full mt-2" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          <Skeleton className="h-4 w-1/2" />
+                          <Skeleton className="h-4 w-1/3" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : orders.length === 0 ? (
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-center py-8">
@@ -433,9 +506,25 @@ const Dashboard = () => {
                     </div>
                   </CardContent>
                 </Card>
+              ) : currentOrders.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center py-8">
+                      <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">هیچ سفارشی یافت نشد</h3>
+                      <p className="text-muted-foreground mb-4">
+                        سفارشی با عبارت جستجوی "{searchTerm}" پیدا نشد
+                      </p>
+                      <Button variant="outline" onClick={() => setSearchTerm('')}>
+                        حذف فیلتر
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
               ) : (
-                        <div className="grid gap-6">
-                  {orders.map((order) => (
+                <div className="space-y-6">
+                  <div className="grid gap-6">
+                    {currentOrders.map((order) => (
                     <Card key={order.id}>
                       <CardHeader>
                         <div className="flex justify-between items-start">
@@ -473,7 +562,16 @@ const Dashboard = () => {
                         )}
                       </CardContent>
                     </Card>
-                  ))}
+                    ))}
+                  </div>
+                  
+                  <PaginationControls
+                    currentPage={ordersCurrentPage}
+                    totalPages={ordersTotalPages}
+                    onPageChange={setOrdersCurrentPage}
+                    totalItems={ordersTotalItems}
+                    itemsPerPage={5}
+                  />
                 </div>
               )}
             </TabsContent>

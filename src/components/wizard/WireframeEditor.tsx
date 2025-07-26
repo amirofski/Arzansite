@@ -145,6 +145,9 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const [showGrid, setShowGrid] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<'elements' | 'templates' | 'layers'>('elements');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [currentTemplatePage, setCurrentTemplatePage] = useState(1);
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [templatesPerPage] = useState(6);
   const [canvasHeight, setCanvasHeight] = useState(wireframe.canvasHeight);
   const [isSaving, setIsSaving] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
@@ -160,6 +163,11 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const [dimensionInput, setDimensionInput] = useState({ width: wireframe.canvasWidth, height: wireframe.canvasHeight });
   const canvasRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  // Reset page when category changes
+  React.useEffect(() => {
+    setCurrentTemplatePage(1);
+  }, [selectedCategory]);
 
   const basicTools = [
     { type: 'rectangle', icon: RectangleHorizontal, label: 'مستطیل', width: 120, height: 80 },
@@ -1295,20 +1303,84 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
               {sidebarTab === 'templates' && (
                 <ScrollArea className="flex-1">
                   <div className="p-4 space-y-2">
-                  <h3 className="text-sm font-medium mb-3">قالب‌های آماده</h3>
-                  {componentTemplates.map((template) => (
-                    <Card key={template.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                      <CardContent className="p-3" onClick={() => addTemplate(template)}>
-                        <div className="flex items-center gap-2">
-                          <Layout className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <h4 className="text-sm font-medium">{template.name}</h4>
-                            <p className="text-xs text-muted-foreground">{template.type}</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                   ))}
+                    <h3 className="text-sm font-medium mb-3">قالب‌های آماده</h3>
+                    
+                    {/* Category Filter */}
+                    <div className="mb-4">
+                      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder="انتخاب دسته‌بندی" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">همه</SelectItem>
+                          <SelectItem value="header">هدر</SelectItem>
+                          <SelectItem value="hero">هیرو</SelectItem>
+                          <SelectItem value="card">کارت</SelectItem>
+                          <SelectItem value="form">فرم</SelectItem>
+                          <SelectItem value="navigation">منو</SelectItem>
+                          <SelectItem value="footer">فوتر</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Templates Grid */}
+                    <div className="space-y-2">
+                      {(() => {
+                        // Filter templates by category
+                        const filteredTemplates = selectedCategory === 'all' 
+                          ? componentTemplates 
+                          : componentTemplates.filter(template => template.type === selectedCategory);
+                        
+                        // Calculate pagination
+                        const totalPages = Math.ceil(filteredTemplates.length / templatesPerPage);
+                        const startIndex = (currentTemplatePage - 1) * templatesPerPage;
+                        const endIndex = startIndex + templatesPerPage;
+                        const currentTemplates = filteredTemplates.slice(startIndex, endIndex);
+                        
+                        return (
+                          <>
+                            {currentTemplates.map((template) => (
+                              <Card key={template.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
+                                <CardContent className="p-3" onClick={() => addTemplate(template)}>
+                                  <div className="flex items-center gap-2">
+                                    <Layout className="h-4 w-4 text-muted-foreground" />
+                                    <div>
+                                      <h4 className="text-sm font-medium">{template.name}</h4>
+                                      <p className="text-xs text-muted-foreground">{template.type}</p>
+                                    </div>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ))}
+                            
+                            {/* Pagination Controls */}
+                            {totalPages > 1 && (
+                              <div className="flex items-center justify-between pt-2 border-t">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setCurrentTemplatePage(prev => Math.max(prev - 1, 1))}
+                                  disabled={currentTemplatePage === 1}
+                                >
+                                  قبلی
+                                </Button>
+                                <span className="text-xs text-muted-foreground">
+                                  صفحه {currentTemplatePage} از {totalPages}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setCurrentTemplatePage(prev => Math.min(prev + 1, totalPages))}
+                                  disabled={currentTemplatePage === totalPages}
+                                >
+                                  بعدی
+                                </Button>
+                              </div>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </ScrollArea>
               )}

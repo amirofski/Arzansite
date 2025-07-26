@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { calculateTotalPrice, formatPrice } from '@/lib/pricingUtils';
 import { 
   CreditCard, 
   Smartphone, 
@@ -30,44 +31,9 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fa-IR').format(price);
-  };
-
-  const calculateTotalPrice = () => {
-    if (!data.modules) return 0;
-    
-    let totalPrice = 0;
-    
-    // Base price for site type
-    totalPrice += data.siteType === 'personal' ? 500000 : 1200000;
-    
-    // Module prices
-    data.modules.forEach((module: any) => {
-      // You can define module pricing logic here
-      const modulePrices: Record<string, number> = {
-        'hero': 100000,
-        'about': 150000,
-        'services': 200000,
-        'portfolio': 250000,
-        'blog': 300000,
-        'contact': 100000,
-        'products': 400000,
-        'testimonials': 150000,
-        'booking': 800000,
-        'search': 500000,
-        'analytics': 600000
-      };
-      totalPrice += modulePrices[module.id] || 0;
-    });
-    
-    // Rush delivery
-    if (data.pricing?.rushDelivery) {
-      totalPrice += totalPrice * 0.5; // 50% extra for rush
-    }
-    
-    return totalPrice;
-  };
+  // Use centralized pricing calculation
+  const pricingBreakdown = calculateTotalPrice(data);
+  const totalCost = pricingBreakdown.totalPrice;
 
   const submitOrder = async () => {
     if (!user) {
@@ -98,7 +64,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
             position: index
           }))
         }),
-        price: calculateTotalPrice(),
+        price: totalCost,
         status: 'pending',
         payment_status: 'pending',
         comments: `دامنه: ${data.userInfo?.domain || 'mywebsite'}.ir`
@@ -139,7 +105,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
       // Now initiate Zarinpal payment
       const paymentRequest = {
         action: 'request',
-        amount: Math.floor(calculateTotalPrice() / 10), // Convert from Rials to Tomans
+        amount: Math.floor(totalCost / 10), // Convert from Rials to Tomans
         description: `پرداخت سفارش وب‌سایت - ${data.userInfo?.domain || 'mywebsite'}`,
         orderId: newOrder.id
       };
@@ -176,7 +142,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
     }
   };
 
-  const totalCost = calculateTotalPrice();
+  
 
   const orderSummary = [
     {
@@ -331,16 +297,28 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span>هزینه پایه</span>
-                  <span>{formatPrice(data.siteType === 'personal' ? 500000 : 1200000)} تومان</span>
+                  <span>{formatPrice(pricingBreakdown.basePrice)} تومان</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>ماژول‌های اضافی</span>
-                  <span>{formatPrice(totalCost - (data.siteType === 'personal' ? 500000 : 1200000))} تومان</span>
+                  <span>ماژول‌ها و سفارشی‌سازی</span>
+                  <span>{formatPrice(pricingBreakdown.modulesPrice)} تومان</span>
                 </div>
-                {data.pricing?.rushDelivery && (
+                {pricingBreakdown.packagePrice > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span>پکیج انتخابی</span>
+                    <span>{formatPrice(pricingBreakdown.packagePrice)} تومان</span>
+                  </div>
+                )}
+                {pricingBreakdown.additionalServicesPrice > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span>خدمات اضافی</span>
+                    <span>{formatPrice(pricingBreakdown.additionalServicesPrice)} تومان</span>
+                  </div>
+                )}
+                {pricingBreakdown.rushDeliveryFee > 0 && (
                   <div className="flex justify-between text-sm text-warning">
-                    <span>تحویل فوری (50%)</span>
-                    <span>+{formatPrice(totalCost * 0.33)} تومان</span>
+                    <span>تحویل فوری (30%)</span>
+                    <span>+{formatPrice(pricingBreakdown.rushDeliveryFee)} تومان</span>
                   </div>
                 )}
               </div>

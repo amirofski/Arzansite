@@ -19,6 +19,15 @@ import {
   Clock,
   CheckCircle2
 } from 'lucide-react';
+import { 
+  calculateTotalPrice, 
+  calculateModulesPrice, 
+  calculateAdditionalServicesPrice,
+  calculatePackagePrice,
+  calculateRushDeliveryFee,
+  formatPrice,
+  PRICING_CONFIG 
+} from '@/lib/pricingUtils';
 
 interface PricingCalculatorProps {
   data: any;
@@ -152,85 +161,17 @@ const PricingCalculator = ({ data, updateData }: PricingCalculatorProps) => {
     }
   ];
 
-  const calculateModulesCost = () => {
-    const modules = data.modules || [];
-    let total = 0;
-    
-    modules.forEach((module: any) => {
-      const moduleData = getModuleBasePrice(module.id);
-      let modulePrice = moduleData.basePrice;
-      
-      // Add complexity multiplier based on customization level
-      const complexityMultiplier = customizationLevel[0] / 5;
-      modulePrice *= (1 + complexityMultiplier);
-      
-      total += modulePrice;
-    });
-    
-    return Math.round(total);
-  };
-
-  const getModuleBasePrice = (moduleId: string) => {
-    const basePrices: Record<string, { basePrice: number; name: string }> = {
-      header: { basePrice: 0, name: 'هدر' },
-      hero: { basePrice: 100000, name: 'قسمت قهرمان' },
-      footer: { basePrice: 0, name: 'پاورقی' },
-      about: { basePrice: 150000, name: 'درباره ما' },
-      services: { basePrice: 200000, name: 'خدمات' },
-      portfolio: { basePrice: 250000, name: 'نمونه کارها' },
-      blog: { basePrice: 300000, name: 'وبلاگ' },
-      contact: { basePrice: 100000, name: 'تماس با ما' },
-      products: { basePrice: 400000, name: 'محصولات' },
-      testimonials: { basePrice: 150000, name: 'نظرات مشتریان' },
-      booking: { basePrice: 800000, name: 'رزرو آنلاین' },
-      search: { basePrice: 500000, name: 'جستجوی پیشرفته' },
-      analytics: { basePrice: 600000, name: 'آنالیتیکس' }
-    };
-    return basePrices[moduleId] || { basePrice: 0, name: 'نامشخص' };
-  };
-
-  const calculateAdditionalServicesCost = () => {
-    return additionalServices.reduce((total, serviceId) => {
-      const service = additionalServicesData.find(s => s.id === serviceId);
-      return total + (service?.price || 0);
-    }, 0);
-  };
-
-  const calculatePackageDiscount = () => {
-    const pkg = packages.find(p => p.id === selectedPackage);
-    if (!pkg) return 0;
-
-    const modulesCost = calculateModulesCost();
-    const packageBasePrice = pkg.basePrice;
-    
-    // If modules cost more than package price, apply discount
-    return Math.max(0, modulesCost - packageBasePrice);
-  };
-
-  const calculateRushDeliveryFee = () => {
-    if (!rushDelivery) return 0;
-    const baseTotal = getBaseTotal();
-    return Math.round(baseTotal * 0.3); // 30% rush fee
-  };
-
-  const getBaseTotal = () => {
-    const pkg = packages.find(p => p.id === selectedPackage);
-    const packagePrice = pkg?.basePrice || 0;
-    const modulesCost = calculateModulesCost();
-    const additionalServicesCost = calculateAdditionalServicesCost();
-    
-    return Math.max(packagePrice, modulesCost) + additionalServicesCost;
-  };
-
-  const calculateTotal = () => {
-    const baseTotal = getBaseTotal();
-    const rushFee = calculateRushDeliveryFee();
-    return baseTotal + rushFee;
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fa-IR').format(price);
-  };
+  // Use centralized pricing calculations
+  const pricingBreakdown = calculateTotalPrice({
+    siteType: data.siteType,
+    modules: data.modules,
+    pricing: {
+      selectedPackage,
+      additionalServices,
+      customizationLevel,
+      rushDelivery
+    }
+  });
 
   const handlePackageSelect = (packageId: string) => {
     setSelectedPackage(packageId);
@@ -262,7 +203,7 @@ const PricingCalculator = ({ data, updateData }: PricingCalculatorProps) => {
       additionalServices,
       customizationLevel,
       rushDelivery,
-      totalPrice: calculateTotal(),
+      totalPrice: pricingBreakdown.totalPrice,
       ...updates
     };
     
@@ -469,18 +410,18 @@ const PricingCalculator = ({ data, updateData }: PricingCalculatorProps) => {
             <div>
               <div className="flex justify-between items-center py-2">
                 <span>ماژول‌ها و سفارشی‌سازی</span>
-                <span className="font-semibold">{formatPrice(calculateModulesCost())} تومان</span>
+                <span className="font-semibold">{formatPrice(pricingBreakdown.modulesPrice)} تومان</span>
               </div>
               <div className="ml-4 space-y-1">
                 {data.modules.map((module: any) => {
-                  const moduleData = getModuleBasePrice(module.id);
-                  const basePrice = moduleData.basePrice;
+                  const moduleConfig = PRICING_CONFIG.modules[module.id as keyof typeof PRICING_CONFIG.modules];
+                  const basePrice = moduleConfig?.basePrice || 0;
                   const complexityMultiplier = customizationLevel[0] / 5;
                   const finalPrice = Math.round(basePrice * (1 + complexityMultiplier));
                   
                   return (
                     <div key={module.id} className="flex justify-between items-center text-sm text-muted-foreground">
-                      <span>• {moduleData.name}</span>
+                      <span>• {moduleConfig?.name || module.name}</span>
                       <span>{formatPrice(finalPrice)} تومان</span>
                     </div>
                   );
@@ -496,7 +437,7 @@ const PricingCalculator = ({ data, updateData }: PricingCalculatorProps) => {
               <div>
                 <div className="flex justify-between items-center py-2">
                   <span>خدمات اضافی</span>
-                  <span className="font-semibold">{formatPrice(calculateAdditionalServicesCost())} تومان</span>
+                  <span className="font-semibold">{formatPrice(pricingBreakdown.additionalServicesPrice)} تومان</span>
                 </div>
                 <div className="ml-4 space-y-1">
                   {additionalServices.map((serviceId) => {
@@ -519,7 +460,7 @@ const PricingCalculator = ({ data, updateData }: PricingCalculatorProps) => {
               <Separator />
               <div className="flex justify-between items-center py-2 text-warning">
                 <span>هزینه تحویل فوری</span>
-                <span className="font-semibold">{formatPrice(calculateRushDeliveryFee())} تومان</span>
+                <span className="font-semibold">{formatPrice(pricingBreakdown.rushDeliveryFee)} تومان</span>
               </div>
             </>
           )}
@@ -529,7 +470,7 @@ const PricingCalculator = ({ data, updateData }: PricingCalculatorProps) => {
           {/* Total */}
           <div className="flex justify-between items-center py-3 text-lg font-bold bg-primary/5 px-4 rounded-lg">
             <span>مجموع هزینه نهایی</span>
-            <span className="text-primary">{formatPrice(calculateTotal())} تومان</span>
+            <span className="text-primary">{formatPrice(pricingBreakdown.totalPrice)} تومان</span>
           </div>
         </CardContent>
       </Card>

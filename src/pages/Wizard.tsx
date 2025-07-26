@@ -15,6 +15,7 @@ import Layout from "@/components/ui/Layout";
 
 interface WizardData {
   siteType: 'personal' | 'business' | '';
+  pageMode?: 'single' | 'multi' | '';
   wireframe?: {
     pages: Array<{
       id: string;
@@ -67,6 +68,7 @@ const Wizard = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [wizardData, setWizardData] = useState<WizardData>({
     siteType: '',
+    pageMode: '',
     modules: [],
     branding: {
       primaryColor: '#8B5CF6',
@@ -139,8 +141,9 @@ const Wizard = () => {
       case 1:
         return wizardData.siteType !== '';
       case 2:
-        return (wizardData.wireframe && wizardData.wireframe.pages && wizardData.wireframe.pages.length > 0) || 
-               (wizardData.modules && wizardData.modules.length > 0);
+        return ((wizardData.wireframe && wizardData.wireframe.pages && wizardData.wireframe.pages.length > 0) || 
+               (wizardData.modules && wizardData.modules.length > 0)) && 
+               wizardData.pageMode !== '';
       case 3:
         return wizardData.branding.primaryColor && wizardData.branding.fontFamily;
       case 4:

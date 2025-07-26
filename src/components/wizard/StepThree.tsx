@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Upload, Palette, Type } from 'lucide-react';
+import { Upload, Palette, Type, Files } from 'lucide-react';
+import FileUploadManager from './FileUploadManager';
 
 interface StepThreeProps {
   data: any;
@@ -171,6 +172,18 @@ const StepThree = ({ data, updateData }: StepThreeProps) => {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* File Upload Section */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Files className="w-5 h-5 text-primary" />
+          <Label className="text-lg font-semibold">فایل‌های پروژه</Label>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          فایل‌های مربوط به پروژه خود مانند محتوا، تصاویر، اسناد و ... را آپلود کنید
+        </p>
+        <FileUploadManager data={data} updateData={updateData} />
       </div>
 
       {/* Preview */}

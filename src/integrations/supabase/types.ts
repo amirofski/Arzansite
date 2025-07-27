@@ -113,6 +113,65 @@ export type Database = {
         }
         Relationships: []
       }
+      transactions: {
+        Row: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at: string
+          description: string | null
+          id: string
+          metadata: Json | null
+          reference_id: string | null
+          reference_type: string | null
+          status: Database["public"]["Enums"]["transaction_status"]
+          type: Database["public"]["Enums"]["transaction_type"]
+          updated_at: string
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          reference_id?: string | null
+          reference_type?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"]
+          type: Database["public"]["Enums"]["transaction_type"]
+          updated_at?: string
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          balance_after?: number
+          balance_before?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          metadata?: Json | null
+          reference_id?: string | null
+          reference_type?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"]
+          type?: Database["public"]["Enums"]["transaction_type"]
+          updated_at?: string
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -173,6 +232,30 @@ export type Database = {
         }
         Relationships: []
       }
+      wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       wireframes: {
         Row: {
           created_at: string
@@ -219,6 +302,22 @@ export type Database = {
         }
         Returns: boolean
       }
+      process_wallet_transaction: {
+        Args: {
+          p_user_id: string
+          p_type: Database["public"]["Enums"]["transaction_type"]
+          p_amount: number
+          p_description?: string
+          p_reference_id?: string
+          p_reference_type?: string
+          p_metadata?: Json
+        }
+        Returns: string
+      }
+      refund_order_to_wallet: {
+        Args: { p_order_id: string }
+        Returns: string
+      }
     }
     Enums: {
       site_mode:
@@ -226,6 +325,14 @@ export type Database = {
         | "temporarily_unavailable"
         | "update_mode"
         | "development_mode"
+      transaction_status: "pending" | "completed" | "failed" | "cancelled"
+      transaction_type:
+        | "deposit"
+        | "withdrawal"
+        | "payment"
+        | "refund"
+        | "credit"
+        | "debit"
       user_role: "user" | "admin"
     }
     CompositeTypes: {
@@ -360,39 +467,16 @@ export const Constants = {
         "update_mode",
         "development_mode",
       ],
+      transaction_status: ["pending", "completed", "failed", "cancelled"],
+      transaction_type: [
+        "deposit",
+        "withdrawal",
+        "payment",
+        "refund",
+        "credit",
+        "debit",
+      ],
       user_role: ["user", "admin"],
     },
   },
 } as const
-
-export type TransactionType = 'deposit' | 'withdrawal' | 'payment' | 'refund' | 'credit' | 'debit';
-export type TransactionStatus = 'pending' | 'completed' | 'failed' | 'cancelled';
-
-export interface Wallet {
-  id: string;
-  user_id: string;
-  balance: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Transaction {
-  id: string;
-  wallet_id: string;
-  user_id: string;
-  type: TransactionType;
-  status: TransactionStatus;
-  amount: number;
-  balance_before: number;
-  balance_after: number;
-  description: string | null;
-  reference_id: string | null;
-  reference_type: string | null;
-  metadata: Record<string, unknown> | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface WalletWithTransactions extends Wallet {
-  transactions: Transaction[];
-}

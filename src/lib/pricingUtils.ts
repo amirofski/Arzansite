@@ -58,7 +58,9 @@ export const PRICING_CONFIG = {
     domain_ssl: { price: 150000, name: 'دامنه + SSL' },
     security: { price: 400000, name: 'امنیت پیشرفته' },
     seo_premium: { price: 600000, name: 'سئو premium' },
-    support_24_7: { price: 500000, name: 'پشتیبانی 24/7' }
+    support_24_7: { price: 500000, name: 'پشتیبانی 24/7' },
+    dedicated_infrastructure: { price: 800000, name: 'زیرساخت اختصاصی' },
+    dedicated_seo: { price: 700000, name: 'سئو اختصاصی' }
   }
 };
 

@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet as WalletIcon, Plus, ArrowUpDown, History, CreditCard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WalletService } from '@/lib/walletService';
-import type { Transaction } from '@/integrations/supabase/types';
+import type { Transaction } from '@/lib/walletService';
 
 interface WalletCardProps {
   userId: string;
@@ -170,7 +170,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">
-                            {WalletService.getTransactionTypeText(transaction.type)}
+                            {WalletService.getTransactionTypeText(transaction.type as any)}
                           </span>
                           <Badge
                             variant="outline"
@@ -188,7 +188,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                           {formatDate(transaction.created_at)}
                         </div>
                       </div>
-                      <div className={`font-medium ${WalletService.getTransactionTypeColor(transaction.type)}`}>
+                      <div className={`font-medium ${WalletService.getTransactionTypeColor(transaction.type as any)}`}>
                         {transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? '+' : '-'}
                         {WalletService.formatAmount(transaction.amount)}
                       </div>

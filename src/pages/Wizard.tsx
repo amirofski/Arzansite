@@ -6,8 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
 import StepOne from '@/components/wizard/StepOne';
-import DesignSelector from '@/components/wizard/DesignSelector';
+import StepTwo from '@/components/wizard/StepTwo';
 import StepThree from '@/components/wizard/StepThree';
+import StepFour from '@/components/wizard/StepFour';
 import PricingCalculator from '@/components/wizard/PricingCalculator';
 import StepFive from '@/components/wizard/StepFive';
 import OrderSubmissionStep from '@/components/wizard/OrderSubmissionStep';
@@ -17,6 +18,39 @@ import Layout from "@/components/ui/Layout";
 interface WizardData {
   siteType: 'personal' | 'business' | '';
   pageMode?: 'single' | 'multi' | '';
+  websiteFramework?: {
+    selectedLayouts: Record<string, string>;
+    uploadedImages: Record<string, string>;
+    pageStructure: 'single' | 'multi';
+    customPages?: string[];
+    canvasDimensions: {
+      width: number;
+      height: number;
+    };
+    // New dynamic design format
+    dynamicDesign?: {
+      pages: Array<{
+        id: string;
+        name: string;
+        sections: Array<{
+          id: string;
+          sectionType: string;
+          layoutId: string;
+          order: number;
+          customData?: {
+            title?: string;
+            content?: string;
+            images?: string[];
+          };
+        }>;
+        canvasDimensions: {
+          width: number;
+          height: number;
+        };
+      }>;
+      currentPageId: string;
+    };
+  };
   wireframe?: {
     pages: Array<{
       id: string;
@@ -52,16 +86,23 @@ interface WizardData {
     logo: string;
   };
   pricing: {
-    selectedPackage: string;
     additionalServices: string[];
     customizationLevel: number[];
     rushDelivery: boolean;
     totalPrice: number;
   };
   userInfo: {
-    name: string;
-    email: string;
+    name?: string;
+    email?: string;
     domain: string;
+    domainExtension?: string;
+    domainPrice?: string;
+    additionalDomains?: Array<{
+      domain: string;
+      extension: string;
+      price: number;
+      available: boolean;
+    }>;
   };
 }
 
@@ -77,15 +118,12 @@ const Wizard = () => {
       logo: ''
     },
     pricing: {
-      selectedPackage: '',
       additionalServices: [],
       customizationLevel: [3],
       rushDelivery: false,
       totalPrice: 0
     },
     userInfo: {
-      name: '',
-      email: '',
       domain: ''
     }
   });
@@ -97,8 +135,8 @@ const Wizard = () => {
     { number: 1, title: 'نوع سایت', description: 'انتخاب نوع وب‌سایت' },
     { number: 2, title: 'طراحی', description: 'روش طراحی سایت' },
     { number: 3, title: 'برندینگ', description: 'طراحی و هویت بصری' },
-    { number: 4, title: 'قیمت‌گذاری', description: 'محاسبه هزینه هوشمند' },
-    { number: 5, title: 'اطلاعات', description: 'اطلاعات شخصی' },
+    { number: 4, title: 'انتخاب دامنه', description: 'انتخاب دامنه وب‌سایت' },
+    { number: 5, title: 'قیمت‌گذاری', description: 'محاسبه هزینه هوشمند' },
     { number: 6, title: 'تأیید', description: 'تکمیل و ارسال سفارش' },
   ];
 
@@ -123,13 +161,13 @@ const Wizard = () => {
       case 1:
         return <StepOne data={wizardData} updateData={updateWizardData} />;
       case 2:
-        return <DesignSelector data={wizardData} updateData={updateWizardData} />;
+        return <StepTwo data={wizardData} updateData={updateWizardData} />;
       case 3:
         return <StepThree data={wizardData} updateData={updateWizardData} />;
       case 4:
-        return <PricingCalculator data={wizardData} updateData={updateWizardData} />;
-      case 5:
         return <StepFive data={wizardData} updateData={updateWizardData} />;
+      case 5:
+        return <StepFour data={wizardData} updateData={updateWizardData} />;
       case 6:
         return <OrderSubmissionStep data={wizardData} updateData={updateWizardData} />;
       default:
@@ -142,15 +180,23 @@ const Wizard = () => {
       case 1:
         return wizardData.siteType !== '';
       case 2:
-        return ((wizardData.wireframe && wizardData.wireframe.pages && wizardData.wireframe.pages.length > 0) || 
-               (wizardData.modules && wizardData.modules.length > 0)) && 
-               wizardData.pageMode !== '';
+        // Check for new dynamic design structure - at least one section must be added
+        if (wizardData.websiteFramework?.dynamicDesign?.pages) {
+          const totalSections = wizardData.websiteFramework.dynamicDesign.pages.reduce(
+            (total: number, page) => total + page.sections.length, 0
+          );
+          return totalSections > 0;
+        }
+        // Fallback to old structure for backward compatibility
+        return wizardData.websiteFramework && 
+               wizardData.websiteFramework.selectedLayouts && 
+               Object.keys(wizardData.websiteFramework.selectedLayouts).length > 0;
       case 3:
         return wizardData.branding.primaryColor !== '' && wizardData.branding.fontFamily !== '';
       case 4:
-        return wizardData.pricing.selectedPackage !== '';
+        return !!(wizardData.userInfo.domain);
       case 5:
-        return !!(wizardData.userInfo.name && wizardData.userInfo.email && wizardData.userInfo.domain);
+        return wizardData.pricing.totalPrice > 0;
       default:
         return true;
     }

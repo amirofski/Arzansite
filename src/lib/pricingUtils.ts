@@ -19,6 +19,8 @@ export interface PricingBreakdown {
   modulesPrice: number;
   additionalServicesPrice: number;
   packagePrice: number;
+  pagesCost: number;
+  sectionsCost: number;
   rushDeliveryFee: number;
   totalPrice: number;
   packageDiscount: number;
@@ -98,6 +100,44 @@ export const calculateRushDeliveryFee = (baseTotal: number, rushDelivery: boolea
   return Math.round(baseTotal * 0.3); // 30% rush fee
 };
 
+export const calculateDynamicDesignPrice = (data: any): { pagesCost: number; sectionsCost: number } => {
+  // New pricing model based on pages and sections
+  const pages = data.websiteFramework?.dynamicDesign?.pages || [];
+  let totalSections = 0;
+  let pagesCount = 0;
+  
+  if (pages.length > 0) {
+    // New dynamic design structure
+    pagesCount = pages.length;
+    totalSections = pages.reduce((total: number, page: any) => total + page.sections.length, 0);
+  } else {
+    // Old structure - estimate sections based on pages
+    pagesCount = data.pages?.length || 0;
+    totalSections = pagesCount * 4; // Assume 4 sections per page for old structure
+  }
+
+  // New pricing rules:
+  // 1. Single page designs are free (any number of sections)
+  // 2. Multi-page designs: 250,000 Toman per page
+  // 3. Total 6 sections across all pages is free
+  // 4. More than 6 total sections adds 150,000 Toman
+
+  let pagesCost = 0;
+  if (pagesCount > 1) {
+    // Multi-page design: charge per page
+    pagesCost = pagesCount * 250000; // 250,000 تومان per page
+  }
+  // Single page designs are free (pagesCost remains 0)
+
+  // Additional cost for more than 6 total sections
+  let sectionsCost = 0;
+  if (totalSections > 6) {
+    sectionsCost = 150000; // 150,000 تومان for sections
+  }
+  
+  return { pagesCost, sectionsCost };
+};
+
 export const calculateTotalPrice = (data: PricingData): PricingBreakdown => {
   const siteTypeConfig = data.siteType ? PRICING_CONFIG.siteTypes[data.siteType] : null;
   const basePrice = siteTypeConfig?.basePrice || 0;
@@ -111,13 +151,16 @@ export const calculateTotalPrice = (data: PricingData): PricingBreakdown => {
   
   const packagePrice = calculatePackagePrice(data.pricing?.selectedPackage || '');
   
+  // Calculate dynamic design pages and sections cost
+  const { pagesCost, sectionsCost } = calculateDynamicDesignPrice(data);
+  
   // Calculate the main cost (either package price or site type base + modules, whichever is higher)
   const mainCost = Math.max(packagePrice, basePrice + modulesPrice);
   
   // Package discount if modules cost less than package
   const packageDiscount = packagePrice > 0 ? Math.max(0, packagePrice - (basePrice + modulesPrice)) : 0;
   
-  const subtotal = mainCost + additionalServicesPrice;
+  const subtotal = mainCost + additionalServicesPrice + pagesCost + sectionsCost;
   const rushDeliveryFee = calculateRushDeliveryFee(subtotal, data.pricing?.rushDelivery || false);
   
   const totalPrice = subtotal + rushDeliveryFee;
@@ -127,6 +170,8 @@ export const calculateTotalPrice = (data: PricingData): PricingBreakdown => {
     modulesPrice,
     additionalServicesPrice,
     packagePrice,
+    pagesCost,
+    sectionsCost,
     rushDeliveryFee,
     totalPrice,
     packageDiscount

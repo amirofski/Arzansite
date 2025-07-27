@@ -4,13 +4,63 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { User, Mail, Globe, Shield, Clock, Check, X, Loader2, DollarSign } from 'lucide-react';
+import { Badge } from "@/components/ui/badge";
+import { User, Mail, Globe, Shield, Clock, Check, X, Loader2, DollarSign, Plus, Trash2, LogIn, UserPlus } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 
 interface StepFiveProps {
-  data: any;
-  updateData: (data: any) => void;
+  data: {
+    userInfo?: {
+      name?: string;
+      email?: string;
+      domain?: string;
+      domainExtension?: string;
+      domainPrice?: string;
+      additionalDomains?: Array<{
+        domain: string;
+        extension: string;
+        price: number;
+        available: boolean;
+      }>;
+    };
+    websiteFramework?: {
+      dynamicDesign?: {
+        pages: Array<{
+          id: string;
+          name: string;
+          sections: Array<{
+            id: string;
+            sectionType: string;
+            layoutId: string;
+            order: number;
+            customData?: Record<string, unknown>;
+          }>;
+          canvasDimensions: {
+            width: number;
+            height: number;
+          };
+        }>;
+        currentPageId: string;
+      };
+    };
+  };
+  updateData: (data: Partial<{
+    userInfo: {
+      name?: string;
+      email?: string;
+      domain?: string;
+      domainExtension?: string;
+      domainPrice?: string;
+      additionalDomains?: Array<{
+        domain: string;
+        extension: string;
+        price: number;
+        available: boolean;
+      }>;
+    };
+  }>) => void;
 }
 
 interface DomainAvailability {
@@ -42,7 +92,10 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
   const [isChecking, setIsChecking] = useState(false);
   const [checkTimeout, setCheckTimeout] = useState<NodeJS.Timeout | null>(null);
   const [selectedExtension, setSelectedExtension] = useState('.ir');
+  const [additionalDomain, setAdditionalDomain] = useState('');
+  const [additionalExtension, setAdditionalExtension] = useState('.com');
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const updateUserInfo = (field: string, value: string) => {
     const newUserInfo = {
@@ -121,7 +174,7 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
     }
   };
 
-  // Initialize extension and price on component mount
+  // Initialize primary domain extension to .ir
   useEffect(() => {
     if (!data.userInfo?.domainExtension) {
       updateUserInfo('domainExtension', '.ir');
@@ -150,62 +203,190 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
     return emailRegex.test(email);
   };
 
+  // Save design to local storage for guest users
+  const saveDesignToLocalStorage = () => {
+    if (!user && data.websiteFramework?.dynamicDesign) {
+      const designData = {
+        design: data.websiteFramework.dynamicDesign,
+        timestamp: new Date().toISOString(),
+        userInfo: data.userInfo
+      };
+      localStorage.setItem('arzansite_design', JSON.stringify(designData));
+      toast({
+        title: "طراحی ذخیره شد",
+        description: "طراحی شما در مرورگر ذخیره شده و می‌توانید بعداً ادامه دهید.",
+      });
+    }
+  };
+
+  // Add additional domain
+  const addAdditionalDomain = async () => {
+    if (!additionalDomain || !validateDomain(additionalDomain)) {
+      toast({
+        title: "خطا",
+        description: "لطفاً نام دامنه معتبر وارد کنید.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check domain availability
+    setIsChecking(true);
+    try {
+      const { data: result, error } = await supabase.functions.invoke('check-domain-availability', {
+        body: { domain: additionalDomain, extension: additionalExtension }
+      });
+
+      if (error) {
+        toast({
+          title: "خطا در بررسی دامنه",
+          description: "نتوانستیم وضعیت دامنه را بررسی کنیم.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (result.available) {
+        const extension = DOMAIN_EXTENSIONS.find(ext => ext.value === additionalExtension);
+        const newDomain = {
+          domain: additionalDomain,
+          extension: additionalExtension,
+          price: extension?.price || 0,
+          available: true
+        };
+
+        const currentDomains = data.userInfo?.additionalDomains || [];
+        updateData({
+          userInfo: {
+            ...data.userInfo,
+            additionalDomains: [...currentDomains, newDomain]
+          }
+        });
+
+        setAdditionalDomain('');
+        toast({
+          title: "دامنه اضافه شد",
+          description: `${additionalDomain}${additionalExtension} به لیست دامنه‌های شما اضافه شد.`,
+        });
+      } else {
+        toast({
+          title: "دامنه در دسترس نیست",
+          description: `${additionalDomain}${additionalExtension} قبلاً ثبت شده است.`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "خطا",
+        description: "مشکلی در بررسی دامنه پیش آمد.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  // Remove additional domain
+  const removeAdditionalDomain = (index: number) => {
+    const currentDomains = data.userInfo?.additionalDomains || [];
+    const updatedDomains = currentDomains.filter((_, i) => i !== index);
+    updateData({
+      userInfo: {
+        ...data.userInfo,
+        additionalDomains: updatedDomains
+      }
+    });
+  };
+
+  // Calculate total domain cost
+  const calculateTotalDomainCost = () => {
+    const primaryDomainCost = parseInt(data.userInfo?.domainPrice || '0');
+    const additionalDomainsCost = (data.userInfo?.additionalDomains || []).reduce((total, domain) => total + domain.price, 0);
+    return primaryDomainCost + additionalDomainsCost;
+  };
+
   return (
     <div className="space-y-8">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold mb-2">اطلاعات شخصی</h2>
+        <h2 className="text-2xl font-bold mb-2">انتخاب دامنه</h2>
         <p className="text-muted-foreground">
-          اطلاعات خود را برای تکمیل سفارش وارد کنید
+          دامنه وب‌سایت خود را انتخاب کنید
         </p>
       </div>
 
       <div className="grid md:grid-cols-1 max-w-2xl mx-auto gap-6">
-        {/* Personal Information */}
+        {/* User Authentication Status */}
         <Card className="card-modern">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="w-5 h-5 text-primary" />
-              اطلاعات شخصی
+              وضعیت کاربر
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">
-                نام و نام خانوادگی *
-              </Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="نام کامل خود را وارد کنید"
-                value={data.userInfo?.name || ''}
-                onChange={(e) => updateUserInfo('name', e.target.value)}
-                className="input-modern"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email" className="text-sm font-medium flex items-center gap-2">
-                <Mail className="w-4 h-4" />
-                ایمیل *
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="example@domain.com"
-                value={data.userInfo?.email || ''}
-                onChange={(e) => updateUserInfo('email', e.target.value)}
-                className={`input-modern ${
-                  data.userInfo?.email && !isValidEmail(data.userInfo.email)
-                    ? 'border-destructive focus:ring-destructive'
-                    : ''
-                }`}
-              />
-              {data.userInfo?.email && !isValidEmail(data.userInfo.email) && (
-                <p className="text-sm text-destructive">
-                  لطفاً یک ایمیل معتبر وارد کنید
+            {user ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 bg-success/10 rounded-lg border border-success/20">
+                  <div className="w-10 h-10 bg-success/20 rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-success" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-success">کاربر وارد شده</h4>
+                    <p className="text-sm text-muted-foreground">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  اطلاعات شما از حساب کاربری استفاده می‌شود و طراحی در پایگاه داده ذخیره خواهد شد.
                 </p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-4 bg-warning/10 rounded-lg border border-warning/20">
+                  <div className="w-10 h-10 bg-warning/20 rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-warning" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-warning">کاربر مهمان</h4>
+                    <p className="text-sm text-muted-foreground">
+                      طراحی شما در مرورگر ذخیره می‌شود
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex gap-3">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => window.location.href = '/auth?redirect=wizard'}
+                  >
+                    <LogIn className="w-4 h-4 ml-2" />
+                    ورود
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => window.location.href = '/auth?redirect=wizard&mode=signup'}
+                  >
+                    <UserPlus className="w-4 h-4 ml-2" />
+                    ثبت‌نام
+                  </Button>
+                </div>
+                
+                <Button 
+                  variant="secondary" 
+                  onClick={saveDesignToLocalStorage}
+                  className="w-full"
+                >
+                  ذخیره طراحی در مرورگر
+                </Button>
+                
+                <p className="text-sm text-muted-foreground">
+                  برای ذخیره دائمی طراحی و دسترسی از هر دستگاه، لطفاً ثبت‌نام کنید.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -218,45 +399,16 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Primary Domain (.ir) */}
             <div className="space-y-2">
-              <Label htmlFor="domain" className="text-sm font-medium">
-                نام دامنه مورد نظر *
+              <Label className="text-sm font-medium">
+                دامنه اصلی (.ir) *
               </Label>
               
-              {/* Domain Extension Selector */}
               <div className="space-y-3">
-                <div>
-                  <Label className="text-sm font-medium mb-2 block">انتخاب پسوند دامنه</Label>
-                  <Select 
-                    value={data.userInfo?.domainExtension || selectedExtension} 
-                    onValueChange={(value) => updateUserInfo('domainExtension', value)}
-                  >
-                    <SelectTrigger className="input-modern">
-                      <SelectValue placeholder="انتخاب پسوند" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DOMAIN_EXTENSIONS.map((ext) => (
-                        <SelectItem key={ext.value} value={ext.value}>
-                          <div className="flex items-center justify-between w-full">
-                            <span className="font-medium">{ext.label}</span>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <span>{ext.price === 0 ? 'رایگان' : formatPrice(ext.price)}</span>
-                            </div>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {DOMAIN_EXTENSIONS.find(ext => ext.value === (data.userInfo?.domainExtension || selectedExtension))?.description}
-                  </p>
-                </div>
-
-                {/* Domain Name Input */}
                 <div className="flex items-center gap-2">
                   <div className="flex-1 relative">
                     <Input
-                      id="domain"
                       type="text"
                       placeholder="mywebsite"
                       value={data.userInfo?.domain || ''}
@@ -286,15 +438,13 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                       </div>
                     )}
                   </div>
-                  <span className="text-muted-foreground whitespace-nowrap">
-                    {data.userInfo?.domainExtension || selectedExtension}
-                  </span>
+                  <span className="text-muted-foreground whitespace-nowrap">.ir</span>
                   {data.userInfo?.domain && validateDomain(data.userInfo.domain) && (
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={() => checkDomainAvailability(data.userInfo.domain, data.userInfo?.domainExtension || selectedExtension)}
+                      onClick={() => checkDomainAvailability(data.userInfo.domain, '.ir')}
                       disabled={isChecking}
                       className="whitespace-nowrap"
                     >
@@ -310,11 +460,13 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                   )}
                 </div>
               </div>
+              
               {data.userInfo?.domain && !validateDomain(data.userInfo.domain) && (
                 <p className="text-sm text-destructive">
                   نام دامنه باید شامل حروف انگلیسی، اعداد و خط تیره باشد و حداقل 2 کاراکتر داشته باشد
                 </p>
               )}
+              
               {domainCheck && (
                 <div className={`text-sm p-3 rounded-lg ${
                   domainCheck.available 
@@ -329,18 +481,10 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                     )}
                     <span className="font-medium">{domainCheck.message}</span>
                   </div>
-                  {domainCheck.available && domainCheck.price > 0 && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <DollarSign className="w-4 h-4" />
-                      <span>هزینه دامنه: {formatPrice(domainCheck.price)}</span>
-                    </div>
-                  )}
-                  {domainCheck.available && domainCheck.price === 0 && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Check className="w-4 h-4" />
-                      <span>دامنه .ir برای یک سال رایگان است</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 text-sm">
+                    <Check className="w-4 h-4" />
+                    <span>دامنه .ir برای یک سال رایگان است</span>
+                  </div>
                   {domainCheck.checkedAt && (
                     <div className="text-xs mt-1 opacity-75">
                       بررسی شده در: {new Date(domainCheck.checkedAt).toLocaleString('fa-IR')}
@@ -350,15 +494,103 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
               )}
               
               <p className="text-sm text-muted-foreground">
-                نام دامنه شما: <strong>
-                  {data.userInfo?.domain || 'mywebsite'}{data.userInfo?.domainExtension || selectedExtension}
+                دامنه اصلی شما: <strong>
+                  {data.userInfo?.domain || 'mywebsite'}.ir
                 </strong>
-                {data.userInfo?.domainPrice && parseInt(data.userInfo.domainPrice) > 0 && (
-                  <span className="block mt-1 text-primary font-medium">
-                    هزینه دامنه: {formatPrice(data.userInfo.domainPrice)}
-                  </span>
-                )}
+                <span className="block mt-1 text-success font-medium">
+                  رایگان برای یک سال
+                </span>
               </p>
+            </div>
+
+            {/* Additional Domains */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">
+                  دامنه‌های اضافی (اختیاری)
+                </Label>
+                <Badge variant="secondary" className="text-xs">
+                  {data.userInfo?.additionalDomains?.length || 0} دامنه
+                </Badge>
+              </div>
+              
+              {/* Add Additional Domain */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 relative">
+                    <Input
+                      type="text"
+                      placeholder="نام دامنه"
+                      value={additionalDomain}
+                      onChange={(e) => setAdditionalDomain(e.target.value.toLowerCase())}
+                      className={`input-modern ${
+                        additionalDomain && !validateDomain(additionalDomain)
+                          ? 'border-destructive focus:ring-destructive'
+                          : ''
+                      }`}
+                    />
+                  </div>
+                  <Select 
+                    value={additionalExtension} 
+                    onValueChange={setAdditionalExtension}
+                  >
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DOMAIN_EXTENSIONS.filter(ext => ext.value !== '.ir').map((ext) => (
+                        <SelectItem key={ext.value} value={ext.value}>
+                          <div className="flex items-center justify-between w-full">
+                            <span>{ext.label}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {ext.price === 0 ? 'رایگان' : formatPrice(ext.price)}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addAdditionalDomain}
+                    disabled={isChecking || !additionalDomain || !validateDomain(additionalDomain)}
+                    className="whitespace-nowrap"
+                  >
+                    <Plus className="w-4 h-4 ml-1" />
+                    اضافه کردن
+                  </Button>
+                </div>
+              </div>
+
+              {/* Additional Domains List */}
+              {data.userInfo?.additionalDomains && data.userInfo.additionalDomains.length > 0 && (
+                <div className="space-y-2">
+                  {data.userInfo.additionalDomains.map((domain, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Check className="w-4 h-4 text-success" />
+                        <span className="font-medium">
+                          {domain.domain}{domain.extension}
+                        </span>
+                        <Badge variant="outline" className="text-xs">
+                          {domain.price === 0 ? 'رایگان' : formatPrice(domain.price)}
+                        </Badge>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeAdditionalDomain(index)}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="bg-info/10 border border-info/20 rounded-lg p-4">
@@ -412,16 +644,27 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
       </div>
 
       {/* Form Validation Summary */}
-      {data.userInfo?.name && data.userInfo?.email && data.userInfo?.domain && data.userInfo?.domainExtension && (
+      {data.userInfo?.domain && (
         <div className="text-center p-4 bg-success/10 rounded-xl border border-success/20 max-w-2xl mx-auto">
           <p className="text-success font-medium mb-2">
-            ✓ تمام اطلاعات مورد نیاز وارد شده است
+            ✓ دامنه اصلی انتخاب شده است
           </p>
-          {data.userInfo?.domainPrice && parseInt(data.userInfo.domainPrice) > 0 && (
-            <div className="text-sm text-muted-foreground">
-              هزینه دامنه: <span className="font-medium text-primary">{formatPrice(data.userInfo.domainPrice)}</span>
+          <div className="text-sm text-muted-foreground space-y-1">
+            <div>
+              دامنه اصلی: <span className="font-medium text-primary">{data.userInfo.domain}.ir</span>
+              <span className="text-success"> (رایگان)</span>
             </div>
-          )}
+            {data.userInfo?.additionalDomains && data.userInfo.additionalDomains.length > 0 && (
+              <div>
+                دامنه‌های اضافی: <span className="font-medium text-primary">{data.userInfo.additionalDomains.length} دامنه</span>
+              </div>
+            )}
+            {calculateTotalDomainCost() > 0 && (
+              <div>
+                هزینه کل دامنه‌ها: <span className="font-medium text-primary">{formatPrice(calculateTotalDomainCost())}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

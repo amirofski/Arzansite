@@ -1,41 +1,81 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, Star, Zap, Crown } from 'lucide-react';
+import { Calculator, Globe, Check } from 'lucide-react';
+import React from 'react'; // Added missing import for React
 
 interface StepFourProps {
   data: any;
   updateData: (data: any) => void;
 }
 
-const StepFour = ({ data }: StepFourProps) => {
+const StepFour = ({ data, updateData }: StepFourProps) => {
   const calculateCost = () => {
-    let baseCost = 0;
+    let baseCost = 2500000; // Base price: 2,500,000 تومان for monthly payment
     let pagesCost = 0;
+    let sectionsCost = 0;
     let brandingCost = 0;
+    let domainCost = 0;
 
-    // Base cost based on site type
-    if (data.siteType === 'personal') {
-      baseCost = 500000; // 500,000 تومان
-    } else if (data.siteType === 'business') {
-      baseCost = 1200000; // 1,200,000 تومان
+    // Base cost is now fixed at 2,500,000 تومان for all site types
+    // The pricing model is now:
+    // 1. Base price: 2,500,000 تومان (monthly)
+    // 2. Single page designs: free (any number of sections)
+    // 3. Multi-page designs: 250,000 تومان per page
+    // 4. Total 6 sections across all pages is free
+    // 5. More than 6 total sections adds 150,000 تومان
+
+    // New pricing model based on pages and sections
+    // Support both old and new data structures
+    const pages = data.websiteFramework?.dynamicDesign?.pages || [];
+    let totalSections = 0;
+    let pagesCount = 0;
+    
+    if (pages.length > 0) {
+      // New dynamic design structure
+      pagesCount = pages.length;
+      totalSections = pages.reduce((total, page) => total + page.sections.length, 0);
+    } else {
+      // Old structure - estimate sections based on pages
+      pagesCount = data.pages?.length || 0;
+      totalSections = pagesCount * 4; // Assume 4 sections per page for old structure
     }
 
-    // Additional pages cost
-    const additionalPages = Math.max(0, (data.pages?.length || 0) - 2); // First 2 pages free
-    pagesCost = additionalPages * 150000; // 150,000 تومان per additional page
+    // New pricing rules:
+    // 1. Base price: 2,500,000 تومان for one page design with any sections
+    // 2. Multi-page: additional cost for extra pages
+    // 3. More than 6 total sections: additional cost
+
+    if (pagesCount > 1) {
+      // Multi-page design: additional cost for extra pages
+      pagesCost = (pagesCount - 1) * 250000; // 250,000 تومان per additional page
+    }
+
+    // Additional cost for more than 6 total sections
+    if (totalSections > 6) {
+      sectionsCost = 150000; // 150,000 تومان for sections
+    }
 
     // Branding cost
     if (data.branding?.logo) {
       brandingCost += 200000; // Logo integration: 200,000 تومان
     }
 
-    const totalCost = baseCost + pagesCost + brandingCost;
+    // Domain costs
+    if (data.userInfo?.additionalDomains) {
+      domainCost = data.userInfo.additionalDomains.reduce((total, domain) => total + domain.price, 0);
+    }
+
+    const totalCost = baseCost + pagesCost + sectionsCost + brandingCost + domainCost;
     
     return {
       baseCost,
       pagesCost,
+      sectionsCost,
       brandingCost,
-      totalCost
+      domainCost,
+      totalCost,
+      totalSections,
+      pagesCount
     };
   };
 
@@ -45,96 +85,23 @@ const StepFour = ({ data }: StepFourProps) => {
 
   const costs = calculateCost();
 
-  const packages = [
-    {
-      name: 'پایه',
-      icon: Star,
-      price: 500000,
-      features: [
-        'وب‌سایت شخصی',
-        'تا 3 صفحه',
-        'قالب آماده',
-        'پشتیبانی 3 ماهه'
-      ],
-      isSelected: data.siteType === 'personal' && (data.pages?.length || 0) <= 3
-    },
-    {
-      name: 'حرفه‌ای',
-      icon: Zap,
-      price: 1200000,
-      features: [
-        'وب‌سایت تجاری',
-        'تا 6 صفحه',
-        'طراحی اختصاصی',
-        'پشتیبانی 6 ماهه'
-      ],
-      isSelected: data.siteType === 'business' && (data.pages?.length || 0) <= 6
-    },
-    {
-      name: 'پیشرفته',
-      icon: Crown,
-      price: 2000000,
-      features: [
-        'وب‌سایت کامل',
-        'صفحات نامحدود',
-        'امکانات پیشرفته',
-        'پشتیبانی 1 ساله'
-      ],
-      isSelected: (data.pages?.length || 0) > 6
-    }
-  ];
+  // Update pricing data when costs change
+  React.useEffect(() => {
+    updateData({
+      pricing: {
+        ...data.pricing,
+        totalPrice: costs.totalCost
+      }
+    });
+  }, [costs.totalCost]);
 
   return (
     <div className="space-y-8">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold mb-2">محاسبه هزینه</h2>
+        <h2 className="text-2xl font-bold mb-2">قیمت‌گذاری</h2>
         <p className="text-muted-foreground">
           هزینه وب‌سایت شما براساس انتخاب‌های انجام شده محاسبه شده است
         </p>
-      </div>
-
-      {/* Package Recommendations */}
-      <div className="grid md:grid-cols-3 gap-6 mb-8">
-        {packages.map((pkg) => {
-          const Icon = pkg.icon;
-          return (
-            <Card 
-              key={pkg.name}
-              className={`transition-all duration-300 ${
-                pkg.isSelected 
-                  ? 'ring-2 ring-primary bg-primary/5 transform scale-105' 
-                  : 'hover:shadow-medium'
-              }`}
-            >
-              <CardHeader className="text-center">
-                <div className={`w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center ${
-                  pkg.isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                }`}>
-                  <Icon className="w-6 h-6" />
-                </div>
-                <CardTitle className="text-lg">{pkg.name}</CardTitle>
-                {pkg.isSelected && (
-                  <Badge variant="default" className="w-fit mx-auto">
-                    انتخاب شما
-                  </Badge>
-                )}
-              </CardHeader>
-              <CardContent className="text-center">
-                <div className="text-2xl font-bold text-primary mb-4">
-                  {formatPrice(pkg.price)} تومان
-                </div>
-                <ul className="space-y-2 text-sm">
-                  {pkg.features.map((feature, index) => (
-                    <li key={index} className="flex items-center justify-center gap-2">
-                      <span className="w-1.5 h-1.5 bg-primary rounded-full"></span>
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          );
-        })}
       </div>
 
       {/* Detailed Cost Breakdown */}
@@ -147,14 +114,21 @@ const StepFour = ({ data }: StepFourProps) => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex justify-between items-center py-2 border-b border-border">
-            <span>هزینه پایه ({data.siteType === 'personal' ? 'شخصی' : 'تجاری'})</span>
+            <span>هزینه پایه (یک صفحه)</span>
             <span className="font-semibold">{formatPrice(costs.baseCost)} تومان</span>
           </div>
           
           {costs.pagesCost > 0 && (
             <div className="flex justify-between items-center py-2 border-b border-border">
-              <span>صفحات اضافی ({Math.max(0, (data.pages?.length || 0) - 2)} صفحه)</span>
+              <span>صفحات اضافی ({costs.pagesCount - 1} صفحه اضافی - {costs.pagesCount - 1} × 250,000 تومان)</span>
               <span className="font-semibold">{formatPrice(costs.pagesCost)} تومان</span>
+            </div>
+          )}
+          
+          {costs.sectionsCost > 0 && (
+            <div className="flex justify-between items-center py-2 border-b border-border">
+              <span>بخش‌های اضافی ({costs.totalSections} بخش - بیش از 6 بخش)</span>
+              <span className="font-semibold">{formatPrice(costs.sectionsCost)} تومان</span>
             </div>
           )}
           
@@ -162,6 +136,13 @@ const StepFour = ({ data }: StepFourProps) => {
             <div className="flex justify-between items-center py-2 border-b border-border">
               <span>طراحی و برندینگ (لوگو)</span>
               <span className="font-semibold">{formatPrice(costs.brandingCost)} تومان</span>
+            </div>
+          )}
+
+          {costs.domainCost > 0 && (
+            <div className="flex justify-between items-center py-2 border-b border-border">
+              <span>دامنه‌های اضافی</span>
+              <span className="font-semibold">{formatPrice(costs.domainCost)} تومان</span>
             </div>
           )}
           
@@ -172,6 +153,41 @@ const StepFour = ({ data }: StepFourProps) => {
         </CardContent>
       </Card>
 
+      {/* Domain Summary */}
+      {data.userInfo?.domain && (
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
+              <Globe className="w-5 h-5" />
+              خلاصه دامنه
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span>دامنه اصلی:</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{data.userInfo.domain}.ir</span>
+                  <Badge variant="success" className="text-xs">رایگان</Badge>
+                </div>
+              </div>
+              
+              {data.userInfo?.additionalDomains && data.userInfo.additionalDomains.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-sm font-medium">دامنه‌های اضافی:</span>
+                  {data.userInfo.additionalDomains.map((domain, index) => (
+                    <div key={index} className="flex items-center justify-between text-sm">
+                      <span>{domain.domain}{domain.extension}</span>
+                      <span className="font-medium">{formatPrice(domain.price)} تومان</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* What's Included */}
       <Card className="bg-gradient-to-r from-success/5 to-info/5">
         <CardHeader>
@@ -181,37 +197,37 @@ const StepFour = ({ data }: StepFourProps) => {
           <div className="grid md:grid-cols-2 gap-4">
             <ul className="space-y-2">
               <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-success rounded-full"></span>
+                <Check className="w-4 h-4 text-success" />
                 طراحی ریسپانسیو (موبایل و دسکتاپ)
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-success rounded-full"></span>
+                <Check className="w-4 h-4 text-success" />
                 سئو پایه (بهینه‌سازی موتورهای جستجو)
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-success rounded-full"></span>
+                <Check className="w-4 h-4 text-success" />
                 فرم تماس کاربردی
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-success rounded-full"></span>
+                <Check className="w-4 h-4 text-success" />
                 سرعت بالا و امنیت
               </li>
             </ul>
             <ul className="space-y-2">
               <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-success rounded-full"></span>
+                <Check className="w-4 h-4 text-success" />
                 هاستینگ رایگان برای 1 سال
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-success rounded-full"></span>
+                <Check className="w-4 h-4 text-success" />
                 ادغام شبکه‌های اجتماعی
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-success rounded-full"></span>
+                <Check className="w-4 h-4 text-success" />
                 پنل مدیریت آسان
               </li>
               <li className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-success rounded-full"></span>
+                <Check className="w-4 h-4 text-success" />
                 پشتیبانی فنی
               </li>
             </ul>

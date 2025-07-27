@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye, Download, FileText, Filter, Layers, Wallet as WalletIcon } from 'lucide-react';
+import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye, Download, FileText, Filter, Layers, Wallet as WalletIcon, Palette } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
 import { useSiteMode, type SiteMode } from '@/hooks/useSiteMode';
@@ -18,6 +18,7 @@ import { PaginationControls } from '@/components/ui/PaginationControls';
 import { Skeleton } from '@/components/ui/skeleton';
 import { WalletService } from '@/lib/walletService';
 import AdminWalletManager from '@/components/dashboard/AdminWalletManager';
+import DesignPreview from '@/components/wizard/DesignPreview';
 
 interface Profile {
   id: string;
@@ -398,6 +399,25 @@ const AdminDashboard = () => {
   const renderOrderWireframePreview = (order: Order) => {
     try {
       const parsedData = JSON.parse(order.description);
+      
+      // Check for new dynamic design data first
+      if (parsedData.websiteFramework?.dynamicDesign) {
+        return (
+          <div className="space-y-4">
+            <div className="border rounded-lg p-4 bg-muted/30">
+              <div className="flex items-center gap-2 mb-3">
+                <Palette className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">پیش‌نمایش طراحی پویا</span>
+              </div>
+              <DesignPreview 
+                design={parsedData.websiteFramework.dynamicDesign}
+                showActions={false}
+              />
+            </div>
+          </div>
+        );
+      }
+      
       if ((parsedData.moduleLayout && Array.isArray(parsedData.moduleLayout)) || (parsedData.modules && Array.isArray(parsedData.modules))) {
         return (
           <div className="space-y-4">

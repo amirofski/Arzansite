@@ -186,40 +186,240 @@ const StepThree = ({ data, updateData }: StepThreeProps) => {
         <FileUploadManager data={data} updateData={updateData} />
       </div>
 
-      {/* Preview */}
+      {/* Dynamic Design Preview */}
       <Card className="bg-gradient-to-r from-primary/5 to-secondary/5">
         <CardContent className="p-6">
-          <h3 className="text-lg font-semibold mb-4">پیش‌نمایش طراحی</h3>
-          <div 
-            className="p-6 rounded-xl shadow-medium bg-white"
-            style={{ 
-              borderColor: data.branding?.primaryColor,
-              borderWidth: '2px',
-              fontFamily: data.branding?.fontFamily 
-            }}
-          >
-            <div className="flex items-center gap-4 mb-4">
-              {logoPreview && (
-                <img src={logoPreview} alt="Logo" className="w-12 h-12 rounded" />
-              )}
-              <div>
-                <h4 className="text-xl font-bold" style={{ color: data.branding?.primaryColor }}>
-                  نام وب‌سایت شما
-                </h4>
-                <p className="text-muted-foreground">توضیحات کوتاه درباره وب‌سایت</p>
+          <h3 className="text-lg font-semibold mb-4">پیش‌نمایش طراحی پویا</h3>
+          <div className="space-y-4">
+            {/* Page Structure Info */}
+            {data.websiteFramework?.dynamicDesign?.pages && (
+              <div className="text-sm text-muted-foreground mb-4">
+                <span className="font-medium">نوع سایت:</span> 
+                {data.websiteFramework.dynamicDesign.pages.length === 1 ? ' تک صفحه‌ای' : ' چند صفحه‌ای'}
+                <span className="mr-2">
+                  <span className="font-medium mr-1">صفحات:</span>
+                  {data.websiteFramework.dynamicDesign.pages.map(page => page.name).join('، ')}
+                </span>
               </div>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                size="sm" 
-                style={{ backgroundColor: data.branding?.primaryColor }}
-                className="text-white"
-              >
-                دکمه اصلی
-              </Button>
-              <Button variant="outline" size="sm">
-                دکمه ثانویه
-              </Button>
+            )}
+            
+            {/* Dynamic Design Preview */}
+            {data.websiteFramework?.dynamicDesign?.pages ? (
+              <div className="space-y-6">
+                {data.websiteFramework.dynamicDesign.pages.map((page, pageIndex) => (
+                  <div key={page.id} className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-semibold text-lg">{page.name}</h4>
+                      <span className="text-sm text-muted-foreground">({page.sections.length} بخش)</span>
+                    </div>
+                    
+                    <div 
+                      className="w-full max-w-4xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden"
+                      style={{ fontFamily: data.branding?.fontFamily }}
+                    >
+                      {page.sections.length > 0 ? (
+                        <div className="space-y-0">
+                          {page.sections.map((section, sectionIndex) => (
+                            <div key={section.id} className="border-b border-gray-100 last:border-b-0">
+                              {/* Header Section */}
+                              {section.sectionType === 'header' && (
+                                <div 
+                                  className="w-full h-20 bg-gray-100 border-b-2 flex items-center justify-between px-6"
+                                  style={{ borderColor: data.branding?.primaryColor }}
+                                >
+                                  <div className="flex items-center gap-4">
+                                    {logoPreview && (
+                                      <img src={logoPreview} alt="Logo" className="w-10 h-10 rounded" />
+                                    )}
+                                    <div className="w-32 h-6 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
+                                  </div>
+                                  <div className="flex gap-4">
+                                    <div className="w-16 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
+                                    <div className="w-16 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
+                                    <div className="w-16 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Hero Section */}
+                              {section.sectionType === 'hero' && (
+                                <div className="w-full h-64 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-center relative">
+                                  <div className="text-center space-y-4">
+                                    <div 
+                                      className="w-64 h-8 bg-gray-200 rounded mx-auto"
+                                      style={{ backgroundColor: data.branding?.primaryColor + '20' }}
+                                    ></div>
+                                    <div className="w-96 h-4 bg-gray-200 rounded mx-auto" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                    <div className="flex gap-4 justify-center">
+                                      <div 
+                                        className="w-24 h-10 rounded"
+                                        style={{ backgroundColor: data.branding?.primaryColor }}
+                                      ></div>
+                                      <div className="w-24 h-10 bg-gray-200 rounded border"></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* About Section */}
+                              {section.sectionType === 'about' && (
+                                <div className="w-full py-12 px-6 bg-white">
+                                  <div className="max-w-4xl mx-auto">
+                                    <div 
+                                      className="w-48 h-6 bg-gray-200 rounded mb-6 mx-auto"
+                                      style={{ backgroundColor: data.branding?.primaryColor + '20' }}
+                                    ></div>
+                                    <div className="grid md:grid-cols-2 gap-8 items-center">
+                                      <div className="space-y-4">
+                                        <div className="w-full h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                        <div className="w-3/4 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                        <div className="w-1/2 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                      </div>
+                                      <div className="w-full h-48 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Services Section */}
+                              {section.sectionType === 'services' && (
+                                <div className="w-full py-12 px-6 bg-gray-50">
+                                  <div className="max-w-4xl mx-auto">
+                                    <div 
+                                      className="w-48 h-6 bg-gray-200 rounded mb-6 mx-auto"
+                                      style={{ backgroundColor: data.branding?.primaryColor + '20' }}
+                                    ></div>
+                                    <div className="grid md:grid-cols-3 gap-6">
+                                      {[1, 2, 3].map((i) => (
+                                        <div key={i} className="bg-white p-6 rounded-lg shadow-sm">
+                                          <div className="w-12 h-12 bg-gray-200 rounded mb-4" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
+                                          <div className="w-24 h-4 bg-gray-200 rounded mb-2" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
+                                          <div className="w-full h-3 bg-gray-200 rounded mb-1" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                          <div className="w-2/3 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Contact Section */}
+                              {section.sectionType === 'contact' && (
+                                <div className="w-full py-12 px-6 bg-white">
+                                  <div className="max-w-4xl mx-auto">
+                                    <div 
+                                      className="w-48 h-6 bg-gray-200 rounded mb-6 mx-auto"
+                                      style={{ backgroundColor: data.branding?.primaryColor + '20' }}
+                                    ></div>
+                                    <div className="grid md:grid-cols-2 gap-8">
+                                      <div className="space-y-4">
+                                        <div className="w-full h-10 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                        <div className="w-full h-10 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                        <div className="w-full h-32 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                        <div 
+                                          className="w-24 h-10 rounded"
+                                          style={{ backgroundColor: data.branding?.primaryColor }}
+                                        ></div>
+                                      </div>
+                                      <div className="w-full h-64 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Newsletter Section */}
+                              {section.sectionType === 'newsletter' && (
+                                <div className="w-full py-12 px-6 bg-gray-50">
+                                  <div className="max-w-2xl mx-auto text-center">
+                                    <div 
+                                      className="w-48 h-6 bg-gray-200 rounded mb-4 mx-auto"
+                                      style={{ backgroundColor: data.branding?.primaryColor + '20' }}
+                                    ></div>
+                                    <div className="w-96 h-4 bg-gray-200 rounded mb-6 mx-auto" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                    <div className="flex gap-4 justify-center">
+                                      <div className="w-64 h-10 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                      <div 
+                                        className="w-24 h-10 rounded"
+                                        style={{ backgroundColor: data.branding?.primaryColor }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Footer Section */}
+                              {section.sectionType === 'footer' && (
+                                <div 
+                                  className="w-full py-8 px-6 bg-gray-800"
+                                  style={{ backgroundColor: data.branding?.primaryColor + '10' }}
+                                >
+                                  <div className="max-w-4xl mx-auto">
+                                    <div className="grid md:grid-cols-4 gap-6">
+                                      <div className="space-y-3">
+                                        <div className="w-32 h-6 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
+                                        <div className="w-24 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
+                                        <div className="w-20 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
+                                      </div>
+                                      {[1, 2, 3].map((i) => (
+                                        <div key={i} className="space-y-3">
+                                          <div className="w-20 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
+                                          <div className="w-16 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                          <div className="w-16 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                          <div className="w-16 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="w-full h-32 bg-gray-50 flex items-center justify-center">
+                          <p className="text-muted-foreground">این صفحه هنوز بخشی ندارد</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="w-full h-32 bg-gray-50 flex items-center justify-center rounded-lg">
+                <p className="text-muted-foreground">طراحی پویا انتخاب نشده است</p>
+              </div>
+            )}
+
+            {/* Branding Applied Info */}
+            <div className="mt-6 p-4 bg-primary/5 rounded-lg">
+              <h4 className="font-semibold mb-2">برندینگ اعمال شده:</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="font-medium">رنگ اصلی:</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div 
+                      className="w-4 h-4 rounded border"
+                      style={{ backgroundColor: data.branding?.primaryColor }}
+                    ></div>
+                    <span>{data.branding?.primaryColor}</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="font-medium">فونت:</span>
+                  <span className="block mt-1">{fonts.find(f => f.value === data.branding?.fontFamily)?.name || data.branding?.fontFamily}</span>
+                </div>
+                <div>
+                  <span className="font-medium">لوگو:</span>
+                  <span className="block mt-1">{logoPreview ? 'آپلود شده' : 'آپلود نشده'}</span>
+                </div>
+                <div>
+                  <span className="font-medium">بخش‌های انتخاب شده:</span>
+                  <span className="block mt-1">
+                    {data.websiteFramework?.dynamicDesign?.pages ? 
+                      data.websiteFramework.dynamicDesign.pages.reduce((total, page) => total + page.sections.length, 0) : 0} بخش
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>

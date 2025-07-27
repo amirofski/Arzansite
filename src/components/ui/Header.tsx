@@ -162,8 +162,8 @@ const Header: React.FC = () => {
               )}
             </>
           )}
-          <a href="tel:+989123456789" className="hidden lg:inline-flex items-center gap-1 bg-white text-primary transition-colors text-sm px-2 rounded-lg font-semibold shadow-sm hover:bg-primary hover:text-white">
-            <Phone className="w-4 h-4" /> 0912-345-6789
+          <a href="tel:+9802191030981" className="hidden lg:inline-flex items-center gap-1 bg-white text-primary transition-colors text-sm px-2 rounded-lg font-semibold shadow-sm hover:bg-primary hover:text-white">
+            <Phone className="w-4 h-4" /> ۰۲۱-۹۱۰۳-۰۹۸۱
           </a>
           <a href="mailto:info@arzansite.com" className="hidden lg:inline-flex items-center gap-1 bg-white text-primary transition-colors text-sm px-2 rounded-lg font-semibold shadow-sm hover:bg-primary hover:text-white">
             <Mail className="w-4 h-4" /> info@arzansite.com

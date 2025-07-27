@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Plus, Package, User, Calendar, DollarSign, Eye, FileText, Layers, Search, Trash2 } from 'lucide-react';
+import { Plus, Package, User, Calendar, DollarSign, Eye, FileText, Layers, Search, Trash2, Palette } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
 import { usePagination } from '@/hooks/usePagination';
@@ -19,6 +19,8 @@ import { WalletService } from '@/lib/walletService';
 import CreateOrderDialog from '@/components/dashboard/CreateOrderDialog';
 import EditProfileDialog from '@/components/dashboard/EditProfileDialog';
 import WalletCard from '@/components/dashboard/WalletCard';
+import DesignPreview from '@/components/wizard/DesignPreview';
+import { type Wireframe, type StorageFile, type DynamicDesign, type WireframePage, type WireframeElement, type WireframeData } from '@/lib/types';
 
 interface Order {
   id: string;
@@ -50,8 +52,8 @@ const Dashboard = () => {
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [wireframeDialogOpen, setWireframeDialogOpen] = useState(false);
-  const [userWireframes, setUserWireframes] = useState<any[]>([]);
-  const [selectedWireframe, setSelectedWireframe] = useState<any>(null);
+  const [userWireframes, setUserWireframes] = useState<Wireframe[]>([]);
+  const [selectedWireframe, setSelectedWireframe] = useState<Wireframe | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
 
@@ -112,7 +114,7 @@ const Dashboard = () => {
     }
   };
 
-  const viewWireframeDesigns = async () => {
+  const viewDesigns = async () => {
     if (!user) return;
 
     try {
@@ -124,15 +126,21 @@ const Dashboard = () => {
 
       if (error) throw error;
 
-      setUserWireframes(wireframeData || []);
+      // Transform the data to match Wireframe interface
+      const transformedWireframes: Wireframe[] = (wireframeData || []).map(wf => ({
+        ...wf,
+        data: wf.data as WireframeData
+      }));
+
+      setUserWireframes(transformedWireframes);
       setWireframeDialogOpen(true);
 
       toast({
         title: 'طرح‌های شما بارگیری شد',
-        description: `${wireframeData?.length || 0} طرح یافت شد`,
+        description: `${transformedWireframes.length} طرح یافت شد`,
       });
     } catch (error) {
-      console.error('Error fetching wireframes:', error);
+      console.error('Error fetching designs:', error);
       toast({
         title: 'خطا در بارگیری طرح‌ها',
         description: 'مشکلی در دریافت طرح‌های شما پیش آمد',
@@ -141,23 +149,23 @@ const Dashboard = () => {
     }
   };
 
-  const viewWireframeDetails = (wireframe: any) => {
+  const viewDesignDetails = (wireframe: Wireframe) => {
     setSelectedWireframe(wireframe);
   };
 
-  const renderWireframePreview = (wireframe: any) => {
+  const renderWireframePreview = (wireframe: Wireframe) => {
     if (!wireframe?.data?.pages) return null;
 
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-        {wireframe.data.pages.slice(0, 4).map((page: any, index: number) => (
+        {wireframe.data.pages.slice(0, 4).map((page: WireframePage, index: number) => (
           <div
             key={index}
             className="border rounded-lg p-2 bg-background min-h-[80px] relative overflow-hidden"
           >
             <div className="text-xs font-medium mb-1 truncate">{page.name}</div>
             <div className="absolute inset-2 top-6 border border-dashed border-muted-foreground/30 rounded">
-              {page.elements?.slice(0, 3).map((element: any, elemIndex: number) => (
+              {page.elements?.slice(0, 3).map((element: WireframeElement, elemIndex: number) => (
                 <div
                   key={elemIndex}
                   className="absolute bg-primary/20 rounded-sm"
@@ -179,20 +187,20 @@ const Dashboard = () => {
     );
   };
 
-  const renderModuleLayoutPreview = (parsedData: any) => {
+  const renderModuleLayoutPreview = (parsedData: Record<string, unknown>) => {
     const modules = parsedData.moduleLayout || parsedData.modules;
     if (!modules || !Array.isArray(modules)) return null;
     return (
       <div className="border rounded-lg p-4 bg-muted/30">
         <div className="text-sm font-medium mb-2">پیش‌نمایش ساختار سایت</div>
         <div className="flex flex-wrap gap-2">
-          {modules.map((mod: any, idx: number) => (
+          {modules.map((mod: Record<string, unknown>, idx: number) => (
             <div
-              key={mod.id || idx}
+              key={(mod.id as string) || idx}
               className="flex flex-col items-center justify-center bg-primary/10 border border-primary/20 rounded px-4 py-2 min-w-[80px]"
             >
-              <span className="font-bold text-xs">{mod.name}</span>
-              <span className="text-[10px] text-muted-foreground">{mod.nameEn}</span>
+              <span className="font-bold text-xs">{mod.name as string}</span>
+              <span className="text-[10px] text-muted-foreground">{mod.nameEn as string}</span>
             </div>
           ))}
         </div>
@@ -200,7 +208,7 @@ const Dashboard = () => {
     );
   };
 
-  const renderOrderWireframePreview = (order: Order) => {
+  const renderDesignPreview = (order: Order) => {
     try {
       const parsedData = JSON.parse(order.description);
       // If parsedData has pages, show the visual preview
@@ -213,7 +221,14 @@ const Dashboard = () => {
                 <span className="text-sm font-medium">پیش‌نمایش وایرفریم</span>
               </div>
               {/* Visual wireframe preview */}
-              {renderWireframePreview({ data: parsedData })}
+              {renderWireframePreview({ 
+                id: 'temp', 
+                name: 'Wireframe', 
+                data: parsedData as WireframeData, 
+                created_at: '', 
+                updated_at: '', 
+                user_id: '' 
+              })}
               {parsedData.pages.length > 4 && (
                 <div className="mt-3 text-xs text-muted-foreground text-center">
                   و {parsedData.pages.length - 4} صفحه دیگر...
@@ -473,6 +488,10 @@ const Dashboard = () => {
                       سفارش جدید
                     </a>
                   </Button>
+                  <Button onClick={viewDesigns} variant="outline" className="flex items-center gap-2">
+                    <Palette className="w-4 h-4" />
+                    مشاهده طرح‌های طراحی
+                  </Button>
                 </div>
               </div>
 
@@ -535,7 +554,7 @@ const Dashboard = () => {
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
                             <CardTitle className="text-lg">{order.title}</CardTitle>
-                            <div className="mt-3">{renderOrderWireframePreview(order)}</div>
+                            <div className="mt-3">{renderDesignPreview(order)}</div>
                           </div>
                           <div className="flex gap-2 items-center">
                             <Badge className={`${getStatusColor(order.status)} border-0`}>
@@ -655,7 +674,7 @@ const Dashboard = () => {
       <Dialog open={wireframeDialogOpen} onOpenChange={setWireframeDialogOpen}>
         <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>طرح‌های وایرفریم شما</DialogTitle>
+            <DialogTitle>طرح‌های طراحی شما</DialogTitle>
             <DialogDescription>
               مشاهده تمام طرح‌های ذخیره شده در پروژه‌های شما
             </DialogDescription>
@@ -666,7 +685,7 @@ const Dashboard = () => {
                 <Layers className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">هیچ طرحی یافت نشد</h3>
                 <p className="text-muted-foreground mb-4">
-                  شما هنوز هیچ طرح وایرفریمی ایجاد نکرده‌اید
+                  شما هنوز هیچ طرح طراحی ایجاد نکرده‌اید
                 </p>
                 <Button asChild>
                   <a href="/wizard">
@@ -698,7 +717,7 @@ const Dashboard = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => viewWireframeDetails(wireframe)}
+                        onClick={() => viewDesignDetails(wireframe)}
                         className={selectedWireframe?.id === wireframe.id ? "bg-primary text-primary-foreground" : ""}
                       >
                         {selectedWireframe?.id === wireframe.id ? "انتخاب شده" : "مشاهده جزئیات"}
@@ -730,7 +749,7 @@ const Dashboard = () => {
                           جزئیات کامل طرح
                         </h4>
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {wireframe.data?.pages?.map((page: any, index: number) => (
+                          {wireframe.data?.pages?.map((page: WireframePage, index: number) => (
                             <div key={index} className="border rounded-lg p-3">
                               <h5 className="font-medium mb-2">{page.name}</h5>
                               <div className="text-sm text-muted-foreground mb-2">
@@ -739,7 +758,7 @@ const Dashboard = () => {
                               
                               {/* Visual representation of page */}
                               <div className="border rounded bg-white h-32 relative overflow-hidden">
-                                {page.elements?.map((element: any, elemIndex: number) => (
+                                {page.elements?.map((element: WireframeElement, elemIndex: number) => (
                                   <div
                                     key={elemIndex}
                                     className="absolute border border-primary/40 bg-primary/10 rounded-sm"
@@ -757,7 +776,7 @@ const Dashboard = () => {
                               {page.elements && page.elements.length > 0 && (
                                 <div className="mt-2 text-xs">
                                   <div className="flex flex-wrap gap-1">
-                                    {[...new Set(page.elements.map((e: any) => e.type))].map((type: string, i: number) => (
+                                    {[...new Set(page.elements.map((e: WireframeElement) => e.type))].map((type: string, i: number) => (
                                       <span key={i} className="bg-muted px-2 py-1 rounded text-xs">
                                         {type}
                                       </span>

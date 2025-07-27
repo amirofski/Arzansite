@@ -51,7 +51,7 @@ const Footer: React.FC = () => {
         {/* Contact */}
         <div className="flex flex-col items-center md:items-end gap-1 text-sm text-muted-foreground">
           <a href="tel:+989123456789" className="flex items-center gap-1 hover:text-primary transition-colors">
-            <Phone className="w-4 h-4" /> 0912-345-6789
+            <Phone className="w-4 h-4" /> ۰۲۱-۹۱۰۳-۰۹۸۱
           </a>
           <a href="mailto:info@arzansite.com" className="flex items-center gap-1 hover:text-primary transition-colors">
             <Mail className="w-4 h-4" /> info@arzansite.com

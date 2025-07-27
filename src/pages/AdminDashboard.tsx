@@ -19,6 +19,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { WalletService } from '@/lib/walletService';
 import AdminWalletManager from '@/components/dashboard/AdminWalletManager';
 import DesignPreview from '@/components/wizard/DesignPreview';
+import { type Wireframe, type StorageFile, type DynamicDesign, type WireframePage, type WireframeElement, type WireframeData } from '@/lib/types';
 
 interface Profile {
   id: string;
@@ -49,17 +50,7 @@ interface Order {
   } | null;
 }
 
-interface WireframeElement {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  [key: string]: any;
-}
-interface WireframePage {
-  name: string;
-  elements: WireframeElement[];
-}
+
 
 const AdminDashboard = () => {
   const { toast } = useToast();
@@ -76,8 +67,8 @@ const AdminDashboard = () => {
   const [selectedOrderFiles, setSelectedOrderFiles] = useState<Order | null>(null);
   const [designDialogOpen, setDesignDialogOpen] = useState(false);
   const [filesDialogOpen, setFilesDialogOpen] = useState(false);
-  const [wireframes, setWireframes] = useState<any[]>([]);
-  const [storageFiles, setStorageFiles] = useState<any[]>([]);
+  const [wireframes, setWireframes] = useState<Wireframe[]>([]);
+  const [storageFiles, setStorageFiles] = useState<StorageFile[]>([]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [selectedUserForWallet, setSelectedUserForWallet] = useState<Profile | null>(null);
@@ -127,8 +118,6 @@ const AdminDashboard = () => {
       }));
 
       setProfiles(profilesWithRoles);
-    } catch (error) {
-      throw error;
     } finally {
       setUsersLoading(false);
     }
@@ -165,8 +154,6 @@ const AdminDashboard = () => {
       });
 
       setOrders(ordersWithProfiles);
-    } catch (error) {
-      throw error;
     } finally {
       setOrdersLoading(false);
     }
@@ -375,20 +362,20 @@ const AdminDashboard = () => {
     );
   };
 
-  const renderModuleLayoutPreview = (parsedData: any) => {
+  const renderModuleLayoutPreview = (parsedData: Record<string, unknown>) => {
     const modules = parsedData.moduleLayout || parsedData.modules;
     if (!modules || !Array.isArray(modules)) return null;
     return (
       <div className="border rounded-lg p-4 bg-muted/30">
         <div className="text-sm font-medium mb-2">پیش‌نمایش ساختار سایت</div>
         <div className="flex flex-wrap gap-2">
-          {modules.map((mod: any, idx: number) => (
+          {modules.map((mod: Record<string, unknown>, idx: number) => (
             <div
-              key={mod.id || idx}
+              key={(mod.id as string) || idx}
               className="flex flex-col items-center justify-center bg-primary/10 border border-primary/20 rounded px-4 py-2 min-w-[80px]"
             >
-              <span className="font-bold text-xs">{mod.name}</span>
-              <span className="text-[10px] text-muted-foreground">{mod.nameEn}</span>
+              <span className="font-bold text-xs">{mod.name as string}</span>
+              <span className="text-[10px] text-muted-foreground">{mod.nameEn as string}</span>
             </div>
           ))}
         </div>
@@ -396,7 +383,7 @@ const AdminDashboard = () => {
     );
   };
 
-  const renderOrderWireframePreview = (order: Order) => {
+  const renderOrderDesignPreview = (order: Order) => {
     try {
       const parsedData = JSON.parse(order.description);
       
@@ -418,17 +405,10 @@ const AdminDashboard = () => {
         );
       }
       
-      if ((parsedData.moduleLayout && Array.isArray(parsedData.moduleLayout)) || (parsedData.modules && Array.isArray(parsedData.modules))) {
+      // Legacy wireframe support
+      if (parsedData.pages && Array.isArray(parsedData.pages)) {
         return (
           <div className="space-y-4">
-            {renderModuleLayoutPreview(parsedData)}
-          </div>
-        );
-      }
-      return (
-        <div className="space-y-4">
-          {/* Visual wireframe preview if available */}
-          {parsedData.pages && (
             <div className="border rounded-lg p-4 bg-muted/30">
               <div className="flex items-center gap-2 mb-3">
                 <FileText className="w-4 h-4 text-muted-foreground" />
@@ -441,72 +421,44 @@ const AdminDashboard = () => {
                 </div>
               )}
             </div>
-          )}
-          {/* Fallback to summary/mockup if no pages */}
-          {!parsedData.pages && (
-            <div className="border rounded-lg p-4 bg-muted/30">
-              <div className="flex items-center gap-2 mb-3">
-                <Layers className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium">پیکربندی پروژه</span>
-              </div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-                <div className="bg-background rounded p-2">
-                  <div className="text-xs text-muted-foreground">نوع سایت</div>
-                  <div className="font-medium">{parsedData.siteType === 'personal' ? 'شخصی' : 'تجاری'}</div>
-                </div>
-                <div className="bg-background rounded p-2">
-                  <div className="text-xs text-muted-foreground">دامنه</div>
-                  <div className="font-medium truncate">{parsedData.userInfo?.domain || 'نامشخص'}</div>
-                </div>
-                <div className="bg-background rounded p-2">
-                  <div className="text-xs text-muted-foreground">تعداد ماژول</div>
-                  <div className="font-medium">{parsedData.modules?.length || 0}</div>
-                </div>
-                <div className="bg-background rounded p-2">
-                  <div className="text-xs text-muted-foreground">لوگو</div>
-                  <div className="font-medium">{parsedData.branding?.logo ? 'دارد' : 'ندارد'}</div>
-                </div>
-              </div>
-              {parsedData.modules && parsedData.modules.length > 0 && (
-                <div className="mt-4">
-                  <div className="text-sm font-medium mb-2">ماژول‌های انتخاب شده:</div>
-                  <div className="flex flex-wrap gap-2">
-                    {parsedData.modules.map((module: string, index: number) => (
-                      <div key={index} className="bg-primary/10 border border-primary/20 rounded px-3 py-1 text-xs">
-                        {module}
-                      </div>
-                    ))}
+          </div>
+        );
+      }
+      
+      // Fallback to summary/mockup
+      return (
+        <div className="border rounded-lg p-4 bg-muted/30">
+          <div className="flex items-center gap-2 mb-3">
+            <Layers className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium">پیکربندی پروژه</span>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+            <div className="bg-background rounded p-2">
+              <div className="text-xs text-muted-foreground">نوع سایت</div>
+              <div className="font-medium">{parsedData.siteType === 'personal' ? 'شخصی' : 'تجاری'}</div>
+            </div>
+            <div className="bg-background rounded p-2">
+              <div className="text-xs text-muted-foreground">دامنه</div>
+              <div className="font-medium truncate">{parsedData.userInfo?.domain || 'نامشخص'}</div>
+            </div>
+            <div className="bg-background rounded p-2">
+              <div className="text-xs text-muted-foreground">تعداد ماژول</div>
+              <div className="font-medium">{parsedData.modules?.length || 0}</div>
+            </div>
+            <div className="bg-background rounded p-2">
+              <div className="text-xs text-muted-foreground">لوگو</div>
+              <div className="font-medium">{parsedData.branding?.logo ? 'دارد' : 'ندارد'}</div>
+            </div>
+          </div>
+          {parsedData.modules && parsedData.modules.length > 0 && (
+            <div className="mt-4">
+              <div className="text-sm font-medium mb-2">ماژول‌های انتخاب شده:</div>
+              <div className="flex flex-wrap gap-2">
+                {parsedData.modules.map((module: string, index: number) => (
+                  <div key={index} className="bg-primary/10 border border-primary/20 rounded px-3 py-1 text-xs">
+                    {module}
                   </div>
-                </div>
-              )}
-              <div className="mt-4">
-                <div className="text-sm font-medium mb-2">ساختار کلی سایت:</div>
-                <div className="border rounded bg-background p-4 h-32 relative overflow-hidden">
-                  <div className="absolute top-2 left-2 right-2 h-4 bg-primary/20 rounded-sm flex items-center px-2">
-                    <div className="w-2 h-2 bg-primary/40 rounded-full mr-1"></div>
-                    <div className="text-xs opacity-60">Header</div>
-                  </div>
-                  <div className="absolute top-8 left-2 right-2 bottom-6 bg-muted/50 rounded-sm p-2">
-                    <div className="grid grid-cols-3 gap-1 h-full">
-                      {parsedData.modules?.slice(0, 6).map((module: string, index: number) => (
-                        <div
-                          key={index}
-                          className="bg-primary/10 rounded-sm border border-primary/20 flex items-center justify-center"
-                        >
-                          <div className="text-xs text-center opacity-70">
-                            {module.slice(0, 8)}
-                          </div>
-                        </div>
-                      ))}
-                      {parsedData.modules?.length > 6 && (
-                        <div className="bg-muted rounded-sm border border-border flex items-center justify-center">
-                          <div className="text-xs opacity-60">+{parsedData.modules.length - 6}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="absolute bottom-2 left-2 right-2 h-3 bg-muted rounded-sm"></div>
-                </div>
+                ))}
               </div>
             </div>
           )}
@@ -581,13 +533,19 @@ const AdminDashboard = () => {
 
       if (error) throw error;
 
-      setWireframes(wireframeData || []);
+      // Transform the data to match Wireframe interface
+      const transformedWireframes: Wireframe[] = (wireframeData || []).map(wf => ({
+        ...wf,
+        data: wf.data as WireframeData
+      }));
+
+      setWireframes(transformedWireframes);
       setSelectedOrderDesigns(order);
       setDesignDialogOpen(true);
 
       toast({
         title: 'طرح‌های کاربر بارگیری شد',
-        description: `${wireframeData?.length || 0} طرح یافت شد`,
+        description: `${transformedWireframes.length} طرح یافت شد`,
       });
     } catch (error) {
       console.error('Error fetching designs:', error);
@@ -615,13 +573,23 @@ const AdminDashboard = () => {
 
       if (error) throw error;
 
-      setStorageFiles(filesData || []);
+      // Transform the data to match StorageFile interface
+      const transformedFiles: StorageFile[] = (filesData || []).map(file => ({
+        name: file.name,
+        id: file.id,
+        updated_at: file.updated_at,
+        created_at: file.created_at,
+        last_accessed_at: file.last_accessed_at,
+        metadata: file.metadata as { size: number } | undefined
+      }));
+
+      setStorageFiles(transformedFiles);
       setSelectedOrderFiles(order);
       setFilesDialogOpen(true);
 
       toast({
         title: 'فایل‌های کاربر بارگیری شد',
-        description: `${filesData?.length || 0} فایل یافت شد`,
+        description: `${transformedFiles.length} فایل یافت شد`,
       });
     } catch (error) {
       console.error('Error fetching files:', error);
@@ -859,7 +827,7 @@ const AdminDashboard = () => {
                          <div className="flex-1">
                            <CardTitle className="text-lg">{order.title}</CardTitle>
                            <div className="mt-3">
-                             {renderOrderWireframePreview(order)}
+                             {renderOrderDesignPreview(order)}
                            </div>
                            <p className="text-sm text-muted-foreground mt-2">
                              مشتری: {order.profiles?.full_name} ({order.profiles?.email})
@@ -1187,20 +1155,20 @@ const AdminDashboard = () => {
                       <p className="text-sm text-muted-foreground mb-2">پیش‌نمایش طرح:</p>
                       <div className="text-xs text-muted-foreground mb-3">
                         صفحات: {wireframe.data?.pages?.length || 0} | 
-                        عناصر: {wireframe.data?.pages?.reduce((total: number, page: any) => total + (page.elements?.length || 0), 0) || 0}
+                        عناصر: {wireframe.data?.pages?.reduce((total: number, page: WireframePage) => total + (page.elements?.length || 0), 0) || 0}
                       </div>
                       
                       {/* Visual wireframe preview */}
                       {wireframe.data?.pages && wireframe.data.pages.length > 0 ? (
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          {wireframe.data.pages.slice(0, 4).map((page: any, index: number) => (
+                          {wireframe.data.pages.slice(0, 4).map((page: WireframePage, index: number) => (
                             <div
                               key={index}
                               className="border rounded-lg p-2 bg-background min-h-[80px] relative overflow-hidden"
                             >
                               <div className="text-xs font-medium mb-1 truncate">{page.name}</div>
                               <div className="absolute inset-2 top-6 border border-dashed border-muted-foreground/30 rounded">
-                                {page.elements?.slice(0, 3).map((element: any, elemIndex: number) => (
+                                {page.elements?.slice(0, 3).map((element: WireframeElement, elemIndex: number) => (
                                   <div
                                     key={elemIndex}
                                     className="absolute bg-primary/20 rounded-sm"

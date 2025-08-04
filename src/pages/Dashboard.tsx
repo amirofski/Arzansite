@@ -19,7 +19,6 @@ import { WalletService } from '@/lib/walletService';
 import CreateOrderDialog from '@/components/dashboard/CreateOrderDialog';
 import EditProfileDialog from '@/components/dashboard/EditProfileDialog';
 import WalletCard from '@/components/dashboard/WalletCard';
-import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import DesignPreview from '@/components/wizard/DesignPreview';
 import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import { type Wireframe, type StorageFile, type DynamicDesign, type WireframePage, type WireframeElement, type WireframeData } from '@/lib/types';

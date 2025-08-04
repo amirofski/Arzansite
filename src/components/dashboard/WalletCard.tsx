@@ -10,7 +10,6 @@ import { Wallet as WalletIcon, Plus, ArrowUpDown, History, CreditCard } from 'lu
 import { useToast } from '@/hooks/use-toast';
 import { WalletService } from '@/lib/walletService';
 import { supabase } from '@/integrations/supabase/client';
-import type { Transaction } from '@/integrations/supabase/types';
 import type { Transaction } from '@/lib/walletService';
 
 interface WalletCardProps {

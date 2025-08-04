@@ -20,6 +20,7 @@ import CreateOrderDialog from '@/components/dashboard/CreateOrderDialog';
 import EditProfileDialog from '@/components/dashboard/EditProfileDialog';
 import WalletCard from '@/components/dashboard/WalletCard';
 import DesignPreview from '@/components/wizard/DesignPreview';
+import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import { type Wireframe, type StorageFile, type DynamicDesign, type WireframePage, type WireframeElement, type WireframeData } from '@/lib/types';
 
 interface Order {
@@ -29,6 +30,7 @@ interface Order {
   status: string;
   price: number;
   comments: string;
+  payment_status?: string;
   created_at: string;
   updated_at: string;
 }
@@ -211,7 +213,26 @@ const Dashboard = () => {
   const renderDesignPreview = (order: Order) => {
     try {
       const parsedData = JSON.parse(order.description);
-      // If parsedData has pages, show the visual preview
+      
+      // Check for new dynamic design data first
+      if (parsedData.websiteFramework?.dynamicDesign) {
+        return (
+          <div className="space-y-4">
+            <div className="border rounded-lg p-4 bg-muted/30">
+              <div className="flex items-center gap-2 mb-3">
+                <Palette className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">پیش‌نمایش طراحی پویا</span>
+              </div>
+              <DesignPreview 
+                design={parsedData.websiteFramework.dynamicDesign}
+                showActions={false}
+              />
+            </div>
+          </div>
+        );
+      }
+      
+      // Legacy support for old format
       if (parsedData.pages && Array.isArray(parsedData.pages)) {
         return (
           <div className="space-y-4">
@@ -557,6 +578,13 @@ const Dashboard = () => {
                             <div className="mt-3">{renderDesignPreview(order)}</div>
                           </div>
                           <div className="flex gap-2 items-center">
+                            <OrderDesignPreview
+                              orderId={order.id}
+                              orderTitle={order.title}
+                              orderPrice={order.price || 0}
+                              paymentStatus={order.payment_status || 'pending'}
+                              onStatusUpdate={fetchOrders}
+                            />
                             <Badge className={`${getStatusColor(order.status)} border-0`}>
                               {getStatusText(order.status)}
                             </Badge>

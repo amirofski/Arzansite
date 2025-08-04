@@ -2,8 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://jsqpnjgqfjqbxcwrllaa.supabase.co";
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpzcXBuamdxZmpxYnhjd3JsbGFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI4NjA5NzIsImV4cCI6MjA2ODQzNjk3Mn0.AZ9zkAQ0uFqJZo0_JgxieitpQduZ4HsLh-jUK7y4P1E";
+const SUPABASE_URL = "https://api.arzansite.com";
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";

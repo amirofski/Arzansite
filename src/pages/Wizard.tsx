@@ -9,7 +9,6 @@ import StepOne from '@/components/wizard/StepOne';
 import StepTwo from '@/components/wizard/StepTwo';
 import StepThree from '@/components/wizard/StepThree';
 import StepFour from '@/components/wizard/StepFour';
-import PricingCalculator from '@/components/wizard/PricingCalculator';
 import StepFive from '@/components/wizard/StepFive';
 import OrderSubmissionStep from '@/components/wizard/OrderSubmissionStep';
 import FinalStepButton from '@/components/wizard/FinalStepButton';
@@ -133,10 +132,10 @@ const Wizard = () => {
 
   const steps = [
     { number: 1, title: 'نوع سایت', description: 'انتخاب نوع وب‌سایت' },
-    { number: 2, title: 'طراحی', description: 'روش طراحی سایت' },
+    { number: 2, title: 'طراحی', description: 'ساختار و طراحی سایت' },
     { number: 3, title: 'برندینگ', description: 'طراحی و هویت بصری' },
     { number: 4, title: 'انتخاب دامنه', description: 'انتخاب دامنه وب‌سایت' },
-    { number: 5, title: 'قیمت‌گذاری', description: 'محاسبه هزینه هوشمند' },
+    { number: 5, title: 'قیمت‌گذاری', description: 'محاسبه قیمت نهایی' },
     { number: 6, title: 'تأیید', description: 'تکمیل و ارسال سفارش' },
   ];
 
@@ -196,7 +195,7 @@ const Wizard = () => {
       case 4:
         return !!(wizardData.userInfo.domain);
       case 5:
-        return wizardData.pricing.totalPrice > 0;
+        return wizardData.pricing?.totalPrice > 0;
       default:
         return true;
     }

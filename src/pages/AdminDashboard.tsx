@@ -19,6 +19,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { WalletService } from '@/lib/walletService';
 import AdminWalletManager from '@/components/dashboard/AdminWalletManager';
 import DesignPreview from '@/components/wizard/DesignPreview';
+import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
+import AdminPaymentManager from '@/components/dashboard/AdminPaymentManager';
 import { type Wireframe, type StorageFile, type DynamicDesign, type WireframePage, type WireframeElement, type WireframeData } from '@/lib/types';
 
 interface Profile {
@@ -42,6 +44,9 @@ interface Order {
   status: string;
   price: number;
   comments: string;
+  payment_status?: string;
+  zarinpal_authority?: string;
+  zarinpal_ref_id?: string;
   created_at: string;
   updated_at: string;
   profiles: {
@@ -833,6 +838,14 @@ const AdminDashboard = () => {
                              مشتری: {order.profiles?.full_name} ({order.profiles?.email})
                            </p>
                           <div className="flex gap-2 mt-3">
+                            <OrderDesignPreview
+                              orderId={order.id}
+                              orderTitle={order.title}
+                              orderPrice={order.price || 0}
+                              paymentStatus={order.payment_status || 'pending'}
+                              isAdmin={true}
+                              onStatusUpdate={fetchOrders}
+                            />
                             <Button 
                               variant="outline" 
                               size="sm"
@@ -851,6 +864,15 @@ const AdminDashboard = () => {
                               <Package className="w-3 h-3" />
                               فایل‌های کاربر
                             </Button>
+                            <AdminPaymentManager
+                              orderId={order.id}
+                              orderTitle={order.title}
+                              orderPrice={order.price || 0}
+                              paymentStatus={order.payment_status || 'pending'}
+                              zarinpalAuthority={order.zarinpal_authority}
+                              zarinpalRefId={order.zarinpal_ref_id}
+                              onStatusUpdate={fetchOrders}
+                            />
                             {order.status === 'pending' && (
                               <Button
                                 variant="destructive"

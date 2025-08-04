@@ -13,6 +13,11 @@ export class WalletService {
 
       if (error) {
         console.error('Error fetching wallet balance:', error);
+        // If wallet doesn't exist, create one
+        if (error.code === 'PGRST116') { // No rows returned
+          await this.createWallet(userId);
+          return 0;
+        }
         return 0;
       }
 
@@ -34,12 +39,40 @@ export class WalletService {
 
       if (error) {
         console.error('Error fetching wallet:', error);
+        // If wallet doesn't exist, create one
+        if (error.code === 'PGRST116') { // No rows returned
+          return await this.createWallet(userId);
+        }
         return null;
       }
 
       return data;
     } catch (error) {
       console.error('Error fetching wallet:', error);
+      return null;
+    }
+  }
+
+  // Create wallet for user
+  static async createWallet(userId: string): Promise<Wallet | null> {
+    try {
+      const { data, error } = await supabase
+        .from('wallets')
+        .insert({
+          user_id: userId,
+          balance: 0.00
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating wallet:', error);
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error creating wallet:', error);
       return null;
     }
   }
@@ -81,6 +114,13 @@ export class WalletService {
     metadata?: Record<string, unknown>
   ): Promise<string | null> {
     try {
+      // First ensure wallet exists
+      const wallet = await this.getWallet(userId);
+      if (!wallet) {
+        console.error('Could not create or find wallet for user:', userId);
+        return null;
+      }
+
       const { data, error } = await supabase.rpc('process_wallet_transaction', {
         p_user_id: userId,
         p_type: type,

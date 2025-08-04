@@ -19,11 +19,16 @@ export type Database = {
           comments: string | null
           created_at: string
           description: string | null
+          design_data: Json | null
+          design_preview_url: string | null
+          design_options: Json | null
           id: string
           payment_status: string | null
           price: number | null
           status: string
           title: string
+          total_pages: number | null
+          total_sections: number | null
           updated_at: string
           user_id: string
           zarinpal_authority: string | null
@@ -33,11 +38,16 @@ export type Database = {
           comments?: string | null
           created_at?: string
           description?: string | null
+          design_data?: Json | null
+          design_preview_url?: string | null
+          design_options?: Json | null
           id?: string
           payment_status?: string | null
           price?: number | null
           status?: string
           title: string
+          total_pages?: number | null
+          total_sections?: number | null
           updated_at?: string
           user_id: string
           zarinpal_authority?: string | null
@@ -47,17 +57,123 @@ export type Database = {
           comments?: string | null
           created_at?: string
           description?: string | null
+          design_data?: Json | null
+          design_preview_url?: string | null
+          design_options?: Json | null
           id?: string
           payment_status?: string | null
           price?: number | null
           status?: string
           title?: string
+          total_pages?: number | null
+          total_sections?: number | null
           updated_at?: string
           user_id?: string
           zarinpal_authority?: string | null
           zarinpal_ref_id?: string | null
         }
         Relationships: []
+      }
+      design_data: {
+        Row: {
+          id: string
+          order_id: string
+          page_id: string
+          page_name: string
+          sections: Json
+          canvas_dimensions: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          page_id: string
+          page_name: string
+          sections: Json
+          canvas_dimensions: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          page_id?: string
+          page_name?: string
+          sections?: Json
+          canvas_dimensions?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "design_data_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      payment_transactions: {
+        Row: {
+          id: string
+          order_id: string
+          user_id: string
+          transaction_type: string
+          zarinpal_authority: string | null
+          zarinpal_ref_id: string | null
+          amount: number
+          status: string
+          gateway_response: Json | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          user_id: string
+          transaction_type: string
+          zarinpal_authority?: string | null
+          zarinpal_ref_id?: string | null
+          amount: number
+          status?: string
+          gateway_response?: Json | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          user_id?: string
+          transaction_type?: string
+          zarinpal_authority?: string | null
+          zarinpal_ref_id?: string | null
+          amount?: number
+          status?: string
+          gateway_response?: Json | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       profiles: {
         Row: {
@@ -173,6 +289,104 @@ export type Database = {
         }
         Relationships: []
       }
+      wallets: {
+        Row: {
+          id: string
+          user_id: string
+          balance: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          balance?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          balance?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      transactions: {
+        Row: {
+          id: string
+          wallet_id: string
+          user_id: string
+          type: Database["public"]["Enums"]["transaction_type"]
+          status: Database["public"]["Enums"]["transaction_status"]
+          amount: number
+          balance_before: number
+          balance_after: number
+          description: string | null
+          reference_id: string | null
+          reference_type: string | null
+          metadata: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          wallet_id: string
+          user_id: string
+          type: Database["public"]["Enums"]["transaction_type"]
+          status?: Database["public"]["Enums"]["transaction_status"]
+          amount: number
+          balance_before: number
+          balance_after: number
+          description?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          wallet_id?: string
+          user_id?: string
+          type?: Database["public"]["Enums"]["transaction_type"]
+          status?: Database["public"]["Enums"]["transaction_status"]
+          amount?: number
+          balance_before?: number
+          balance_after?: number
+          description?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          metadata?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       wireframes: {
         Row: {
           created_at: string
@@ -219,6 +433,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      save_design_data: {
+        Args: {
+          p_order_id: string
+          p_design_data: Json
+        }
+        Returns: string
+      }
+      get_design_data: {
+        Args: {
+          p_order_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       site_mode:
@@ -227,6 +454,8 @@ export type Database = {
         | "update_mode"
         | "development_mode"
       user_role: "user" | "admin"
+      transaction_type: "deposit" | "withdrawal" | "payment" | "refund" | "credit" | "debit"
+      transaction_status: "pending" | "completed" | "failed" | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -361,6 +590,8 @@ export const Constants = {
         "development_mode",
       ],
       user_role: ["user", "admin"],
+      transaction_type: ["deposit", "withdrawal", "payment", "refund", "credit", "debit"],
+      transaction_status: ["pending", "completed", "failed", "cancelled"],
     },
   },
 } as const

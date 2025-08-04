@@ -327,32 +327,32 @@ const DynamicDesignCanvas = ({
                     </Button>
                   </div>
                 ) : (
-                  <Button
-                    variant={currentPageId === page.id ? "default" : "outline"}
-                    onClick={() => {
-                      setCurrentPageId(page.id);
-                      onDesignChange({ pages, currentPageId: page.id });
-                    }}
-                    className="whitespace-nowrap relative group"
-                  >
-                    <span>{page.name}</span>
-                    <Badge variant="secondary" className="mr-2 text-xs">
-                      {page.sections.length} بخش
-                    </Badge>
+                  <div className="relative group">
+                    <Button
+                      variant={currentPageId === page.id ? "default" : "outline"}
+                      onClick={() => {
+                        setCurrentPageId(page.id);
+                        onDesignChange({ pages, currentPageId: page.id });
+                      }}
+                      className="whitespace-nowrap pr-8"
+                    >
+                      <span>{page.name}</span>
+                      <Badge variant="secondary" className="mr-2 text-xs">
+                        {page.sections.length} بخش
+                      </Badge>
+                    </Button>
                     {!isPreview && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="absolute -top-1 -right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                      <button
+                        className="absolute -top-1 -right-1 h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity bg-white border border-gray-300 rounded text-xs hover:bg-gray-50 flex items-center justify-center"
                         onClick={(e) => {
                           e.stopPropagation();
                           startEditingPageName(page.id, page.name);
                         }}
                       >
                         ✏️
-                      </Button>
+                      </button>
                     )}
-                  </Button>
+                  </div>
                 )}
               </div>
             ))}

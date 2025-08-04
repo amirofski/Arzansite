@@ -12,10 +12,55 @@ import {
   Zap 
 } from 'lucide-react';
 import { useAuth } from "@/hooks/useAuth";
+import { calculateTotalPrice } from '@/lib/pricingUtils';
 
 interface StepSixProps {
-  data: any;
-  updateData: (data: any) => void;
+  data: {
+    siteType: 'personal' | 'business' | '';
+    websiteFramework?: {
+      dynamicDesign?: {
+        pages: Array<{
+          id: string;
+          name: string;
+          sections: Array<{
+            id: string;
+            sectionType: string;
+            layoutId: string;
+            order: number;
+            customData?: Record<string, unknown>;
+          }>;
+          canvasDimensions: {
+            width: number;
+            height: number;
+          };
+        }>;
+        currentPageId: string;
+      };
+    };
+    branding?: {
+      primaryColor?: string;
+      fontFamily?: string;
+      logo?: string;
+    };
+    userInfo?: {
+      domain?: string;
+      additionalDomains?: Array<{
+        domain: string;
+        extension: string;
+        price: number;
+        available: boolean;
+      }>;
+    };
+    pricing?: {
+      selectedPackage?: string;
+      additionalServices?: string[];
+      customizationLevel?: number[];
+      rushDelivery?: boolean;
+      totalPrice?: number;
+    };
+    pages?: string[];
+  };
+  updateData: (data: Partial<StepSixProps['data']>) => void;
 }
 
 const StepSix = ({ data }: StepSixProps) => {
@@ -27,48 +72,23 @@ const StepSix = ({ data }: StepSixProps) => {
     return new Intl.NumberFormat('fa-IR').format(price);
   };
 
-  // Use pricing data from StepFour if available, otherwise calculate
-  const getTotalCost = () => {
-    if (data.pricing?.totalPrice) {
-      return data.pricing.totalPrice;
-    }
-    
-    // Fallback calculation if pricing data is not available
-    const baseCost = 2500000; // Base price: 2,500,000 تومان
-    
-    const pages = data.websiteFramework?.dynamicDesign?.pages || [];
-    let totalSections = 0;
-    let pagesCount = 0;
-    
-    if (pages.length > 0) {
-      pagesCount = pages.length;
-      totalSections = pages.reduce((total, page) => total + page.sections.length, 0);
-    } else {
-      pagesCount = data.pages?.length || 0;
-      totalSections = pagesCount * 4;
-    }
-
-    let pagesCost = 0;
-    if (pagesCount > 1) {
-      pagesCost = (pagesCount - 1) * 250000; // Fixed: only charge for additional pages
-    }
-
-    let sectionsCost = 0;
-    if (totalSections > 6) {
-      sectionsCost = 150000;
-    }
-    
-    const brandingCost = data.branding?.logo ? 200000 : 0;
-    
-    let domainCost = 0;
-    if (data.userInfo?.additionalDomains) {
-      domainCost = data.userInfo.additionalDomains.reduce((total, domain) => total + domain.price, 0);
-    }
-    
-    return baseCost + pagesCost + sectionsCost + brandingCost + domainCost;
-  };
-
-  const baseCost = getTotalCost();
+  // Use the same pricing calculation as OrderSubmissionStep
+  const pricingBreakdown = calculateTotalPrice(data as {
+    siteType: 'personal' | 'business' | '';
+    modules?: Array<{
+      id: string;
+      name: string;
+      nameEn: string;
+      complexity: number;
+    }>;
+    pricing?: {
+      selectedPackage: string;
+      additionalServices: string[];
+      customizationLevel: number[];
+      rushDelivery: boolean;
+    };
+  });
+  const baseCost = pricingBreakdown.totalPrice;
   const yearlyDiscount = 0.2; // 20% discount for yearly payment
   const yearlyCost = Math.round(baseCost * 12 * (1 - yearlyDiscount));
   const totalCost = isYearlyPayment ? yearlyCost : baseCost;
@@ -212,7 +232,7 @@ const StepSix = ({ data }: StepSixProps) => {
                 {data.websiteFramework?.dynamicDesign?.pages ? (
                   // New dynamic design structure
                   <div className="space-y-3">
-                    {data.websiteFramework.dynamicDesign.pages.map((page: any) => (
+                    {data.websiteFramework.dynamicDesign.pages.map((page) => (
                       <div key={page.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                         <div className="flex items-center gap-3">
                           <span className="text-lg">📄</span>

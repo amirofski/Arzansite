@@ -1,7 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calculator, Globe, Check } from 'lucide-react';
-import React from 'react'; // Added missing import for React
+import React from 'react';
+import { calculateTotalPrice, formatPrice } from '@/lib/pricingUtils';
 
 interface StepFourProps {
   data: any;
@@ -9,228 +10,207 @@ interface StepFourProps {
 }
 
 const StepFour = ({ data, updateData }: StepFourProps) => {
-  const calculateCost = () => {
-    let baseCost = 2500000; // Base price: 2,500,000 تومان for monthly payment
-    let pagesCost = 0;
-    let sectionsCost = 0;
-    let brandingCost = 0;
-    let domainCost = 0;
-
-    // Base cost is now fixed at 2,500,000 تومان for all site types
-    // The pricing model is now:
-    // 1. Base price: 2,500,000 تومان (monthly)
-    // 2. Single page designs: free (any number of sections)
-    // 3. Multi-page designs: 250,000 تومان per page
-    // 4. Total 6 sections across all pages is free
-    // 5. More than 6 total sections adds 150,000 تومان
-
-    // New pricing model based on pages and sections
-    // Support both old and new data structures
-    const pages = data.websiteFramework?.dynamicDesign?.pages || [];
-    let totalSections = 0;
-    let pagesCount = 0;
-    
-    if (pages.length > 0) {
-      // New dynamic design structure
-      pagesCount = pages.length;
-      totalSections = pages.reduce((total, page) => total + page.sections.length, 0);
-    } else {
-      // Old structure - estimate sections based on pages
-      pagesCount = data.pages?.length || 0;
-      totalSections = pagesCount * 4; // Assume 4 sections per page for old structure
-    }
-
-    // New pricing rules:
-    // 1. Base price: 2,500,000 تومان for one page design with any sections
-    // 2. Multi-page: additional cost for extra pages
-    // 3. More than 6 total sections: additional cost
-
-    if (pagesCount > 1) {
-      // Multi-page design: additional cost for extra pages
-      pagesCost = (pagesCount - 1) * 250000; // 250,000 تومان per additional page
-    }
-
-    // Additional cost for more than 6 total sections
-    if (totalSections > 6) {
-      sectionsCost = 150000; // 150,000 تومان for sections
-    }
-
-    // Branding cost
-    if (data.branding?.logo) {
-      brandingCost += 200000; // Logo integration: 200,000 تومان
-    }
-
-    // Domain costs
-    if (data.userInfo?.additionalDomains) {
-      domainCost = data.userInfo.additionalDomains.reduce((total, domain) => total + domain.price, 0);
-    }
-
-    const totalCost = baseCost + pagesCost + sectionsCost + brandingCost + domainCost;
-    
-    return {
-      baseCost,
-      pagesCost,
-      sectionsCost,
-      brandingCost,
-      domainCost,
-      totalCost,
-      totalSections,
-      pagesCount
-    };
-  };
-
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fa-IR').format(price);
-  };
-
-  const costs = calculateCost();
-
+  // Use the new simplified pricing calculation
+  const pricingBreakdown = calculateTotalPrice(data);
+  
   // Update pricing data when costs change
   React.useEffect(() => {
     updateData({
       pricing: {
         ...data.pricing,
-        totalPrice: costs.totalCost
+        totalPrice: pricingBreakdown.totalPrice
       }
     });
-  }, [costs.totalCost]);
+  }, [pricingBreakdown.totalPrice]);
 
   return (
     <div className="space-y-8">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold mb-2">قیمت‌گذاری</h2>
+        <h2 className="text-2xl font-bold mb-2">محاسبه قیمت نهایی</h2>
         <p className="text-muted-foreground">
-          هزینه وب‌سایت شما براساس انتخاب‌های انجام شده محاسبه شده است
+          قیمت وب‌سایت شما بر اساس انتخاب‌های شما محاسبه شده است
         </p>
       </div>
 
-      {/* Detailed Cost Breakdown */}
-      <Card className="card-modern">
+      {/* Pricing Breakdown */}
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calculator className="w-5 h-5 text-primary" />
-            جزئیات محاسبه هزینه
+            جزئیات قیمت‌گذاری
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex justify-between items-center py-2 border-b border-border">
-            <span>هزینه پایه (یک صفحه)</span>
-            <span className="font-semibold">{formatPrice(costs.baseCost)} تومان</span>
+        <CardContent className="space-y-6">
+          {/* Base Price */}
+          <div className="flex items-center justify-between p-4 bg-primary/5 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center">
+                <Check className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <h4 className="font-semibold">قیمت پایه</h4>
+                <p className="text-sm text-muted-foreground">
+                  طراحی یک صفحه با هر تعداد بخش
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold">{formatPrice(pricingBreakdown.basePrice)}</div>
+              <div className="text-sm text-muted-foreground">تومان</div>
+            </div>
           </div>
-          
-          {costs.pagesCost > 0 && (
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span>صفحات اضافی ({costs.pagesCount - 1} صفحه اضافی - {costs.pagesCount - 1} × 250,000 تومان)</span>
-              <span className="font-semibold">{formatPrice(costs.pagesCost)} تومان</span>
-            </div>
-          )}
-          
-          {costs.sectionsCost > 0 && (
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span>بخش‌های اضافی ({costs.totalSections} بخش - بیش از 6 بخش)</span>
-              <span className="font-semibold">{formatPrice(costs.sectionsCost)} تومان</span>
-            </div>
-          )}
-          
-          {costs.brandingCost > 0 && (
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span>طراحی و برندینگ (لوگو)</span>
-              <span className="font-semibold">{formatPrice(costs.brandingCost)} تومان</span>
+
+          {/* Pages Cost */}
+          {pricingBreakdown.pagesCost > 0 && (
+            <div className="flex items-center justify-between p-4 bg-secondary/5 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-secondary/10 rounded-full flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-secondary" />
+                </div>
+                <div>
+                  <h4 className="font-semibold">صفحات اضافی</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {pricingBreakdown.pagesCount - 1} صفحه اضافی × 500,000 تومان
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold">{formatPrice(pricingBreakdown.pagesCost)}</div>
+                <div className="text-sm text-muted-foreground">تومان</div>
+              </div>
             </div>
           )}
 
-          {costs.domainCost > 0 && (
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span>دامنه‌های اضافی</span>
-              <span className="font-semibold">{formatPrice(costs.domainCost)} تومان</span>
+          {/* Sections Cost */}
+          {pricingBreakdown.sectionsCost > 0 && (
+            <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                  <Calculator className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold">بخش‌های اضافی</h4>
+                  <p className="text-sm text-muted-foreground">
+                    {pricingBreakdown.totalSections - 6} بخش اضافی × 250,000 تومان
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold">{formatPrice(pricingBreakdown.sectionsCost)}</div>
+                <div className="text-sm text-muted-foreground">تومان</div>
+              </div>
             </div>
           )}
-          
-          <div className="flex justify-between items-center py-3 text-lg font-bold bg-primary/5 px-4 rounded-lg">
-            <span>مجموع هزینه</span>
-            <span className="text-primary">{formatPrice(costs.totalCost)} تومان</span>
+
+          {/* Branding Cost */}
+          {pricingBreakdown.brandingCost > 0 && (
+            <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                  <Check className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold">برندینگ</h4>
+                  <p className="text-sm text-muted-foreground">
+                    یکپارچه‌سازی لوگو
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold">{formatPrice(pricingBreakdown.brandingCost)}</div>
+                <div className="text-sm text-muted-foreground">تومان</div>
+              </div>
+            </div>
+          )}
+
+          {/* Domain Cost */}
+          {pricingBreakdown.domainCost > 0 && (
+            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h4 className="font-semibold">دامنه‌های اضافی</h4>
+                  <p className="text-sm text-muted-foreground">
+                    دامنه‌های اضافی انتخاب شده
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-lg font-bold">{formatPrice(pricingBreakdown.domainCost)}</div>
+                <div className="text-sm text-muted-foreground">تومان</div>
+              </div>
+            </div>
+          )}
+
+          {/* Total */}
+          <div className="border-t pt-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold">قیمت نهایی</h3>
+              <div className="text-right">
+                <div className="text-3xl font-bold text-primary">{formatPrice(pricingBreakdown.totalPrice)}</div>
+                <div className="text-sm text-muted-foreground">تومان</div>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Domain Summary */}
-      {data.userInfo?.domain && (
-        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-600 dark:text-blue-400">
-              <Globe className="w-5 h-5" />
-              خلاصه دامنه
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span>دامنه اصلی:</span>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{data.userInfo.domain}.ir</span>
-                  <Badge variant="success" className="text-xs">رایگان</Badge>
-                </div>
-              </div>
-              
-              {data.userInfo?.additionalDomains && data.userInfo.additionalDomains.length > 0 && (
-                <div className="space-y-2">
-                  <span className="text-sm font-medium">دامنه‌های اضافی:</span>
-                  {data.userInfo.additionalDomains.map((domain, index) => (
-                    <div key={index} className="flex items-center justify-between text-sm">
-                      <span>{domain.domain}{domain.extension}</span>
-                      <span className="font-medium">{formatPrice(domain.price)} تومان</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+      {/* Summary Cards */}
+      <div className="grid md:grid-cols-3 gap-6">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Globe className="w-6 h-6 text-primary" />
             </div>
+            <h3 className="font-semibold mb-2">تعداد صفحات</h3>
+            <div className="text-2xl font-bold text-primary">{pricingBreakdown.pagesCount}</div>
           </CardContent>
         </Card>
-      )}
 
-      {/* What's Included */}
-      <Card className="bg-gradient-to-r from-success/5 to-info/5">
-        <CardHeader>
-          <CardTitle className="text-success">✓ شامل این موارد است:</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-4">
-            <ul className="space-y-2">
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-success" />
-                طراحی ریسپانسیو (موبایل و دسکتاپ)
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-success" />
-                سئو پایه (بهینه‌سازی موتورهای جستجو)
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-success" />
-                فرم تماس کاربردی
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-success" />
-                سرعت بالا و امنیت
-              </li>
-            </ul>
-            <ul className="space-y-2">
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-success" />
-                هاستینگ رایگان برای 1 سال
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-success" />
-                ادغام شبکه‌های اجتماعی
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-success" />
-                پنل مدیریت آسان
-              </li>
-              <li className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-success" />
-                پشتیبانی فنی
-              </li>
-            </ul>
+        <Card>
+          <CardContent className="p-6 text-center">
+            <div className="w-12 h-12 bg-secondary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Calculator className="w-6 h-6 text-secondary" />
+            </div>
+            <h3 className="font-semibold mb-2">تعداد بخش‌ها</h3>
+            <div className="text-2xl font-bold text-secondary">{pricingBreakdown.totalSections}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6 text-center">
+            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Check className="w-6 h-6 text-green-600" />
+            </div>
+            <h3 className="font-semibold mb-2">وضعیت</h3>
+            <div className="text-sm text-green-600 font-medium">آماده برای پرداخت</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Pricing Information */}
+      <Card className="bg-muted/50">
+        <CardContent className="p-6">
+          <h3 className="font-semibold mb-4">اطلاعات قیمت‌گذاری</h3>
+          <div className="space-y-3 text-sm">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-primary rounded-full"></span>
+              <span>قیمت پایه: 2,500,000 تومان برای یک صفحه با هر تعداد بخش</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-secondary rounded-full"></span>
+              <span>صفحات اضافی: 500,000 تومان به ازای هر صفحه</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+              <span>بخش‌های اضافی: 250,000 تومان به ازای هر بخش بیش از 6</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+              <span>برندینگ: 200,000 تومان برای یکپارچه‌سازی لوگو</span>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet as WalletIcon, Plus, ArrowUpDown, History, CreditCard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WalletService } from '@/lib/walletService';
+import { supabase } from '@/integrations/supabase/client';
 import type { Transaction } from '@/integrations/supabase/types';
 
 interface WalletCardProps {
@@ -52,10 +53,10 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
 
   const handleDeposit = async () => {
     const amount = parseFloat(depositAmount);
-    if (!amount || amount <= 0) {
+    if (!amount || amount < 1000) {
       toast({
         title: 'مبلغ نامعتبر',
-        description: 'لطفاً مبلغ معتبری وارد کنید',
+        description: 'مبلغ باید حداقل 1,000 تومان باشد',
         variant: 'destructive',
       });
       return;
@@ -63,22 +64,39 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
 
     setDepositing(true);
     try {
-      const transactionId = await WalletService.deposit(
+      // Create deposit transaction first
+      const transactionId = await WalletService.processTransaction(
         userId,
+        'deposit',
         amount,
-        'شارژ کیف پول'
+        'شارژ کیف پول',
+        undefined,
+        'deposit',
+        { method: 'zarinpal' }
       );
 
       if (transactionId) {
-        toast({
-          title: 'شارژ موفق',
-          description: `${WalletService.formatAmount(amount)} با موفقیت به کیف پول شما اضافه شد`,
+        // Initiate Zarinpal payment for deposit
+        const paymentRequest = {
+          action: 'request',
+          amount: Math.floor(amount / 10), // Convert from Rials to Tomans
+          description: `شارژ کیف پول - ${WalletService.formatAmount(amount)}`,
+          orderId: transactionId
+        };
+
+        const { data: paymentData, error: paymentError } = await supabase.functions.invoke('zarinpal-payment', {
+          body: paymentRequest
         });
-        setDepositDialogOpen(false);
-        setDepositAmount('');
-        fetchWalletData(); // Refresh data
+
+        if (paymentError) throw paymentError;
+
+        if (paymentData.success) {
+          window.location.href = paymentData.paymentUrl;
+        } else {
+          throw new Error('Failed to create payment request');
+        }
       } else {
-        throw new Error('Failed to process deposit');
+        throw new Error('Failed to create deposit transaction');
       }
     } catch (error) {
       console.error('Error depositing:', error);

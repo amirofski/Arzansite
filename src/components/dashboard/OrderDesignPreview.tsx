@@ -1,166 +1,186 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Eye, Download, Share2, ExternalLink } from 'lucide-react';
-import DesignPreview from '../wizard/DesignPreview';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Eye, Layers, FileText, Palette, Settings, Loader2 } from 'lucide-react';
+import { DesignService, type DynamicDesign } from '@/lib/designService';
+import { PaymentService } from '@/lib/paymentService';
+import { useToast } from '@/hooks/use-toast';
 
 interface OrderDesignPreviewProps {
-  order: {
-    id: string;
-    title: string;
-    description: string;
-    status: string;
-    price: number;
-    created_at: string;
-    profiles: {
-      full_name: string;
-      email: string;
-    } | null;
-  };
-  designData?: {
-    pages: any[];
-    currentPageId: string;
-  };
+  orderId: string;
+  orderTitle: string;
+  orderPrice: number;
+  paymentStatus: string;
+  isAdmin?: boolean;
+  onStatusUpdate?: () => void;
 }
 
-const OrderDesignPreview = ({ order, designData }: OrderDesignPreviewProps) => {
+const OrderDesignPreview = ({ 
+  orderId, 
+  orderTitle, 
+  orderPrice, 
+  paymentStatus, 
+  isAdmin = false,
+  onStatusUpdate 
+}: OrderDesignPreviewProps) => {
+  const [design, setDesign] = useState<DynamicDesign | null>(null);
+  const [loading, setLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const { toast } = useToast();
 
-  // Mock design data if not provided
-  const mockDesign = designData || {
-    pages: [
-      {
-        id: 'main',
-        name: 'صفحه اصلی',
-        sections: [
-          {
-            id: 'header-1',
-            sectionType: 'header',
-            layoutId: 'header-1',
-            order: 0,
-            customData: {}
-          },
-          {
-            id: 'hero-1',
-            sectionType: 'hero',
-            layoutId: 'hero-1',
-            order: 1,
-            customData: {}
-          },
-          {
-            id: 'about-1',
-            sectionType: 'about',
-            layoutId: 'about-1',
-            order: 2,
-            customData: {}
-          },
-          {
-            id: 'services-1',
-            sectionType: 'services',
-            layoutId: 'services-1',
-            order: 3,
-            customData: {}
-          },
-          {
-            id: 'contact-1',
-            sectionType: 'contact',
-            layoutId: 'contact-1',
-            order: 4,
-            customData: {}
-          },
-          {
-            id: 'footer-1',
-            sectionType: 'footer',
-            layoutId: 'footer-1',
-            order: 5,
-            customData: {}
-          }
-        ],
-        canvasDimensions: { width: 1200, height: 800 }
-      }
-    ],
-    currentPageId: 'main'
+  useEffect(() => {
+    loadDesignData();
+  }, [orderId]);
+
+  const loadDesignData = async () => {
+    try {
+      setLoading(true);
+      const designData = await DesignService.loadDesign(orderId);
+      setDesign(designData);
+    } catch (error) {
+      console.error('Error loading design data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDownload = () => {
-    // Implementation for downloading design files
-    console.log('Downloading design for order:', order.id);
+  const renderDesignPreview = () => {
+    if (!design) {
+      return (
+        <div className="text-center py-8">
+          <Palette className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <p className="text-muted-foreground">هیچ طراحی برای این سفارش یافت نشد</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {design.pages.map((page) => (
+          <Card key={page.id}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                {page.name}
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>ابعاد بوم:</span>
+                  <Badge variant="outline">
+                    {page.canvasDimensions.width} × {page.canvasDimensions.height}
+                  </Badge>
+                </div>
+                
+                <div className="space-y-3">
+                  <h4 className="font-medium">بخش‌ها ({page.sections.length})</h4>
+                  {page.sections.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">هیچ بخشی اضافه نشده</p>
+                  ) : (
+                    <div className="grid gap-2">
+                      {page.sections.map((section, index) => (
+                        <div key={section.id} className="flex items-center gap-3 p-3 border rounded-lg">
+                          <Layers className="w-4 h-4" />
+                          <span className="font-medium">{section.sectionType}</span>
+                          <Badge variant="secondary" className="ml-auto">
+                            {index + 1}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
   };
 
-  const handleShare = () => {
-    // Implementation for sharing design
-    console.log('Sharing design for order:', order.id);
-  };
-
-  const handleViewLive = () => {
-    // Implementation for viewing live site
-    console.log('Viewing live site for order:', order.id);
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="w-8 h-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <>
-      <Card className="hover:shadow-md transition-shadow">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="text-lg">{order.title}</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                توسط {order.profiles?.full_name || 'کاربر ناشناس'}
-              </p>
-            </div>
-            <Badge variant={order.status === 'completed' ? 'default' : 'secondary'}>
-              {order.status === 'completed' ? 'تکمیل شده' : 'در حال انجام'}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-muted-foreground">
-                {mockDesign.pages.length} صفحه • {mockDesign.pages.reduce((total, page) => total + page.sections.length, 0)} بخش
-              </div>
-              <div className="text-lg font-bold">
-                {order.price.toLocaleString()} تومان
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Button 
-                size="sm" 
-                onClick={() => setPreviewOpen(true)}
-                className="flex-1"
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                مشاهده طراحی
-              </Button>
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={handleDownload}
-              >
-                <Download className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setPreviewOpen(true)}
+        className="flex items-center gap-2"
+      >
+        <Eye className="w-4 h-4" />
+        مشاهده طراحی
+      </Button>
 
-      {/* Design Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
-            <DialogTitle>پیش‌نمایش طراحی - {order.title}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Palette className="w-5 h-5" />
+              پیش‌نمایش طراحی - {orderTitle}
+            </DialogTitle>
           </DialogHeader>
-          
-          <DesignPreview
-            design={mockDesign}
-            showActions={true}
-            onDownload={handleDownload}
-            onShare={handleShare}
-            onViewLive={handleViewLive}
-          />
+
+          <Tabs defaultValue="design" className="h-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="design">طراحی</TabsTrigger>
+              <TabsTrigger value="payment">پرداخت</TabsTrigger>
+            </TabsList>
+
+            <div className="mt-4 h-[calc(90vh-200px)]">
+              <TabsContent value="design" className="h-full">
+                <ScrollArea className="h-full">
+                  {renderDesignPreview()}
+                </ScrollArea>
+              </TabsContent>
+
+              <TabsContent value="payment" className="h-full">
+                <ScrollArea className="h-full">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Settings className="w-5 h-5" />
+                        اطلاعات پرداخت
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">وضعیت پرداخت</label>
+                          <div className="mt-1">
+                            <Badge className={PaymentService.getPaymentStatusColor(paymentStatus)}>
+                              {PaymentService.getPaymentStatusText(paymentStatus)}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-sm font-medium text-muted-foreground">مبلغ</label>
+                          <p className="mt-1 font-medium">{PaymentService.formatAmount(orderPrice)}</p>
+                        </div>
+                      </div>
+
+                      {!isAdmin && paymentStatus === 'pending' && (
+                        <Button className="w-full">
+                          پرداخت سفارش
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                </ScrollArea>
+              </TabsContent>
+            </div>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </>

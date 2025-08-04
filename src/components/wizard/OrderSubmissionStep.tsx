@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateTotalPrice, formatPrice } from '@/lib/pricingUtils';
+import { DesignService } from '@/lib/designService';
 import { 
   CreditCard, 
   Smartphone, 
@@ -78,6 +79,26 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
 
       if (error) {
         throw error;
+      }
+
+      // Save design data if available
+      if (data.websiteFramework?.dynamicDesign) {
+        try {
+          await DesignService.saveDesign(
+            newOrder.id,
+            data.websiteFramework.dynamicDesign,
+            {
+              siteType: data.siteType,
+              modules: data.modules,
+              branding: data.branding,
+              userInfo: data.userInfo,
+              pricing: data.pricing
+            }
+          );
+        } catch (designError) {
+          console.warn('Design save warning:', designError);
+          // Don't throw error for design issues, continue with order
+        }
       }
 
       // Also create/update user profile if needed

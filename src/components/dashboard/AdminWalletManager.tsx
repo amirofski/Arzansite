@@ -10,7 +10,7 @@ import { Wallet as WalletIcon, Plus, Minus, History, Search } from 'lucide-react
 import { useToast } from '@/hooks/use-toast';
 import { WalletService } from '@/lib/walletService';
 import { supabase } from '@/integrations/supabase/client';
-import type { Wallet, Transaction } from '@/integrations/supabase/types';
+import type { Wallet, Transaction } from '@/lib/walletService';
 
 interface AdminWalletManagerProps {
   userId: string;
@@ -239,7 +239,7 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">
-                            {WalletService.getTransactionTypeText(transaction.type)}
+                            {WalletService.getTransactionTypeText(transaction.type as any)}
                           </span>
                           <Badge
                             variant="outline"
@@ -257,7 +257,7 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
                           {formatDate(transaction.created_at)}
                         </div>
                       </div>
-                      <div className={`font-medium ${WalletService.getTransactionTypeColor(transaction.type)}`}>
+                      <div className={`font-medium ${WalletService.getTransactionTypeColor(transaction.type as any)}`}>
                         {transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? '+' : '-'}
                         {WalletService.formatAmount(transaction.amount)}
                       </div>

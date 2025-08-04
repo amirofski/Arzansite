@@ -158,6 +158,22 @@ const PricingCalculator = ({ data, updateData }: PricingCalculatorProps) => {
       price: 500000,
       description: 'پشتیبانی کامل در تمام ساعات شبانه‌روز',
       included: false
+    },
+    {
+      id: 'dedicated_infrastructure',
+      name: 'زیرساخت اختصاصی',
+      icon: Rocket,
+      price: 800000,
+      description: 'سرور اختصاصی و اتصال به GitHub/Vercel',
+      included: false
+    },
+    {
+      id: 'dedicated_seo',
+      name: 'سئو اختصاصی',
+      icon: Star,
+      price: 700000,
+      description: 'بهینه‌سازی کامل و اختصاصی برای موتورهای جستجو',
+      included: false
     }
   ];
 

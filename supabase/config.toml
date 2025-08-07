@@ -30,14 +30,26 @@ file_size_limit = "50MiB"
 [auth]
 enabled = true
 port = 54327
-site_url = "http://localhost:3000"
-additional_redirect_urls = ["https://localhost:3000"]
+site_url = "https://arzansite.com"
+additional_redirect_urls = [
+  "https://arzansite.com",
+  "http://localhost:8080",
+  "http://localhost:3000"
+]
 jwt_expiry = 3600
 refresh_token_rotation_enabled = true
 refresh_token_reuse_interval = 10
 security_update_password_require_reauthentication = true
 enable_signup = true
 enable_anonymous_users = false
+
+# Email URL Configuration - This is the key fix!
+[auth.email.template]
+confirm_signup = "https://arzansite.com/auth/verify-email"
+invite = "https://arzansite.com/auth/verify-email"
+recovery = "https://arzansite.com/auth/verify-email"
+email_change = "https://arzansite.com/auth/verify-email"
+magic_link = "https://arzansite.com/auth/verify-email"
 
 [auth.email]
 enable_signup = true

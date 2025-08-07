@@ -21,6 +21,7 @@ import AdminWalletManager from '@/components/dashboard/AdminWalletManager';
 import DesignPreview from '@/components/wizard/DesignPreview';
 import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import AdminPaymentManager from '@/components/dashboard/AdminPaymentManager';
+import EmailManager from '@/components/dashboard/EmailManager';
 import { type Wireframe, type StorageFile, type DynamicDesign, type WireframePage, type WireframeElement, type WireframeData } from '@/lib/types';
 
 interface Profile {
@@ -754,9 +755,10 @@ const AdminDashboard = () => {
           </div>
 
           <Tabs defaultValue="orders" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="orders">مدیریت سفارشات</TabsTrigger>
               <TabsTrigger value="users">مدیریت کاربران</TabsTrigger>
+              <TabsTrigger value="email">مدیریت ایمیل</TabsTrigger>
               <TabsTrigger value="settings">تنظیمات سایت</TabsTrigger>
             </TabsList>
 
@@ -1061,6 +1063,10 @@ const AdminDashboard = () => {
                     />
                   </div>
                 )}
+            </TabsContent>
+
+            <TabsContent value="email" className="space-y-6">
+              <EmailManager />
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-6">

@@ -153,7 +153,7 @@ export class WalletService {
         return null;
       }
 
-      return data || null;
+      return typeof data === 'string' ? data : null;
     } catch (error) {
       console.error('Error processing transaction:', error);
       return null;
@@ -208,7 +208,7 @@ export class WalletService {
         return null;
       }
 
-      return data || null;
+      return typeof data === 'string' ? data : null;
     } catch (error) {
       console.error('Error refunding order:', error);
       return null;

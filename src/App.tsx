@@ -8,6 +8,10 @@ import Wizard from "./pages/Wizard";
 import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import Auth from "./pages/Auth";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import EmailVerification from "./pages/EmailVerification";
+import VerifyEmail from "./pages/VerifyEmail";
 import PaymentCallback from "./pages/PaymentCallback";
 import NotFound from "./pages/NotFound";
 import { HelmetProvider } from "react-helmet-async";
@@ -45,6 +49,10 @@ const AppContent = () => {
         <Route path="/" element={<Index />} />
         <Route path="/wizard" element={<Wizard />} />
         <Route path="/auth" element={<Auth />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/verify-email" element={<EmailVerification />} />
+        <Route path="/auth/verify-email" element={<VerifyEmail />} />
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />

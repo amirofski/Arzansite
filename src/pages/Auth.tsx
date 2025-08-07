@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const Auth = () => {
@@ -18,17 +19,25 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user, userRole, loading: authLoading } = useAuth();
 
-  // Check if user is already logged in
+  // Check if user is already logged in and redirect based on role
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        navigate("/");
+    if (!authLoading && user) {
+      // CRITICAL SECURITY FIX: Check email verification first
+      if (!user.email_confirmed_at) {
+        navigate("/verify-email");
+        return;
       }
-    };
-    checkUser();
-  }, [navigate]);
+      
+      // Then check role and redirect
+      if (userRole?.role === 'admin') {
+        navigate("/admin");
+      } else {
+        navigate("/dashboard");
+      }
+    }
+  }, [user, userRole, authLoading, navigate]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,7 +63,7 @@ const Auth = () => {
             title: "ورود موفقیت‌آمیز",
             description: "به حساب کاربری خود خوش آمدید",
           });
-          navigate("/");
+          // The redirect will be handled by the useEffect above
         }
       } else {
         if (password !== confirmPassword) {
@@ -182,16 +191,16 @@ const Auth = () => {
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="رمز عبور خود را وارد کنید"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 h-12"
-                    required
-                    minLength={6}
-                  />
+                          <Input
+          id="password"
+          type={showPassword ? "text" : "password"}
+          placeholder="رمز عبور خود را وارد کنید"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="pl-10 pr-10 h-12"
+          required
+          minLength={8}
+        />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
@@ -224,7 +233,7 @@ const Auth = () => {
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         className="pl-10 h-12"
                         required={!isLogin}
-                        minLength={6}
+                        minLength={8}
                       />
                     </div>
                   </motion.div>
@@ -247,7 +256,7 @@ const Auth = () => {
               </Button>
             </form>
 
-            <div className="mt-6 text-center">
+            <div className="mt-6 text-center space-y-2">
               <button
                 onClick={switchMode}
                 className="text-primary hover:text-primary-hover font-medium transition-colors"
@@ -257,6 +266,17 @@ const Auth = () => {
                   : "قبلاً ثبت‌نام کرده‌اید؟ وارد شوید"
                 }
               </button>
+              
+              {isLogin && (
+                <div>
+                  <button
+                    onClick={() => navigate("/forgot-password")}
+                    className="text-muted-foreground hover:text-foreground text-sm transition-colors"
+                  >
+                    رمز عبور خود را فراموش کرده‌اید؟
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="mt-4 text-center">

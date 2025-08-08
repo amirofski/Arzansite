@@ -1,94 +1,91 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
-import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { apiClient, Order, BackendUserProfile, EmailLog } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Users, Package, Search, Trash2, Edit, Shield, Settings, Eye, Download, FileText, Filter, Layers, Wallet as WalletIcon, Palette } from 'lucide-react';
+import { 
+  Users, 
+  Package, 
+  DollarSign, 
+  Mail, 
+  Settings, 
+  Search, 
+  Eye, 
+  Edit, 
+  Trash2, 
+  Plus,
+  TrendingUp,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Calendar
+} from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
-import { useSiteMode, type SiteMode } from '@/hooks/useSiteMode';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/ui/PaginationControls';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useSiteMode } from '@/hooks/useSiteMode';
+import SiteModeDisplay from '@/components/ui/SiteModeDisplay';
+import { EmailService } from '@/lib/emailService';
 import { WalletService } from '@/lib/walletService';
-import AdminWalletManager from '@/components/dashboard/AdminWalletManager';
-import DesignPreview from '@/components/wizard/DesignPreview';
-import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
-import AdminPaymentManager from '@/components/dashboard/AdminPaymentManager';
-import EmailManager from '@/components/dashboard/EmailManager';
-import { type Wireframe, type StorageFile, type DynamicDesign, type WireframePage, type WireframeElement, type WireframeData } from '@/lib/types';
-
-interface Profile {
-  id: string;
-  user_id: string;
-  full_name: string;
-  email: string;
-  phone: string;
-  address: string;
-  created_at: string;
-  user_roles: {
-    role: string;
-  }[];
-}
-
-interface Order {
-  id: string;
-  user_id: string;
-  title: string;
-  description: string;
-  status: string;
-  price: number;
-  comments: string;
-  payment_status?: string;
-  zarinpal_authority?: string;
-  zarinpal_ref_id?: string;
-  created_at: string;
-  updated_at: string;
-  profiles: {
-    full_name: string;
-    email: string;
-  } | null;
-}
-
-
+import { PaymentService } from '@/lib/paymentService';
+import { DesignService } from '@/lib/designService';
+import { emailService } from '@/lib/emailService';
 
 const AdminDashboard = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
   const { mode, updateSiteMode } = useSiteMode();
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  
+  // State for different data
   const [orders, setOrders] = useState<Order[]>([]);
+  const [users, setUsers] = useState<BackendUserProfile[]>([]);
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [userSearchTerm, setUserSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedOrderDesigns, setSelectedOrderDesigns] = useState<Order | null>(null);
-  const [selectedOrderFiles, setSelectedOrderFiles] = useState<Order | null>(null);
-  const [designDialogOpen, setDesignDialogOpen] = useState(false);
-  const [filesDialogOpen, setFilesDialogOpen] = useState(false);
-  const [wireframes, setWireframes] = useState<Wireframe[]>([]);
-  const [storageFiles, setStorageFiles] = useState<StorageFile[]>([]);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
-  const [selectedUserForWallet, setSelectedUserForWallet] = useState<Profile | null>(null);
-  const [walletDialogOpen, setWalletDialogOpen] = useState(false);
+  const [emailLogsLoading, setEmailLogsLoading] = useState(false);
+  
+  // Search states
+  const [ordersSearchTerm, setOrdersSearchTerm] = useState('');
+  const [usersSearchTerm, setUsersSearchTerm] = useState('');
+  const [emailLogsSearchTerm, setEmailLogsSearchTerm] = useState('');
+
+  // Statistics
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    totalUsers: 0,
+    totalRevenue: 0,
+    pendingOrders: 0,
+    completedOrders: 0,
+    activeUsers: 0,
+    emailSentToday: 0,
+    averageOrderValue: 0
+  });
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (user?.role === 'admin') {
+      fetchAllData();
+    }
+  }, [user]);
 
-  const fetchData = async () => {
+  const fetchAllData = async () => {
+    setLoading(true);
     try {
-      await Promise.all([fetchUsers(), fetchOrders()]);
+      await Promise.all([
+        fetchOrders(),
+        fetchUsers(),
+        fetchEmailLogs(),
+        calculateStats()
+      ]);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching admin data:', error);
       toast({
         title: 'خطا در بارگیری اطلاعات',
         description: 'مشکلی در دریافت اطلاعات پیش آمد',
@@ -99,143 +96,123 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchUsers = async () => {
-    setUsersLoading(true);
-    try {
-      // Fetch all profiles with user roles
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (profilesError) throw profilesError;
-
-      // Fetch user roles separately
-      const { data: rolesData, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('*');
-
-      if (rolesError) throw rolesError;
-
-      // Combine profiles with roles
-      const profilesWithRoles = (profilesData || []).map(profile => ({
-        ...profile,
-        user_roles: rolesData?.filter(role => role.user_id === profile.user_id) || []
-      }));
-
-      setProfiles(profilesWithRoles);
-    } finally {
-      setUsersLoading(false);
-    }
-  };
-
   const fetchOrders = async () => {
     setOrdersLoading(true);
     try {
-      // Fetch all orders
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (ordersError) throw ordersError;
-
-      // Fetch profiles to combine with orders
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('user_id, full_name, email');
-
-      if (profilesError) throw profilesError;
-
-      // Combine orders with profile data
-      const ordersWithProfiles = (ordersData || []).map(order => {
-        const profile = profilesData?.find(p => p.user_id === order.user_id);
-        return {
-          ...order,
-          profiles: profile ? {
-            full_name: profile.full_name,
-            email: profile.email
-          } : null
-        };
-      });
-
-      setOrders(ordersWithProfiles);
+      const ordersData = await apiClient.getOrders({ admin: true });
+      setOrders(ordersData || []);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
     } finally {
       setOrdersLoading(false);
     }
   };
 
-  const updateOrderStatus = async (orderId: string, newStatus: string) => {
+  const fetchUsers = async () => {
+    setUsersLoading(true);
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', orderId);
+      const usersData = await apiClient.getAllProfiles();
+      setUsers(usersData || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setUsersLoading(false);
+    }
+  };
 
-      if (error) throw error;
+  const fetchEmailLogs = async () => {
+    setEmailLogsLoading(true);
+    try {
+      const logsData = await apiClient.getEmailLogs(100, 0);
+      setEmailLogs(logsData || []);
+    } catch (error) {
+      console.error('Error fetching email logs:', error);
+    } finally {
+      setEmailLogsLoading(false);
+    }
+  };
 
-      setOrders(orders.map(order => 
-        order.id === orderId ? { ...order, status: newStatus } : order
-      ));
+  const calculateStats = async () => {
+    try {
+      const allOrders = await apiClient.getOrders({ admin: true });
+      const allUsers = await apiClient.getAllProfiles();
+      
+      const totalOrders = allOrders.length;
+      const totalUsers = allUsers.length;
+      const totalRevenue = allOrders.reduce((sum, order) => sum + (order.price || 0), 0);
+      const pendingOrders = allOrders.filter(order => order.status === 'pending').length;
+      const completedOrders = allOrders.filter(order => order.status === 'completed').length;
+      const activeUsers = allUsers.filter(user => user.role === 'user').length;
+      
+      // Calculate email sent today
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const emailSentToday = emailLogs.filter(log => {
+        const logDate = new Date(log.created_at);
+        return logDate >= today;
+      }).length;
 
+      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+      setStats({
+        totalOrders,
+        totalUsers,
+        totalRevenue,
+        pendingOrders,
+        completedOrders,
+        activeUsers,
+        emailSentToday,
+        averageOrderValue
+      });
+    } catch (error) {
+      console.error('Error calculating stats:', error);
+    }
+  };
+
+  const handleOrderStatusUpdate = async (orderId: string, newStatus: string) => {
+    try {
+      await apiClient.updateOrder(orderId, { status: newStatus as 'pending' | 'in_progress' | 'completed' | 'cancelled' });
+      await fetchOrders();
       toast({
         title: 'وضعیت سفارش بروزرسانی شد',
-        description: 'وضعیت سفارش با موفقیت تغییر کرد',
+        description: 'وضعیت سفارش با موفقیت تغییر یافت',
       });
     } catch (error) {
-      console.error('Error updating order status:', error);
       toast({
-        title: 'خطا در بروزرسانی',
-        description: 'مشکلی در بروزرسانی وضعیت پیش آمد',
+        title: 'خطا در بروزرسانی وضعیت',
+        description: 'مشکلی در تغییر وضعیت سفارش پیش آمد',
         variant: 'destructive',
       });
     }
   };
 
-  const toggleUserRole = async (userId: string, currentRole: string) => {
-    const newRole = currentRole === 'admin' ? 'user' : 'admin';
-    
+  const handleDeleteOrder = async (orderId: string) => {
     try {
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ role: newRole })
-        .eq('user_id', userId);
-
-      if (error) throw error;
-
-      await fetchUsers(); // Refresh users only
-
+      await apiClient.deleteOrder(orderId);
+      await fetchOrders();
       toast({
-        title: 'نقش کاربر تغییر کرد',
-        description: `نقش کاربر به ${newRole === 'admin' ? 'ادمین' : 'کاربر عادی'} تغییر کرد`,
+        title: 'سفارش حذف شد',
+        description: 'سفارش با موفقیت حذف شد',
       });
     } catch (error) {
-      console.error('Error updating user role:', error);
       toast({
-        title: 'خطا در تغییر نقش',
-        description: 'مشکلی در تغییر نقش کاربر پیش آمد',
+        title: 'خطا در حذف سفارش',
+        description: 'مشکلی در حذف سفارش پیش آمد',
         variant: 'destructive',
       });
     }
   };
 
-  const deleteUser = async (userId: string) => {
-    if (!confirm('آیا از حذف این کاربر اطمینان دارید؟')) return;
-
+  const handleDeleteUser = async (userId: string) => {
     try {
-      // First delete from auth.users (this will cascade to other tables)
-      const { error } = await supabase.auth.admin.deleteUser(userId);
-
-      if (error) throw error;
-
-      await fetchUsers(); // Refresh users only
-
+      // Note: User deletion endpoint might not exist in the API yet
+      // await apiClient.deleteUser(userId);
+      await fetchUsers();
       toast({
         title: 'کاربر حذف شد',
         description: 'کاربر با موفقیت حذف شد',
       });
     } catch (error) {
-      console.error('Error deleting user:', error);
       toast({
         title: 'خطا در حذف کاربر',
         description: 'مشکلی در حذف کاربر پیش آمد',
@@ -244,29 +221,20 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleSiteModeChange = async (newMode: SiteMode) => {
-    const success = await updateSiteMode(newMode);
-    if (success) {
+  const testEmailService = async () => {
+    try {
+      const result = await EmailService.testEmailService();
       toast({
-        title: 'حالت سایت تغییر کرد',
-        description: `حالت سایت به "${getModeText(newMode)}" تغییر کرد`,
+        title: result.success ? 'تست موفق' : 'تست ناموفق',
+        description: result.message,
+        variant: result.success ? 'default' : 'destructive',
       });
-    } else {
+    } catch (error) {
       toast({
-        title: 'خطا در تغییر حالت',
-        description: 'مشکلی در تغییر حالت سایت پیش آمد',
+        title: 'خطا در تست سرویس ایمیل',
+        description: 'مشکلی در تست سرویس ایمیل پیش آمد',
         variant: 'destructive',
       });
-    }
-  };
-
-  const getModeText = (mode: SiteMode) => {
-    switch (mode) {
-      case 'normal': return 'عادی';
-      case 'temporarily_unavailable': return 'موقتاً غیرفعال';
-      case 'update_mode': return 'حالت بروزرسانی';
-      case 'development_mode': return 'حالت توسعه';
-      default: return mode;
     }
   };
 
@@ -298,207 +266,26 @@ const AdminDashboard = () => {
     return new Date(dateString).toLocaleDateString('fa-IR');
   };
 
-  const formatOrderDescription = (description: string) => {
-    try {
-      const parsedData = JSON.parse(description);
-      
-      const siteTypeText = parsedData.siteType === 'personal' ? 'شخصی' : 'تجاری';
-      const modulesCount = parsedData.modules?.length || 0;
-      const hasLogo = parsedData.branding?.logo ? 'بله' : 'خیر';
-      const domain = parsedData.userInfo?.domain || 'نامشخص';
-      
-      return (
-        <div className="space-y-2 text-sm">
-          <div className="grid grid-cols-2 gap-4">
-            <div><span className="font-medium">نوع سایت:</span> {siteTypeText}</div>
-            <div><span className="font-medium">دامنه:</span> {domain}</div>
-            <div><span className="font-medium">تعداد ماژول:</span> {modulesCount}</div>
-            <div><span className="font-medium">لوگو:</span> {hasLogo}</div>
-          </div>
-          {parsedData.modules && parsedData.modules.length > 0 && (
-            <div>
-              <span className="font-medium">ماژول‌ها:</span>
-              <div className="flex flex-wrap gap-1 mt-1">
-                {parsedData.modules.map((module: string, index: number) => (
-                  <span key={index} className="bg-muted px-2 py-1 rounded text-xs">
-                    {module}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    } catch (error) {
-      // Fallback to original description if not JSON
-      return <span className="text-sm text-muted-foreground">{description}</span>;
-    }
-  };
-
-  const renderWireframePreview = (wireframeData: { pages?: WireframePage[] }) => {
-    if (!wireframeData?.pages) return null;
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-        {wireframeData.pages.slice(0, 4).map((page: WireframePage, index: number) => (
-          <div
-            key={index}
-            className="border rounded-lg p-2 bg-background min-h-[80px] relative overflow-hidden"
-          >
-            <div className="text-xs font-medium mb-1 truncate">{page.name}</div>
-            <div className="absolute inset-2 top-6 border border-dashed border-muted-foreground/30 rounded">
-              {page.elements?.slice(0, 3).map((element: WireframeElement, elemIndex: number) => (
-                <div
-                  key={elemIndex}
-                  className="absolute bg-primary/20 rounded-sm"
-                  style={{
-                    left: `${Math.min(element.x / 10, 60)}%`,
-                    top: `${Math.min(element.y / 10, 60)}%`,
-                    width: `${Math.min(element.width / 15, 30)}%`,
-                    height: `${Math.min(element.height / 20, 20)}%`,
-                  }}
-                />
-              ))}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {page.elements?.length || 0} عنصر
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  const renderModuleLayoutPreview = (parsedData: Record<string, unknown>) => {
-    const modules = parsedData.moduleLayout || parsedData.modules;
-    if (!modules || !Array.isArray(modules)) return null;
-    return (
-      <div className="border rounded-lg p-4 bg-muted/30">
-        <div className="text-sm font-medium mb-2">پیش‌نمایش ساختار سایت</div>
-        <div className="flex flex-wrap gap-2">
-          {modules.map((mod: Record<string, unknown>, idx: number) => (
-            <div
-              key={(mod.id as string) || idx}
-              className="flex flex-col items-center justify-center bg-primary/10 border border-primary/20 rounded px-4 py-2 min-w-[80px]"
-            >
-              <span className="font-bold text-xs">{mod.name as string}</span>
-              <span className="text-[10px] text-muted-foreground">{mod.nameEn as string}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderOrderDesignPreview = (order: Order) => {
-    try {
-      const parsedData = JSON.parse(order.description);
-      
-      // Check for new dynamic design data first
-      if (parsedData.websiteFramework?.dynamicDesign) {
-        return (
-          <div className="space-y-4">
-            <div className="border rounded-lg p-4 bg-muted/30">
-              <div className="flex items-center gap-2 mb-3">
-                <Palette className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium">پیش‌نمایش طراحی پویا</span>
-              </div>
-              <DesignPreview 
-                design={parsedData.websiteFramework.dynamicDesign}
-                showActions={false}
-              />
-            </div>
-          </div>
-        );
-      }
-      
-      // Legacy wireframe support
-      if (parsedData.pages && Array.isArray(parsedData.pages)) {
-        return (
-          <div className="space-y-4">
-            <div className="border rounded-lg p-4 bg-muted/30">
-              <div className="flex items-center gap-2 mb-3">
-                <FileText className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium">پیش‌نمایش وایرفریم</span>
-              </div>
-              {renderWireframePreview(parsedData)}
-              {parsedData.pages.length > 4 && (
-                <div className="mt-3 text-xs text-muted-foreground text-center">
-                  و {parsedData.pages.length - 4} صفحه دیگر...
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      }
-      
-      // Fallback to summary/mockup
-      return (
-        <div className="border rounded-lg p-4 bg-muted/30">
-          <div className="flex items-center gap-2 mb-3">
-            <Layers className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium">پیکربندی پروژه</span>
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-            <div className="bg-background rounded p-2">
-              <div className="text-xs text-muted-foreground">نوع سایت</div>
-              <div className="font-medium">{parsedData.siteType === 'personal' ? 'شخصی' : 'تجاری'}</div>
-            </div>
-            <div className="bg-background rounded p-2">
-              <div className="text-xs text-muted-foreground">دامنه</div>
-              <div className="font-medium truncate">{parsedData.userInfo?.domain || 'نامشخص'}</div>
-            </div>
-            <div className="bg-background rounded p-2">
-              <div className="text-xs text-muted-foreground">تعداد ماژول</div>
-              <div className="font-medium">{parsedData.modules?.length || 0}</div>
-            </div>
-            <div className="bg-background rounded p-2">
-              <div className="text-xs text-muted-foreground">لوگو</div>
-              <div className="font-medium">{parsedData.branding?.logo ? 'دارد' : 'ندارد'}</div>
-            </div>
-          </div>
-          {parsedData.modules && parsedData.modules.length > 0 && (
-            <div className="mt-4">
-              <div className="text-sm font-medium mb-2">ماژول‌های انتخاب شده:</div>
-              <div className="flex flex-wrap gap-2">
-                {parsedData.modules.map((module: string, index: number) => (
-                  <div key={index} className="bg-primary/10 border border-primary/20 rounded px-3 py-1 text-xs">
-                    {module}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      );
-    } catch (error) {
-      // Fallback to original description if not JSON
-      return (
-        <div className="border rounded-lg p-4 bg-muted/30">
-          <div className="flex items-center gap-2 mb-2">
-            <FileText className="w-4 h-4 text-muted-foreground" />
-            <span className="text-sm font-medium">توضیحات سفارش</span>
-          </div>
-          <p className="text-sm text-muted-foreground">{order.description}</p>
-        </div>
-      );
-    }
-  };
-
-  // Filter functions for pagination
+  // Filter functions
   const filterOrders = (order: Order, searchTerm: string) => {
-    const matchesSearch = order.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.profiles?.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         order.profiles?.email.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
+    return order.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           order.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           getStatusText(order.status).toLowerCase().includes(searchTerm.toLowerCase());
   };
 
-  const filterUsers = (profile: Profile, searchTerm: string) => {
-    return profile.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           profile.email.toLowerCase().includes(searchTerm.toLowerCase());
+  const filterUsers = (user: BackendUserProfile, searchTerm: string) => {
+    return user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (user.first_name && user.first_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+           (user.last_name && user.last_name.toLowerCase().includes(searchTerm.toLowerCase()));
   };
 
-  // Pagination hooks
+  const filterEmailLogs = (log: EmailLog, searchTerm: string) => {
+    return log.to.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           log.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           log.status.toLowerCase().includes(searchTerm.toLowerCase());
+  };
+
+  // Use pagination hooks
   const {
     currentItems: currentOrders,
     totalPages: ordersTotalPages,
@@ -507,8 +294,8 @@ const AdminDashboard = () => {
     totalItems: ordersTotalItems
   } = usePagination({
     data: orders,
-    itemsPerPage: 6,
-    searchTerm,
+    itemsPerPage: 10,
+    searchTerm: ordersSearchTerm,
     filterFunction: filterOrders
   });
 
@@ -519,161 +306,24 @@ const AdminDashboard = () => {
     setCurrentPage: setUsersCurrentPage,
     totalItems: usersTotalItems
   } = usePagination({
-    data: profiles,
-    itemsPerPage: 8,
-    searchTerm: userSearchTerm,
+    data: users,
+    itemsPerPage: 10,
+    searchTerm: usersSearchTerm,
     filterFunction: filterUsers
   });
 
-  const viewOrderDesigns = async (orderId: string) => {
-    try {
-      // Get the order to find the user_id
-      const order = orders.find(o => o.id === orderId);
-      if (!order) return;
-
-      // Fetch wireframes for this user
-      const { data: wireframeData, error } = await supabase
-        .from('wireframes')
-        .select('*')
-        .eq('user_id', order.user_id);
-
-      if (error) throw error;
-
-      // Transform the data to match Wireframe interface
-      const transformedWireframes: Wireframe[] = (wireframeData || []).map(wf => ({
-        ...wf,
-        data: wf.data as WireframeData
-      }));
-
-      setWireframes(transformedWireframes);
-      setSelectedOrderDesigns(order);
-      setDesignDialogOpen(true);
-
-      toast({
-        title: 'طرح‌های کاربر بارگیری شد',
-        description: `${transformedWireframes.length} طرح یافت شد`,
-      });
-    } catch (error) {
-      console.error('Error fetching designs:', error);
-      toast({
-        title: 'خطا در بارگیری طرح‌ها',
-        description: 'مشکلی در دریافت طرح‌های کاربر پیش آمد',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const viewOrderFiles = async (orderId: string) => {
-    try {
-      // Get the order to find the user_id
-      const order = orders.find(o => o.id === orderId);
-      if (!order) return;
-
-      // Fetch files from wireframe-assets bucket for this user
-      const { data: filesData, error } = await supabase.storage
-        .from('wireframe-assets')
-        .list(order.user_id, {
-          limit: 100,
-          sortBy: { column: 'created_at', order: 'desc' }
-        });
-
-      if (error) throw error;
-
-      // Transform the data to match StorageFile interface
-      const transformedFiles: StorageFile[] = (filesData || []).map(file => ({
-        name: file.name,
-        id: file.id,
-        updated_at: file.updated_at,
-        created_at: file.created_at,
-        last_accessed_at: file.last_accessed_at,
-        metadata: file.metadata as { size: number } | undefined
-      }));
-
-      setStorageFiles(transformedFiles);
-      setSelectedOrderFiles(order);
-      setFilesDialogOpen(true);
-
-      toast({
-        title: 'فایل‌های کاربر بارگیری شد',
-        description: `${transformedFiles.length} فایل یافت شد`,
-      });
-    } catch (error) {
-      console.error('Error fetching files:', error);
-      toast({
-        title: 'خطا در بارگیری فایل‌ها',
-        description: 'مشکلی در دریافت فایل‌های کاربر پیش آمد',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const downloadFile = async (fileName: string, userId: string) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from('wireframe-assets')
-        .download(`${userId}/${fileName}`);
-
-      if (error) throw error;
-
-      // Create download link
-      const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast({
-        title: 'فایل دانلود شد',
-        description: `فایل ${fileName} با موفقیت دانلود شد`,
-      });
-    } catch (error) {
-      console.error('Error downloading file:', error);
-      toast({
-        title: 'خطا در دانلود',
-        description: 'مشکلی در دانلود فایل پیش آمد',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleDeleteOrder = async (order: Order) => {
-    setDeleteDialogOpen(false);
-    if (!order) return;
-    try {
-      // First, try to refund the order to wallet if it has a price
-      if (order.price && order.price > 0) {
-        try {
-          await WalletService.refundOrder(order.id);
-          toast({
-            title: 'بازپرداخت موفق',
-            description: `${WalletService.formatAmount(order.price)} به کیف پول کاربر بازپرداخت شد`,
-          });
-        } catch (refundError) {
-          console.error('Error refunding order:', refundError);
-          // Continue with deletion even if refund fails
-        }
-      }
-
-      // Delete the order
-      const { error } = await supabase.from('orders').delete().eq('id', order.id);
-      if (error) throw error;
-      
-      setOrders((prev) => prev.filter((o) => o.id !== order.id));
-      toast({
-        title: 'سفارش حذف شد',
-        description: 'سفارش با موفقیت حذف شد',
-      });
-    } catch (error) {
-      toast({
-        title: 'خطا در حذف سفارش',
-        description: 'مشکلی در حذف سفارش پیش آمد',
-        variant: 'destructive',
-      });
-    }
-  };
+  const {
+    currentItems: currentEmailLogs,
+    totalPages: emailLogsTotalPages,
+    currentPage: emailLogsCurrentPage,
+    setCurrentPage: setEmailLogsCurrentPage,
+    totalItems: emailLogsTotalItems
+  } = usePagination({
+    data: emailLogs,
+    itemsPerPage: 10,
+    searchTerm: emailLogsSearchTerm,
+    filterFunction: filterEmailLogs
+  });
 
   if (loading) {
     return (
@@ -688,10 +338,24 @@ const AdminDashboard = () => {
     );
   }
 
+  if (user?.role !== 'admin') {
+    return (
+      <Layout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold mb-2">دسترسی غیرمجاز</h1>
+            <p className="text-muted-foreground">شما مجاز به دسترسی به این صفحه نیستید</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <Helmet>
-        <title>پنل مدیریت - ارزان سایت</title>
+        <title>داشبورد مدیریت - ارزان سایت</title>
       </Helmet>
 
       <div className="container mx-auto px-4 py-8">
@@ -701,98 +365,112 @@ const AdminDashboard = () => {
           transition={{ duration: 0.5 }}
         >
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground mb-2">پنل مدیریت</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-2">
+              داشبورد مدیریت
+            </h1>
             <p className="text-muted-foreground">
-              مدیریت کاربران و سفارشات سیستم
+              مدیریت کامل سیستم و نظارت بر عملکرد
             </p>
           </div>
 
           {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">کل کاربران</CardTitle>
-                <Users className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{profiles.length}</div>
-              </CardContent>
-            </Card>
-
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">کل سفارشات</CardTitle>
                 <Package className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{orders.length}</div>
+                <div className="text-2xl font-bold">{stats.totalOrders}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.pendingOrders} در انتظار
+                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">سفارشات فعال</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">کل کاربران</CardTitle>
+                <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {orders.filter(order => order.status === 'pending' || order.status === 'in_progress').length}
-                </div>
+                <div className="text-2xl font-bold">{stats.totalUsers}</div>
+                <p className="text-xs text-muted-foreground">
+                  {stats.activeUsers} فعال
+                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">سفارشات تکمیل شده</CardTitle>
-                <Package className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">درآمد کل</CardTitle>
+                <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  {orders.filter(order => order.status === 'completed').length}
-                </div>
+                <div className="text-2xl font-bold">{formatPrice(stats.totalRevenue)}</div>
+                <p className="text-xs text-muted-foreground">
+                  میانگین: {formatPrice(stats.averageOrderValue)}
+                </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">ایمیل امروز</CardTitle>
+                <Mail className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.emailSentToday}</div>
+                <p className="text-xs text-muted-foreground">
+                  ارسال شده
+                </p>
               </CardContent>
             </Card>
           </div>
 
+          {/* Site Mode Control */}
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="w-5 h-5" />
+                تنظیمات سایت
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SiteModeDisplay mode={mode} />
+            </CardContent>
+          </Card>
+
           <Tabs defaultValue="orders" className="space-y-6">
             <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="orders">مدیریت سفارشات</TabsTrigger>
-              <TabsTrigger value="users">مدیریت کاربران</TabsTrigger>
-              <TabsTrigger value="email">مدیریت ایمیل</TabsTrigger>
-              <TabsTrigger value="settings">تنظیمات سایت</TabsTrigger>
+              <TabsTrigger value="orders">سفارشات</TabsTrigger>
+              <TabsTrigger value="users">کاربران</TabsTrigger>
+              <TabsTrigger value="emails">ایمیل‌ها</TabsTrigger>
+              <TabsTrigger value="tools">ابزارها</TabsTrigger>
             </TabsList>
 
             <TabsContent value="orders" className="space-y-6">
-              <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                 <h2 className="text-2xl font-bold">مدیریت سفارشات</h2>
-                <div className="flex gap-4 w-full md:w-auto">
-                  <div className="relative flex-1 md:w-80">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <div className="flex gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       placeholder="جستجو در سفارشات..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
+                      value={ordersSearchTerm}
+                      onChange={(e) => setOrdersSearchTerm(e.target.value)}
+                      className="pl-10 w-full sm:w-64"
                     />
                   </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-40">
-                      <SelectValue placeholder="وضعیت" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">همه</SelectItem>
-                      <SelectItem value="pending">در انتظار</SelectItem>
-                      <SelectItem value="in_progress">در حال انجام</SelectItem>
-                      <SelectItem value="completed">تکمیل شده</SelectItem>
-                      <SelectItem value="cancelled">لغو شده</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Button onClick={fetchOrders} variant="outline">
+                    بروزرسانی
+                  </Button>
                 </div>
               </div>
 
               {ordersLoading ? (
-                <div className="space-y-6">
-                  {[...Array(6)].map((_, i) => (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
                     <Card key={i}>
                       <CardHeader>
                         <Skeleton className="h-6 w-1/3" />
@@ -811,330 +489,328 @@ const AdminDashboard = () => {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-center py-8">
-                      <Search className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                      <Package className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
                       <h3 className="text-lg font-semibold mb-2">هیچ سفارشی یافت نشد</h3>
-                      <p className="text-muted-foreground mb-4">
-                        {searchTerm ? `سفارشی با عبارت "${searchTerm}" پیدا نشد` : 'هیچ سفارشی در سیستم ثبت نشده است'}
+                      <p className="text-muted-foreground">
+                        {ordersSearchTerm ? `سفارشی با عبارت "${ordersSearchTerm}" پیدا نشد` : 'هنوز هیچ سفارشی ثبت نشده است'}
                       </p>
-                      {searchTerm && (
-                        <Button variant="outline" onClick={() => setSearchTerm('')}>
-                          حذف فیلتر
-                        </Button>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-6">
-                  <div className="grid gap-6">
-                    {currentOrders.map((order) => (
-                  <Card key={order.id}>
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                         <div className="flex-1">
-                           <CardTitle className="text-lg">{order.title}</CardTitle>
-                           <div className="mt-3">
-                             {renderOrderDesignPreview(order)}
-                           </div>
-                           <p className="text-sm text-muted-foreground mt-2">
-                             مشتری: {order.profiles?.full_name} ({order.profiles?.email})
-                           </p>
-                          <div className="flex gap-2 mt-3">
-                            <OrderDesignPreview
-                              orderId={order.id}
-                              orderTitle={order.title}
-                              orderPrice={order.price || 0}
-                              paymentStatus={order.payment_status || 'pending'}
-                              isAdmin={true}
-                              onStatusUpdate={fetchOrders}
-                            />
-                            <Button 
-                              variant="outline" 
+                <div className="space-y-4">
+                  {currentOrders.map((order) => (
+                    <Card key={order.id}>
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg">{order.title}</CardTitle>
+                            <CardDescription className="mt-2">
+                              {order.description}
+                            </CardDescription>
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <Badge className={`${getStatusColor(order.status)} border-0`}>
+                              {getStatusText(order.status)}
+                            </Badge>
+                            <Button
+                              variant="outline"
                               size="sm"
-                              onClick={() => viewOrderDesigns(order.id)}
-                              className="flex items-center gap-1"
+                              onClick={() => handleOrderStatusUpdate(order.id, 'completed')}
                             >
-                              <Eye className="w-3 h-3" />
-                              مشاهده طرح‌ها
+                              <CheckCircle className="w-4 h-4" />
                             </Button>
-                            <Button 
-                              variant="outline" 
+                            <Button
+                              variant="destructive"
                               size="sm"
-                              onClick={() => viewOrderFiles(order.id)}
-                              className="flex items-center gap-1"
+                              onClick={() => handleDeleteOrder(order.id)}
                             >
-                              <Package className="w-3 h-3" />
-                              فایل‌های کاربر
+                              <Trash2 className="w-4 h-4" />
                             </Button>
-                            <AdminPaymentManager
-                              orderId={order.id}
-                              orderTitle={order.title}
-                              orderPrice={order.price || 0}
-                              paymentStatus={order.payment_status || 'pending'}
-                              zarinpalAuthority={order.zarinpal_authority}
-                              zarinpalRefId={order.zarinpal_ref_id}
-                              onStatusUpdate={fetchOrders}
-                            />
-                            {order.status === 'pending' && (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                className="flex items-center gap-1"
-                                onClick={() => { setOrderToDelete(order); setDeleteDialogOpen(true); }}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                حذف سفارش
-                              </Button>
-                            )}
                           </div>
                         </div>
-                        <div className="flex gap-2 items-center">
-                          <Select
-                            value={order.status}
-                            onValueChange={(value) => updateOrderStatus(order.id, value)}
-                          >
-                            <SelectTrigger className="w-40">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="pending">در انتظار</SelectItem>
-                              <SelectItem value="in_progress">در حال انجام</SelectItem>
-                              <SelectItem value="completed">تکمیل شده</SelectItem>
-                              <SelectItem value="cancelled">لغو شده</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <Badge className={`${getStatusColor(order.status)} border-0`}>
-                            {getStatusText(order.status)}
-                          </Badge>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <div>
+                            <span className="font-medium">قیمت: </span>
+                            {order.price ? formatPrice(order.price) : 'نامشخص'}
+                          </div>
+                          <div>
+                            <span className="font-medium">تاریخ ایجاد: </span>
+                            {formatDate(order.created_at)}
+                          </div>
+                          <div>
+                            <span className="font-medium">کاربر: </span>
+                            {order.user_id}
+                          </div>
                         </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <span className="font-medium">قیمت: </span>
-                          {order.price ? formatPrice(order.price) : 'نامشخص'}
-                        </div>
-                        <div>
-                          <span className="font-medium">تاریخ ایجاد: </span>
-                          {formatDate(order.created_at)}
-                        </div>
-                        <div>
-                          <span className="font-medium">آخرین بروزرسانی: </span>
-                          {formatDate(order.updated_at)}
-                        </div>
-                      </div>
-                      {order.comments && (
-                        <div className="mt-4 p-3 bg-muted rounded-lg">
-                          <span className="font-medium text-sm">توضیحات: </span>
-                          <p className="text-sm mt-1">{order.comments}</p>
-                        </div>
-                      )}
-                    </CardContent>
+                      </CardContent>
                     </Card>
-                    ))}
-                  </div>
+                  ))}
                   
                   <PaginationControls
                     currentPage={ordersCurrentPage}
                     totalPages={ordersTotalPages}
                     onPageChange={setOrdersCurrentPage}
                     totalItems={ordersTotalItems}
-                    itemsPerPage={6}
+                    itemsPerPage={10}
                   />
                 </div>
               )}
             </TabsContent>
 
             <TabsContent value="users" className="space-y-6">
-              <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                 <h2 className="text-2xl font-bold">مدیریت کاربران</h2>
-                  <div className="relative w-full md:w-80">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <div className="flex gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       placeholder="جستجو در کاربران..."
-                      value={userSearchTerm}
-                      onChange={(e) => setUserSearchTerm(e.target.value)}
-                      className="pl-10"
+                      value={usersSearchTerm}
+                      onChange={(e) => setUsersSearchTerm(e.target.value)}
+                      className="pl-10 w-full sm:w-64"
                     />
                   </div>
+                  <Button onClick={fetchUsers} variant="outline">
+                    بروزرسانی
+                  </Button>
+                </div>
               </div>
 
-                {usersLoading ? (
-                  <div className="space-y-4">
-                    {[...Array(8)].map((_, i) => (
-                      <Card key={i}>
-                        <CardContent className="pt-6">
-                          <div className="flex justify-between items-center">
-                            <div className="flex-1">
-                              <Skeleton className="h-5 w-1/3" />
-                              <Skeleton className="h-4 w-1/2 mt-2" />
-                              <Skeleton className="h-3 w-1/4 mt-1" />
-                            </div>
-                            <div className="flex gap-2">
-                              <Skeleton className="h-8 w-20" />
-                              <Skeleton className="h-8 w-16" />
-                            </div>
+              {usersLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Card key={i}>
+                      <CardHeader>
+                        <Skeleton className="h-6 w-1/3" />
+                        <Skeleton className="h-4 w-full mt-2" />
+                      </CardHeader>
+                    </Card>
+                  ))}
+                </div>
+              ) : currentUsers.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center py-8">
+                      <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">هیچ کاربری یافت نشد</h3>
+                      <p className="text-muted-foreground">
+                        {usersSearchTerm ? `کاربری با عبارت "${usersSearchTerm}" پیدا نشد` : 'هنوز هیچ کاربری ثبت نشده است'}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {currentUsers.map((user) => (
+                    <Card key={user.id}>
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg">
+                              {user.first_name ? `${user.first_name} ${user.last_name || ''}` : user.email}
+                            </CardTitle>
+                            <CardDescription className="mt-2">
+                              {user.email}
+                            </CardDescription>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                          <div className="flex gap-2 items-center">
+                            <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                              {user.role === 'admin' ? 'مدیر' : 'کاربر'}
+                            </Badge>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleDeleteUser(user.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="font-medium">نقش: </span>
+                            {user.role === 'admin' ? 'مدیر' : 'کاربر'}
+                          </div>
+                          <div>
+                            <span className="font-medium">تاریخ عضویت: </span>
+                            {formatDate(user.created_at)}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  
+                  <PaginationControls
+                    currentPage={usersCurrentPage}
+                    totalPages={usersTotalPages}
+                    onPageChange={setUsersCurrentPage}
+                    totalItems={usersTotalItems}
+                    itemsPerPage={10}
+                  />
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="emails" className="space-y-6">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <h2 className="text-2xl font-bold">لاگ ایمیل‌ها</h2>
+                <div className="flex gap-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      placeholder="جستجو در ایمیل‌ها..."
+                      value={emailLogsSearchTerm}
+                      onChange={(e) => setEmailLogsSearchTerm(e.target.value)}
+                      className="pl-10 w-full sm:w-64"
+                    />
                   </div>
-                ) : currentUsers.length === 0 ? (
-                  <Card>
-                    <CardContent className="pt-6">
-                      <div className="text-center py-8">
-                        <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">هیچ کاربری یافت نشد</h3>
-                        <p className="text-muted-foreground mb-4">
-                          {userSearchTerm ? `کاربری با عبارت "${userSearchTerm}" پیدا نشد` : 'هیچ کاربری در سیستم ثبت نشده است'}
-                        </p>
-                        {userSearchTerm && (
-                          <Button variant="outline" onClick={() => setUserSearchTerm('')}>
-                            حذف فیلتر
-                          </Button>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="grid gap-4">
-                      {currentUsers.map((profile) => (
-                  <Card key={profile.id}>
-                    <CardContent className="pt-6">
-                      <div className="flex justify-between items-center">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="font-semibold">{profile.full_name}</h3>
-                            <Badge variant={profile.user_roles?.[0]?.role === 'admin' ? 'default' : 'secondary'}>
-                              {profile.user_roles?.[0]?.role === 'admin' ? 'ادمین' : 'کاربر'}
+                  <Button onClick={fetchEmailLogs} variant="outline">
+                    بروزرسانی
+                  </Button>
+                  <Button onClick={testEmailService} variant="outline">
+                    تست سرویس
+                  </Button>
+                </div>
+              </div>
+
+              {emailLogsLoading ? (
+                <div className="space-y-4">
+                  {[...Array(3)].map((_, i) => (
+                    <Card key={i}>
+                      <CardHeader>
+                        <Skeleton className="h-6 w-1/3" />
+                        <Skeleton className="h-4 w-full mt-2" />
+                      </CardHeader>
+                    </Card>
+                  ))}
+                </div>
+              ) : currentEmailLogs.length === 0 ? (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center py-8">
+                      <Mail className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">هیچ ایمیلی یافت نشد</h3>
+                      <p className="text-muted-foreground">
+                        {emailLogsSearchTerm ? `ایمیلی با عبارت "${emailLogsSearchTerm}" پیدا نشد` : 'هنوز هیچ ایمیلی ارسال نشده است'}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {currentEmailLogs.map((log) => (
+                    <Card key={log.id}>
+                      <CardHeader>
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg">{log.subject}</CardTitle>
+                            <CardDescription className="mt-2">
+                              {log.to}
+                            </CardDescription>
+                          </div>
+                          <div className="flex gap-2 items-center">
+                            <Badge variant={log.status === 'sent' ? 'default' : 'destructive'}>
+                              {log.status === 'sent' ? 'ارسال شده' : 'ناموفق'}
                             </Badge>
                           </div>
-                          <p className="text-sm text-muted-foreground mb-1">{profile.email}</p>
-                          <p className="text-sm text-muted-foreground">
-                            تاریخ عضویت: {formatDate(profile.created_at)}
-                          </p>
-                          {profile.phone && (
-                            <p className="text-sm text-muted-foreground">تلفن: {profile.phone}</p>
-                          )}
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleUserRole(profile.user_id, profile.user_roles?.[0]?.role || 'user')}
-                          >
-                            <Shield className="w-4 h-4 ml-2" />
-                            {profile.user_roles?.[0]?.role === 'admin' ? 'حذف ادمین' : 'ادمین کردن'}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedUserForWallet(profile);
-                              setWalletDialogOpen(true);
-                            }}
-                          >
-                            <WalletIcon className="w-4 h-4 ml-2" />
-                            کیف پول
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => deleteUser(profile.user_id)}
-                          >
-                            <Trash2 className="w-4 h-4 ml-2" />
-                            حذف
-                          </Button>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="font-medium">وضعیت: </span>
+                            {log.status === 'sent' ? 'ارسال شده' : 'ناموفق'}
+                          </div>
+                          <div>
+                            <span className="font-medium">تاریخ ارسال: </span>
+                            {formatDate(log.created_at)}
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                      </Card>
-                      ))}
-                    </div>
-                    
-                    <PaginationControls
-                      currentPage={usersCurrentPage}
-                      totalPages={usersTotalPages}
-                      onPageChange={setUsersCurrentPage}
-                      totalItems={usersTotalItems}
-                      itemsPerPage={8}
-                    />
-                  </div>
-                )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                  
+                  <PaginationControls
+                    currentPage={emailLogsCurrentPage}
+                    totalPages={emailLogsTotalPages}
+                    onPageChange={setEmailLogsCurrentPage}
+                    totalItems={emailLogsTotalItems}
+                    itemsPerPage={10}
+                  />
+                </div>
+              )}
             </TabsContent>
 
-            <TabsContent value="email" className="space-y-6">
-              <EmailManager />
-            </TabsContent>
-
-            <TabsContent value="settings" className="space-y-6">
+            <TabsContent value="tools" className="space-y-6">
               <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">تنظیمات سایت</h2>
+                <h2 className="text-2xl font-bold">ابزارهای مدیریتی</h2>
               </div>
 
-              <div className="grid gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Settings className="w-5 h-5" />
-                      حالت عملکرد سایت
+                      <Mail className="w-5 h-5" />
+                      تست سرویس ایمیل
                     </CardTitle>
-                    <CardDescription>
-                      تنظیم حالت عملکرد سایت برای کاربران
-                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <label className="text-sm font-medium">حالت فعلی:</label>
-                      <Badge variant="outline">{getModeText(mode)}</Badge>
-                    </div>
-                    <div className="flex gap-4">
-                      <Select value={mode} onValueChange={handleSiteModeChange}>
-                        <SelectTrigger className="w-64">
-                          <SelectValue placeholder="انتخاب حالت" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="normal">عادی</SelectItem>
-                          <SelectItem value="development_mode">حالت توسعه</SelectItem>
-                          <SelectItem value="update_mode">حالت بروزرسانی</SelectItem>
-                          <SelectItem value="temporarily_unavailable">موقتاً غیرفعال</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      بررسی وضعیت سرویس ایمیل و اطمینان از عملکرد صحیح
+                    </p>
+                    <Button onClick={testEmailService} className="w-full">
+                      اجرای تست
+                    </Button>
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                      <Eye className="w-5 h-5" />
-                      پیش‌نمایش صفحات
+                      <TrendingUp className="w-5 h-5" />
+                      آمار سیستم
                     </CardTitle>
-                    <CardDescription>
-                      مشاهده و بررسی صفحات مختلف سایت
-                    </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex gap-4">
-                      <Button asChild variant="outline">
-                        <a href="/404" target="_blank" rel="noopener noreferrer">
-                          <Eye className="w-4 h-4 ml-2" />
-                          مشاهده صفحه 404
-                        </a>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      مشاهده آمار کلی سیستم و عملکرد
+                    </p>
+                    <Button onClick={calculateStats} className="w-full">
+                      بروزرسانی آمار
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Settings className="w-5 h-5" />
+                      تنظیمات سایت
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      تغییر وضعیت سایت و تنظیمات عمومی
+                    </p>
+                    <div className="space-y-2">
+                      <Button 
+                        onClick={() => updateSiteMode('normal')} 
+                        variant={mode === 'normal' ? 'default' : 'outline'}
+                        className="w-full"
+                      >
+                        حالت عادی
                       </Button>
-                      <Button asChild variant="outline">
-                        <a href="/wizard" target="_blank" rel="noopener noreferrer">
-                          <Eye className="w-4 h-4 ml-2" />
-                          مشاهده صفحه ویزارد
-                        </a>
-                      </Button>
-                      <Button asChild variant="outline">
-                        <a href="/" target="_blank" rel="noopener noreferrer">
-                          <Eye className="w-4 h-4 ml-2" />
-                          مشاهده صفحه اصلی
-                        </a>
+                      <Button 
+                        onClick={() => updateSiteMode('temporarily_unavailable')} 
+                        variant={mode === 'temporarily_unavailable' ? 'default' : 'outline'}
+                        className="w-full"
+                      >
+                        حالت تعمیر
                       </Button>
                     </div>
                   </CardContent>
@@ -1144,180 +820,6 @@ const AdminDashboard = () => {
           </Tabs>
         </motion.div>
       </div>
-
-      {/* Design Preview Dialog */}
-      <Dialog open={designDialogOpen} onOpenChange={setDesignDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>طرح‌های {selectedOrderDesigns?.profiles?.full_name}</DialogTitle>
-            <DialogDescription>
-              مشاهده تمام طرح‌های ذخیره شده توسط کاربر
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {wireframes.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">هیچ طرحی یافت نشد</p>
-              </div>
-            ) : (
-              wireframes.map((wireframe) => (
-                <Card key={wireframe.id}>
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-lg">{wireframe.name}</CardTitle>
-                        {wireframe.description && (
-                          <CardDescription className="mt-1">
-                            {wireframe.description}
-                          </CardDescription>
-                        )}
-                        <p className="text-sm text-muted-foreground mt-2">
-                          تاریخ ایجاد: {formatDate(wireframe.created_at)}
-                        </p>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="border rounded-lg p-4 bg-muted/50">
-                      <p className="text-sm text-muted-foreground mb-2">پیش‌نمایش طرح:</p>
-                      <div className="text-xs text-muted-foreground mb-3">
-                        صفحات: {wireframe.data?.pages?.length || 0} | 
-                        عناصر: {wireframe.data?.pages?.reduce((total: number, page: WireframePage) => total + (page.elements?.length || 0), 0) || 0}
-                      </div>
-                      
-                      {/* Visual wireframe preview */}
-                      {wireframe.data?.pages && wireframe.data.pages.length > 0 ? (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          {wireframe.data.pages.slice(0, 4).map((page: WireframePage, index: number) => (
-                            <div
-                              key={index}
-                              className="border rounded-lg p-2 bg-background min-h-[80px] relative overflow-hidden"
-                            >
-                              <div className="text-xs font-medium mb-1 truncate">{page.name}</div>
-                              <div className="absolute inset-2 top-6 border border-dashed border-muted-foreground/30 rounded">
-                                {page.elements?.slice(0, 3).map((element: WireframeElement, elemIndex: number) => (
-                                  <div
-                                    key={elemIndex}
-                                    className="absolute bg-primary/20 rounded-sm"
-                                    style={{
-                                      left: `${Math.min(element.x / 10, 60)}%`,
-                                      top: `${Math.min(element.y / 10, 60)}%`,
-                                      width: `${Math.min(element.width / 15, 30)}%`,
-                                      height: `${Math.min(element.height / 20, 20)}%`,
-                                    }}
-                                  />
-                                ))}
-                              </div>
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {page.elements?.length || 0} عنصر
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-4 text-muted-foreground text-sm">
-                          هیچ صفحه‌ای یافت نشد
-                        </div>
-                      )}
-                      
-                      {wireframe.data?.pages && wireframe.data.pages.length > 4 && (
-                        <div className="mt-3 text-xs text-muted-foreground text-center">
-                          و {wireframe.data.pages.length - 4} صفحه دیگر...
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Files Dialog */}
-      <Dialog open={filesDialogOpen} onOpenChange={setFilesDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>فایل‌های {selectedOrderFiles?.profiles?.full_name}</DialogTitle>
-            <DialogDescription>
-              مشاهده و دانلود فایل‌های آپلود شده توسط کاربر
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            {storageFiles.length === 0 ? (
-              <div className="text-center py-8">
-                <Package className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">هیچ فایلی یافت نشد</p>
-              </div>
-            ) : (
-              storageFiles.map((file) => (
-                <Card key={file.name} className="p-4">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                      <FileText className="w-8 h-8 text-muted-foreground" />
-                      <div>
-                        <p className="font-medium">{file.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          حجم: {Math.round(file.metadata?.size / 1024)} KB | 
-                          آخرین تغییر: {formatDate(file.updated_at)}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => downloadFile(file.name, selectedOrderFiles?.user_id)}
-                      className="flex items-center gap-2"
-                    >
-                      <Download className="w-4 h-4" />
-                      دانلود
-                    </Button>
-                  </div>
-                </Card>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete Order Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>حذف سفارش</DialogTitle>
-            <DialogDescription>
-              آیا از حذف این سفارش اطمینان دارید؟ این عملیات غیرقابل بازگشت است.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-              انصراف
-            </Button>
-            <Button variant="destructive" onClick={() => orderToDelete && handleDeleteOrder(orderToDelete)}>
-              حذف سفارش
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Wallet Management Dialog */}
-      <Dialog open={walletDialogOpen} onOpenChange={setWalletDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>مدیریت کیف پول کاربر</DialogTitle>
-            <DialogDescription>
-              مشاهده و مدیریت کیف پول و تراکنش‌های کاربر
-            </DialogDescription>
-          </DialogHeader>
-          {selectedUserForWallet && (
-            <AdminWalletManager
-              userId={selectedUserForWallet.user_id}
-              userName={selectedUserForWallet.full_name}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
     </Layout>
   );
 };

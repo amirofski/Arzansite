@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Instagram, Linkedin, Github, Phone, Mail, Menu, User, LogOut, Shield } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+// Removed direct Supabase usage; user role is provided by useAuth
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,23 +25,7 @@ const Header: React.FC = () => {
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchUserRole = async () => {
-      if (!user) return;
-      
-      try {
-        const { data } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .single();
-        
-        setUserRole(data?.role || 'user');
-      } catch (error) {
-        setUserRole('user');
-      }
-    };
-    
-    fetchUserRole();
+    setUserRole(user?.role || 'user');
   }, [user]);
 
   const handleSignOut = async () => {

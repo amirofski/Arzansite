@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient, Order, BackendUserProfile } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,31 +23,11 @@ import DesignPreview from '@/components/wizard/DesignPreview';
 import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import { type Wireframe, type StorageFile, type DynamicDesign, type WireframePage, type WireframeElement, type WireframeData } from '@/lib/types';
 
-interface Order {
-  id: string;
-  title: string;
-  description: string;
-  status: string;
-  price: number;
-  comments: string;
-  payment_status?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Profile {
-  id: string;
-  full_name: string;
-  email: string;
-  phone: string;
-  address: string;
-}
-
 const Dashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<BackendUserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -68,13 +48,7 @@ const Dashboard = () => {
 
     try {
       // Fetch user profile first
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (profileError) throw profileError;
+      const profileData = await apiClient.getMyProfile();
       setProfile(profileData);
 
       // Fetch user orders with loading state
@@ -96,13 +70,7 @@ const Dashboard = () => {
 
     setOrdersLoading(true);
     try {
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (ordersError) throw ordersError;
+      const ordersData = await apiClient.getOrders({ mine: true });
       setOrders(ordersData || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -120,26 +88,13 @@ const Dashboard = () => {
     if (!user) return;
 
     try {
-      const { data: wireframeData, error } = await supabase
-        .from('wireframes')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Transform the data to match Wireframe interface
-      const transformedWireframes: Wireframe[] = (wireframeData || []).map(wf => ({
-        ...wf,
-        data: wf.data as WireframeData
-      }));
-
-      setUserWireframes(transformedWireframes);
+      // For now, we'll show a placeholder since wireframes are not yet implemented in the backend
+      setUserWireframes([]);
       setWireframeDialogOpen(true);
 
       toast({
         title: 'طرح‌های شما بارگیری شد',
-        description: `${transformedWireframes.length} طرح یافت شد`,
+        description: 'در حال حاضر این قابلیت در حال توسعه است',
       });
     } catch (error) {
       console.error('Error fetching designs:', error);
@@ -395,9 +350,7 @@ const Dashboard = () => {
       }
 
       // Delete the order
-      const { error } = await supabase.from('orders').delete().eq('id', order.id);
-      if (error) throw error;
-      
+      await apiClient.deleteOrder(order.id);
       setOrders((prev) => prev.filter((o) => o.id !== order.id));
       toast({
         title: 'سفارش حذف شد',
@@ -439,7 +392,7 @@ const Dashboard = () => {
         >
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground mb-2">
-              خوش آمدید، {profile?.full_name || user?.email}
+              خوش آمدید، {profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}` : user?.email}
             </h1>
             <p className="text-muted-foreground">
               از این صفحه می‌توانید سفارشات و اطلاعات حساب خود را مدیریت کنید
@@ -663,7 +616,7 @@ const Dashboard = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">نام کامل</label>
-                      <p className="mt-1">{profile?.full_name || 'نامشخص'}</p>
+                      <p className="mt-1">{profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}` : 'نامشخص'}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">ایمیل</label>

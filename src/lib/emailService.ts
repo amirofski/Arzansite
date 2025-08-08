@@ -1,357 +1,237 @@
-// Email Service for Arzan Site
-// Handles email sending through Supabase and integrates with email templates
+// Handles email sending through the NestJS backend
 
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api-client';
 import { 
   getEmailTemplate, 
-  prepareEmailData, 
   EmailTemplateData 
 } from './emailTemplates';
 
+export type EmailTemplateType = 'welcome' | 'verification' | 'password-reset' | 'password-reset-confirmation' | 'login-notification' | 'role-notification' | 'deactivation';
+
 export interface EmailSendOptions {
   to: string;
-  subject: string;
-  templateType: 'welcome' | 'verification' | 'password-reset' | 'password-reset-confirmation' | 'login-notification' | 'role-notification' | 'deactivation';
-  templateData: Partial<EmailTemplateData>;
+  template: EmailTemplateType;
+  data?: EmailTemplateData;
+  subject?: string;
   from?: string;
-  replyTo?: string;
 }
 
 export interface EmailResponse {
   success: boolean;
-  message: string;
-  error?: any;
+  messageId?: string;
+  error?: string;
 }
 
-// Email subjects in Persian
-const EMAIL_SUBJECTS = {
-  welcome: 'خوش آمدید به Arzan Site! 🎉',
-  verification: 'تایید ایمیل - Arzan Site',
-  'password-reset': 'بازنشانی رمز عبور - Arzan Site',
-  'password-reset-confirmation': 'رمز عبور با موفقیت تغییر یافت - Arzan Site',
-  'login-notification': 'ورود جدید به حساب کاربری - Arzan Site',
-  'role-notification': 'تغییر نقش حساب کاربری - Arzan Site',
-  deactivation: 'تغییر وضعیت حساب کاربری - Arzan Site'
-};
+export interface EmailLog {
+  id: string;
+  to: string;
+  subject: string;
+  status: string;
+  created_at: string;
+}
 
-class EmailService {
-  private baseUrl: string;
-  private apiKey: string;
-
-  constructor() {
-    this.baseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    this.apiKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-  }
-
+export class EmailService {
   /**
-   * Send email using Supabase Edge Functions with SMTP
+   * Send email using the backend API
    */
-  private async sendEmailViaSupabase(options: EmailSendOptions): Promise<EmailResponse> {
+  static async sendEmail(options: EmailSendOptions): Promise<EmailResponse> {
     try {
-      const { data, error } = await supabase.functions.invoke('send-email', {
-        body: {
-          to: options.to,
-          subject: options.subject,
-          html: options.templateData.html || '',
-          from: options.from || 'info@arzansite.com',
-          replyTo: options.replyTo || 'support@arzansite.com',
-          templateType: options.templateType
-        }
+      // Get the email template HTML
+      const htmlContent = getEmailTemplate(options.template, options.data || {});
+      
+      // Send via backend
+      const response = await apiClient.sendEmail({
+        to: options.to,
+        subject: options.subject || this.getDefaultSubject(options.template),
+        template: options.template,
+        data: options.data as Record<string, unknown> || {},
       });
 
-      if (error) {
-        console.error('Email sending error:', error);
-        return {
-          success: false,
-          message: 'خطا در ارسال ایمیل',
-          error
-        };
-      }
-
       return {
-        success: true,
-        message: 'ایمیل با موفقیت ارسال شد',
-        data
+        success: response.success,
+        messageId: response.messageId,
       };
     } catch (error) {
-      console.error('Email service error:', error);
+      console.error('Email sending failed:', error);
       return {
         success: false,
-        message: 'خطا در سرویس ایمیل',
-        error
+        error: error instanceof Error ? error.message : 'Email sending failed',
       };
     }
   }
 
   /**
-   * Send email using template
+   * Get default subject for template type
    */
-  async sendTemplateEmail(options: EmailSendOptions): Promise<EmailResponse> {
-    try {
-      // Prepare email data with defaults
-      const emailData = prepareEmailData(options.templateData);
-      
-      // Generate HTML content from template
-      const htmlContent = getEmailTemplate(options.templateType, emailData);
-      
-      // Get subject from predefined subjects
-      const subject = options.subject || EMAIL_SUBJECTS[options.templateType];
-      
-      // Send email
-      return await this.sendEmailViaSupabase({
-        ...options,
-        subject,
-        templateData: {
-          ...emailData,
-          html: htmlContent
-        }
-      });
-    } catch (error) {
-      console.error('Template email error:', error);
-      return {
-        success: false,
-        message: 'خطا در ایجاد قالب ایمیل',
-        error
-      };
-    }
+  private static getDefaultSubject(template: EmailTemplateType): string {
+    const subjects: Record<EmailTemplateType, string> = {
+      'welcome': 'خوش آمدید به Arzan Site! 🎉',
+      'verification': 'تایید ایمیل - Arzan Site',
+      'password-reset': 'بازنشانی رمز عبور - Arzan Site',
+      'password-reset-confirmation': 'رمز عبور با موفقیت تغییر یافت - Arzan Site',
+      'login-notification': 'ورود جدید به حساب کاربری - Arzan Site',
+      'role-notification': 'تغییر نقش حساب کاربری - Arzan Site',
+      'deactivation': 'تغییر وضعیت حساب کاربری - Arzan Site'
+    };
+    return subjects[template];
   }
 
   /**
-   * Send welcome email after successful registration
+   * Send welcome email to new users
    */
-  async sendWelcomeEmail(userEmail: string, userName?: string): Promise<EmailResponse> {
-    return this.sendTemplateEmail({
+  static async sendWelcomeEmail(userEmail: string, userName?: string): Promise<EmailResponse> {
+    return this.sendEmail({
       to: userEmail,
-      subject: EMAIL_SUBJECTS.welcome,
-      templateType: 'welcome',
-      templateData: {
-        userName,
-        userEmail,
-        actionUrl: `${window.location.origin}/dashboard`
-      }
+      template: 'welcome',
+      data: {
+        userName: userName || 'کاربر گرامی',
+        actionUrl: `${window.location.origin}/auth`,
+      },
     });
   }
 
   /**
-   * Send email verification
+   * Send order confirmation email
    */
-  async sendVerificationEmail(userEmail: string, userName?: string, verificationUrl?: string): Promise<EmailResponse> {
-    return this.sendTemplateEmail({
+  static async sendOrderConfirmation(
+    userEmail: string, 
+    orderId: string, 
+    orderTitle: string, 
+    orderPrice: number
+  ): Promise<EmailResponse> {
+    return this.sendEmail({
       to: userEmail,
-      subject: EMAIL_SUBJECTS.verification,
-      templateType: 'verification',
-      templateData: {
-        userName,
-        userEmail,
-        actionUrl: verificationUrl,
-        expirationTime: '24 ساعت'
-      }
+      template: 'welcome', // Using welcome template for now
+      data: {
+        userName: 'کاربر گرامی',
+        actionUrl: `${window.location.origin}/dashboard`,
+      },
+      subject: `تایید سفارش ${orderId} - Arzan Site`,
+    });
+  }
+
+  /**
+   * Send payment confirmation email
+   */
+  static async sendPaymentConfirmation(
+    userEmail: string, 
+    orderId: string, 
+    orderTitle: string, 
+    paymentAmount: number,
+    refId?: string
+  ): Promise<EmailResponse> {
+    return this.sendEmail({
+      to: userEmail,
+      template: 'welcome', // Using welcome template for now
+      data: {
+        userName: 'کاربر گرامی',
+        actionUrl: `${window.location.origin}/dashboard`,
+      },
+      subject: `تایید پرداخت ${orderId} - Arzan Site`,
     });
   }
 
   /**
    * Send password reset email
    */
-  async sendPasswordResetEmail(userEmail: string, userName?: string, resetUrl?: string): Promise<EmailResponse> {
-    return this.sendTemplateEmail({
+  static async sendPasswordReset(
+    userEmail: string, 
+    resetToken: string
+  ): Promise<EmailResponse> {
+    const resetUrl = `${window.location.origin}/reset-password?token=${resetToken}`;
+    
+    return this.sendEmail({
       to: userEmail,
-      subject: EMAIL_SUBJECTS['password-reset'],
-      templateType: 'password-reset',
-      templateData: {
-        userName,
+      template: 'password-reset',
+      data: {
         userEmail,
         actionUrl: resetUrl,
-        expirationTime: '1 ساعت'
-      }
+        expirationTime: '24 ساعت',
+      },
     });
   }
 
   /**
-   * Send password reset confirmation email
+   * Send email verification email
    */
-  async sendPasswordResetConfirmationEmail(userEmail: string, userName?: string): Promise<EmailResponse> {
-    return this.sendTemplateEmail({
-      to: userEmail,
-      subject: EMAIL_SUBJECTS['password-reset-confirmation'],
-      templateType: 'password-reset-confirmation',
-      templateData: {
-        userName,
-        userEmail,
-        actionUrl: `${window.location.origin}/auth`
-      }
-    });
-  }
-
-  /**
-   * Send login notification email
-   */
-  async sendLoginNotificationEmail(
+  static async sendEmailVerification(
     userEmail: string, 
-    userName?: string, 
-    loginTime?: string, 
-    loginLocation?: string, 
-    browserInfo?: string
+    verificationToken: string
   ): Promise<EmailResponse> {
-    return this.sendTemplateEmail({
+    const verificationUrl = `${window.location.origin}/verify-email?token=${verificationToken}`;
+    
+    return this.sendEmail({
       to: userEmail,
-      subject: EMAIL_SUBJECTS['login-notification'],
-      templateType: 'login-notification',
-      templateData: {
-        userName,
+      template: 'verification',
+      data: {
         userEmail,
-        loginTime,
-        loginLocation,
-        browserInfo,
-        actionUrl: `${window.location.origin}/dashboard`
-      }
+        actionUrl: verificationUrl,
+        expirationTime: '24 ساعت',
+      },
     });
   }
 
   /**
-   * Send role change notification email
+   * Get email logs
    */
-  async sendRoleNotificationEmail(
-    userEmail: string, 
-    userName?: string, 
-    newRole?: string
-  ): Promise<EmailResponse> {
-    return this.sendTemplateEmail({
-      to: userEmail,
-      subject: EMAIL_SUBJECTS['role-notification'],
-      templateType: 'role-notification',
-      templateData: {
-        userName,
-        userEmail,
-        newRole,
-        actionUrl: `${window.location.origin}/dashboard`
-      }
-    });
-  }
-
-  /**
-   * Send account deactivation/suspension email
-   */
-  async sendDeactivationEmail(
-    userEmail: string, 
-    userName?: string, 
-    deactivationReason?: string
-  ): Promise<EmailResponse> {
-    return this.sendTemplateEmail({
-      to: userEmail,
-      subject: EMAIL_SUBJECTS.deactivation,
-      templateType: 'deactivation',
-      templateData: {
-        userName,
-        userEmail,
-        deactivationReason
-      }
-    });
-  }
-
-  /**
-   * Get user's browser and location information
-   */
-  async getUserLocationInfo(): Promise<{
-    location: string;
-    browser: string;
-    ip?: string;
-  }> {
+  static async getEmailLogs(limit = 50, offset = 0): Promise<EmailLog[]> {
     try {
-      // This would typically be done server-side, but for demo purposes
-      // we'll use a simple approach
-      const userAgent = navigator.userAgent;
-      const browser = this.getBrowserInfo(userAgent);
-      
-      // For location, you might want to use a geolocation service
-      // For now, we'll return a generic location
-      return {
-        location: 'تهران، ایران',
-        browser,
-        ip: '127.0.0.1' // This would be the actual IP from server
-      };
+      return await apiClient.getEmailLogs(limit, offset);
     } catch (error) {
-      console.error('Error getting location info:', error);
-      return {
-        location: 'نامشخص',
-        browser: 'نامشخص'
-      };
+      console.error('Error fetching email logs:', error);
+      return [];
     }
-  }
-
-  /**
-   * Extract browser information from user agent
-   */
-  private getBrowserInfo(userAgent: string): string {
-    if (userAgent.includes('Chrome')) return 'Google Chrome';
-    if (userAgent.includes('Firefox')) return 'Mozilla Firefox';
-    if (userAgent.includes('Safari')) return 'Safari';
-    if (userAgent.includes('Edge')) return 'Microsoft Edge';
-    if (userAgent.includes('Opera')) return 'Opera';
-    return 'مرورگر نامشخص';
-  }
-
-  /**
-   * Format date for email display
-   */
-  formatDate(date: Date): string {
-    return new Intl.DateTimeFormat('fa-IR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  }
-
-  /**
-   * Validate email address
-   */
-  validateEmail(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
   }
 
   /**
    * Test email service connectivity
    */
-  async testConnection(): Promise<EmailResponse> {
+  static async testEmailService(): Promise<{ success: boolean; message: string }> {
     try {
-      // Test Supabase connection
-      const { data, error } = await supabase.from('profiles').select('count').limit(1);
+      // Test backend connectivity
+      await apiClient.healthCheck();
       
-      if (error) {
-        return {
-          success: false,
-          message: 'خطا در اتصال به پایگاه داده',
-          error
-        };
-      }
+      // Try to send a test email
+      const result = await this.sendEmail({
+        to: 'test@example.com',
+        template: 'welcome',
+        data: {
+          userName: 'Test User',
+          actionUrl: 'https://arzansite.com/auth',
+        },
+      });
 
       return {
-        success: true,
-        message: 'اتصال به سرویس ایمیل برقرار است'
+        success: result.success,
+        message: result.success ? 'Email service is working correctly' : result.error || 'Email service test failed',
       };
     } catch (error) {
       return {
         success: false,
-        message: 'خطا در تست اتصال',
-        error
+        message: error instanceof Error ? error.message : 'Email service test failed',
       };
     }
   }
+
+  /**
+   * Format email address for display
+   */
+  static formatEmail(email: string): string {
+    const [localPart, domain] = email.split('@');
+    if (localPart.length <= 3) return email;
+    
+    const maskedLocal = localPart.substring(0, 3) + '*'.repeat(localPart.length - 3);
+    return `${maskedLocal}@${domain}`;
+  }
+
+  /**
+   * Validate email address
+   */
+  static validateEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  }
 }
 
-// Create singleton instance
-export const emailService = new EmailService();
-
-// Export individual functions for easier use
-export const {
-  sendWelcomeEmail,
-  sendVerificationEmail,
-  sendPasswordResetEmail,
-  sendPasswordResetConfirmationEmail,
-  sendLoginNotificationEmail,
-  sendRoleNotificationEmail,
-  sendDeactivationEmail,
-  testConnection
-} = emailService; 
+// Export a singleton instance
+export const emailService = new EmailService(); 

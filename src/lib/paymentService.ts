@@ -1,22 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
-
-export interface PaymentRequest {
-  amount: number;
-  description: string;
-  orderId: string;
-  callbackUrl?: string;
-  mobile?: string;
-  email?: string;
-}
-
-export interface PaymentResponse {
-  success: boolean;
-  authority?: string;
-  paymentUrl?: string;
-  refId?: string;
-  error?: string;
-  code?: number;
-}
+import { apiClient, PaymentRequest, PaymentResponse } from '@/lib/api-client';
 
 export interface PaymentTransaction {
   id: string;
@@ -27,8 +9,8 @@ export interface PaymentTransaction {
   zarinpal_ref_id?: string;
   amount: number;
   status: 'pending' | 'completed' | 'failed' | 'cancelled';
-  gateway_response?: any;
-  metadata?: any;
+  gateway_response?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 }
@@ -39,42 +21,13 @@ export class PaymentService {
    */
   static async requestPayment(request: PaymentRequest): Promise<PaymentResponse> {
     try {
-      const { data, error } = await supabase.functions.invoke('zarinpal-payment', {
-        body: {
-          action: 'request',
-          amount: Math.floor(request.amount / 10), // Convert from Rials to Tomans
-          description: request.description,
-          orderId: request.orderId,
-          callbackUrl: request.callbackUrl,
-          mobile: request.mobile,
-          email: request.email
-        }
-      });
-
-      if (error) throw error;
-
-      // Log payment transaction
-      await this.logPaymentTransaction({
-        order_id: request.orderId,
-        user_id: (await supabase.auth.getUser()).data.user?.id || '',
-        transaction_type: 'payment_request',
-        zarinpal_authority: data.authority,
-        amount: request.amount,
-        status: data.success ? 'pending' : 'failed',
-        gateway_response: data,
-        metadata: {
-          description: request.description,
-          mobile: request.mobile,
-          email: request.email
-        }
-      });
-
-      return data;
-    } catch (error: any) {
+      const response = await apiClient.createPayment(request);
+      return response;
+    } catch (error: unknown) {
       console.error('Payment request error:', error);
       return {
         success: false,
-        error: error.message || 'Payment request failed'
+        error: error instanceof Error ? error.message : 'Payment request failed'
       };
     }
   }
@@ -84,38 +37,13 @@ export class PaymentService {
    */
   static async verifyPayment(authority: string, orderId: string): Promise<PaymentResponse> {
     try {
-      const { data, error } = await supabase.functions.invoke('zarinpal-payment', {
-        body: {
-          action: 'verify',
-          authority,
-          orderId
-        }
-      });
-
-      if (error) throw error;
-
-      // Log payment transaction
-      await this.logPaymentTransaction({
-        order_id: orderId,
-        user_id: (await supabase.auth.getUser()).data.user?.id || '',
-        transaction_type: 'payment_verification',
-        zarinpal_authority: authority,
-        zarinpal_ref_id: data.refId,
-        amount: data.amount || 0,
-        status: data.success ? 'completed' : 'failed',
-        gateway_response: data,
-        metadata: {
-          authority,
-          refId: data.refId
-        }
-      });
-
-      return data;
-    } catch (error: any) {
+      const response = await apiClient.verifyPayment({ authority, orderId });
+      return response;
+    } catch (error: unknown) {
       console.error('Payment verification error:', error);
       return {
         success: false,
-        error: error.message || 'Payment verification failed'
+        error: error instanceof Error ? error.message : 'Payment verification failed'
       };
     }
   }
@@ -125,49 +53,21 @@ export class PaymentService {
    */
   static async refundPayment(orderId: string, amount?: number): Promise<PaymentResponse> {
     try {
-      // Get order details
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('id', orderId)
-        .single();
-
-      if (orderError) throw orderError;
-
+      // Get order details first
+      const order = await apiClient.getOrder(orderId);
       const refundAmount = amount || order.price || 0;
 
-      const { data, error } = await supabase.functions.invoke('zarinpal-payment', {
-        body: {
-          action: 'refund',
-          orderId,
-          amount: refundAmount,
-          refId: order.zarinpal_ref_id
-        }
-      });
-
-      if (error) throw error;
-
-      // Log refund transaction
-      await this.logPaymentTransaction({
-        order_id: orderId,
-        user_id: order.user_id,
-        transaction_type: 'refund',
-        zarinpal_ref_id: order.zarinpal_ref_id,
-        amount: refundAmount,
-        status: data.success ? 'completed' : 'failed',
-        gateway_response: data,
-        metadata: {
-          originalRefId: order.zarinpal_ref_id,
-          refundAmount
-        }
-      });
-
-      return data;
-    } catch (error: any) {
+      // For now, we'll use the wallet refund endpoint
+      const response = await apiClient.refundOrder(orderId);
+      return {
+        success: !!response.transactionId,
+        refId: response.transactionId,
+      };
+    } catch (error: unknown) {
       console.error('Payment refund error:', error);
       return {
         success: false,
-        error: error.message || 'Payment refund failed'
+        error: error instanceof Error ? error.message : 'Payment refund failed'
       };
     }
   }
@@ -177,54 +77,17 @@ export class PaymentService {
    */
   static async cancelPayment(orderId: string): Promise<PaymentResponse> {
     try {
-      const { data, error } = await supabase.functions.invoke('zarinpal-payment', {
-        body: {
-          action: 'cancel',
-          orderId
-        }
-      });
-
-      if (error) throw error;
-
-      // Log cancellation transaction
-      await this.logPaymentTransaction({
-        order_id: orderId,
-        user_id: (await supabase.auth.getUser()).data.user?.id || '',
-        transaction_type: 'cancellation',
-        amount: 0,
-        status: 'cancelled',
-        gateway_response: data,
-        metadata: {
-          reason: 'user_cancelled'
-        }
-      });
-
-      return data;
-    } catch (error: any) {
+      // Update order status to cancelled
+      await apiClient.updateOrder(orderId, { status: 'cancelled' });
+      return {
+        success: true,
+      };
+    } catch (error: unknown) {
       console.error('Payment cancellation error:', error);
       return {
         success: false,
-        error: error.message || 'Payment cancellation failed'
+        error: error instanceof Error ? error.message : 'Payment cancellation failed'
       };
-    }
-  }
-
-  /**
-   * Get payment transactions for an order
-   */
-  static async getPaymentTransactions(orderId: string): Promise<PaymentTransaction[]> {
-    try {
-      const { data, error } = await supabase
-        .from('payment_transactions')
-        .select('*')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data || [];
-    } catch (error) {
-      console.error('Error getting payment transactions:', error);
-      return [];
     }
   }
 
@@ -238,55 +101,17 @@ export class PaymentService {
     lastTransaction?: PaymentTransaction;
   }> {
     try {
-      const { data: order, error: orderError } = await supabase
-        .from('orders')
-        .select('payment_status, zarinpal_authority, zarinpal_ref_id')
-        .eq('id', orderId)
-        .single();
-
-      if (orderError) throw orderError;
-
-      const transactions = await this.getPaymentTransactions(orderId);
-      const lastTransaction = transactions[0];
-
+      const order = await apiClient.getOrder(orderId);
       return {
         status: order.payment_status || 'pending',
-        authority: order.zarinpal_authority,
-        refId: order.zarinpal_ref_id,
-        lastTransaction
+        authority: undefined, // Would need to be stored in order or fetched separately
+        refId: undefined, // Would need to be stored in order or fetched separately
       };
     } catch (error) {
       console.error('Error getting payment status:', error);
       return {
         status: 'unknown'
       };
-    }
-  }
-
-  /**
-   * Log payment transaction
-   */
-  private static async logPaymentTransaction(transaction: {
-    order_id: string;
-    user_id: string;
-    transaction_type: PaymentTransaction['transaction_type'];
-    zarinpal_authority?: string;
-    zarinpal_ref_id?: string;
-    amount: number;
-    status: PaymentTransaction['status'];
-    gateway_response?: any;
-    metadata?: any;
-  }): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('payment_transactions')
-        .insert([transaction]);
-
-      if (error) {
-        console.error('Error logging payment transaction:', error);
-      }
-    } catch (error) {
-      console.error('Error logging payment transaction:', error);
     }
   }
 

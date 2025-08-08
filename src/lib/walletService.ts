@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient, WalletBalanceResponse, WalletTransaction } from '@/lib/api-client';
 
 // Temporary type definitions until database types are regenerated
 export interface Wallet {
@@ -32,23 +32,8 @@ export class WalletService {
   // Get user's wallet balance
   static async getWalletBalance(userId: string): Promise<number> {
     try {
-      const { data, error } = await supabase
-        .from('wallets')
-        .select('balance')
-        .eq('user_id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching wallet balance:', error);
-        // If wallet doesn't exist, create one
-        if (error.code === 'PGRST116') { // No rows returned
-          await this.createWallet(userId);
-          return 0;
-        }
-        return 0;
-      }
-
-      return data?.balance || 0;
+      const data: WalletBalanceResponse = await apiClient.getWalletBalance();
+      return typeof data.balance === 'number' ? data.balance : 0;
     } catch (error) {
       console.error('Error fetching wallet balance:', error);
       return 0;
@@ -58,22 +43,9 @@ export class WalletService {
   // Get user's wallet with transactions
   static async getWallet(userId: string): Promise<Wallet | null> {
     try {
-      const { data, error } = await supabase
-        .from('wallets')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching wallet:', error);
-        // If wallet doesn't exist, create one
-        if (error.code === 'PGRST116') { // No rows returned
-          return await this.createWallet(userId);
-        }
-        return null;
-      }
-
-      return data;
+      // For now, backend exposes balance and transactions endpoints; wallet object isn't needed
+      const balance = await this.getWalletBalance(userId);
+      return { id: 'me', user_id: userId, balance, created_at: '', updated_at: '' } as Wallet;
     } catch (error) {
       console.error('Error fetching wallet:', error);
       return null;
@@ -83,21 +55,8 @@ export class WalletService {
   // Create wallet for user
   static async createWallet(userId: string): Promise<Wallet | null> {
     try {
-      const { data, error } = await supabase
-        .from('wallets')
-        .insert({
-          user_id: userId,
-          balance: 0.00
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating wallet:', error);
-        return null;
-      }
-
-      return data;
+      // Backend ensures wallet existence automatically
+      return { id: 'me', user_id: userId, balance: 0, created_at: '', updated_at: '' } as Wallet;
     } catch (error) {
       console.error('Error creating wallet:', error);
       return null;
@@ -111,9 +70,8 @@ export class WalletService {
     offset: number = 0
   ): Promise<Transaction[]> {
     try {
-      // Simple fallback - return empty array for now
-      console.log('Wallet service temporarily disabled - returning empty transactions');
-      return [];
+      const data: WalletTransaction[] = await apiClient.getWalletTransactions(limit, offset);
+      return (data as unknown as Transaction[]) || [];
     } catch (error) {
       console.error('Error fetching transactions:', error);
       return [];
@@ -132,28 +90,16 @@ export class WalletService {
   ): Promise<string | null> {
     try {
       // First ensure wallet exists
-      const wallet = await this.getWallet(userId);
-      if (!wallet) {
-        console.error('Could not create or find wallet for user:', userId);
-        return null;
-      }
-
-      const { data, error } = await supabase.rpc('process_wallet_transaction', {
-        p_user_id: userId,
-        p_type: type,
-        p_amount: amount,
-        p_description: description || null,
-        p_reference_id: referenceId || null,
-        p_reference_type: referenceType || null,
-        p_metadata: metadata ? JSON.stringify(metadata) : null
-      });
-
-      if (error) {
-        console.error('Error processing transaction:', error);
-        return null;
-      }
-
-      return typeof data === 'string' ? data : null;
+      const payload = {
+        type,
+        amount,
+        description,
+        referenceId,
+        referenceType,
+        metadata,
+      };
+      const res = await apiClient.createWalletTransaction(payload);
+      return res?.id ?? null;
     } catch (error) {
       console.error('Error processing transaction:', error);
       return null;
@@ -199,16 +145,8 @@ export class WalletService {
   // Refund order to wallet
   static async refundOrder(orderId: string): Promise<string | null> {
     try {
-      const { data, error } = await supabase.rpc('refund_order_to_wallet', {
-        p_order_id: orderId
-      });
-
-      if (error) {
-        console.error('Error refunding order:', error);
-        return null;
-      }
-
-      return typeof data === 'string' ? data : null;
+      const res: { transactionId?: string } = await apiClient.refundOrder(orderId) as unknown as { transactionId?: string };
+      return res?.transactionId ?? null;
     } catch (error) {
       console.error('Error refunding order:', error);
       return null;

@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient, DesignData, DesignOptions } from '@/lib/api-client';
 
 export interface PageSection {
   id: string;
@@ -27,40 +27,19 @@ export interface DynamicDesign {
   currentPageId: string;
 }
 
-export interface DesignOptions {
-  siteType: string;
-  modules: any[];
-  branding: any;
-  userInfo: any;
-  pricing: any;
-}
-
 export class DesignService {
   /**
    * Save design data to database
    */
   static async saveDesign(orderId: string, design: DynamicDesign, options?: DesignOptions): Promise<void> {
     try {
-      // Save design data using the database function
-      const { error } = await supabase.rpc('save_design_data', {
-        p_order_id: orderId,
-        p_design_data: design
-      });
+      // Convert DynamicDesign to DesignData format
+      const designData: DesignData = {
+        pages: design.pages,
+        currentPageId: design.currentPageId,
+      };
 
-      if (error) throw error;
-
-      // Update order with design options if provided
-      if (options) {
-        const { error: updateError } = await supabase
-          .from('orders')
-          .update({
-            design_options: options,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', orderId);
-
-        if (updateError) throw updateError;
-      }
+      await apiClient.saveDesign(orderId, designData, options);
     } catch (error) {
       console.error('Error saving design:', error);
       throw error;
@@ -72,12 +51,15 @@ export class DesignService {
    */
   static async loadDesign(orderId: string): Promise<DynamicDesign | null> {
     try {
-      const { data, error } = await supabase.rpc('get_design_data', {
-        p_order_id: orderId
-      });
+      const response = await apiClient.getDesign(orderId);
+      if (!response?.design) return null;
 
-      if (error) throw error;
-      return data;
+      // Convert DesignData back to DynamicDesign format
+      const designData = response.design;
+      return {
+        pages: designData.pages || [],
+        currentPageId: designData.currentPageId || '',
+      };
     } catch (error) {
       console.error('Error loading design:', error);
       return null;
@@ -89,17 +71,22 @@ export class DesignService {
    */
   static async getDesignOptions(orderId: string): Promise<DesignOptions | null> {
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('design_options')
-        .eq('id', orderId)
-        .single();
-
-      if (error) throw error;
-      return data?.design_options || null;
+      return await apiClient.getDesignOptions(orderId);
     } catch (error) {
       console.error('Error loading design options:', error);
       return null;
+    }
+  }
+
+  /**
+   * Update design options
+   */
+  static async updateDesignOptions(orderId: string, options: DesignOptions): Promise<void> {
+    try {
+      await apiClient.updateDesignOptions(orderId, options);
+    } catch (error) {
+      console.error('Error updating design options:', error);
+      throw error;
     }
   }
 
@@ -117,15 +104,7 @@ export class DesignService {
    */
   static async updatePreviewUrl(orderId: string, previewUrl: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          design_preview_url: previewUrl,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', orderId);
-
-      if (error) throw error;
+      await apiClient.updatePreviewUrl(orderId, previewUrl);
     } catch (error) {
       console.error('Error updating preview URL:', error);
       throw error;
@@ -142,19 +121,24 @@ export class DesignService {
     previewUrl: string | null;
   } | null> {
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('total_pages, total_sections, design_data, design_preview_url')
-        .eq('id', orderId)
-        .single();
+      const design = await this.loadDesign(orderId);
+      if (!design) {
+        return {
+          totalPages: 0,
+          totalSections: 0,
+          hasDesign: false,
+          previewUrl: null,
+        };
+      }
 
-      if (error) throw error;
+      const totalPages = design.pages.length;
+      const totalSections = design.pages.reduce((total, page) => total + page.sections.length, 0);
 
       return {
-        totalPages: data.total_pages || 0,
-        totalSections: data.total_sections || 0,
-        hasDesign: !!data.design_data,
-        previewUrl: data.design_preview_url
+        totalPages,
+        totalSections,
+        hasDesign: true,
+        previewUrl: null, // Would need to be fetched separately
       };
     } catch (error) {
       console.error('Error getting design summary:', error);

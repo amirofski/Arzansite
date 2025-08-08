@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Helmet } from "react-helmet-async";
-import { supabase } from "@/integrations/supabase/client";
+// Switched to custom backend auth
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -24,13 +24,7 @@ const Auth = () => {
   // Check if user is already logged in and redirect based on role
   useEffect(() => {
     if (!authLoading && user) {
-      // CRITICAL SECURITY FIX: Check email verification first
-      if (!user.email_confirmed_at) {
-        navigate("/verify-email");
-        return;
-      }
-      
-      // Then check role and redirect
+      // Redirect based on role
       if (userRole?.role === 'admin') {
         navigate("/admin");
       } else {
@@ -45,26 +39,7 @@ const Auth = () => {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-
-        if (error) {
-          toast({
-            title: "خطا در ورود",
-            description: error.message === "Invalid login credentials" 
-              ? "ایمیل یا رمز عبور اشتباه است"
-              : "مشکلی در ورود پیش آمد. لطفاً دوباره تلاش کنید",
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "ورود موفقیت‌آمیز",
-            description: "به حساب کاربری خود خوش آمدید",
-          });
-          // The redirect will be handled by the useEffect above
-        }
+        await authLogin();
       } else {
         if (password !== confirmPassword) {
           toast({
@@ -75,37 +50,7 @@ const Auth = () => {
           setLoading(false);
           return;
         }
-
-        const redirectUrl = `${window.location.origin}/`;
-        
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: redirectUrl
-          }
-        });
-
-        if (error) {
-          if (error.message.includes("User already registered")) {
-            toast({
-              title: "کاربر قبلاً ثبت‌نام کرده",
-              description: "این ایمیل قبلاً ثبت‌نام شده است. لطفاً وارد شوید",
-              variant: "destructive",
-            });
-          } else {
-            toast({
-              title: "خطا در ثبت‌نام",
-              description: "مشکلی در ثبت‌نام پیش آمد. لطفاً دوباره تلاش کنید",
-              variant: "destructive",
-            });
-          }
-        } else {
-          toast({
-            title: "ثبت‌نام موفقیت‌آمیز",
-            description: "حساب کاربری شما ساخته شد. لطفاً ایمیل خود را چک کنید",
-          });
-        }
+        await authSignup();
       }
     } catch (error) {
       toast({
@@ -115,6 +60,35 @@ const Auth = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const { signIn, signUp } = useAuth();
+
+  const authLogin = async () => {
+    try {
+      await signIn(email, password);
+      toast({ title: "ورود موفقیت‌آمیز", description: "به حساب کاربری خود خوش آمدید" });
+    } catch (err: any) {
+      toast({
+        title: "خطا در ورود",
+        description: err?.message || "مشکلی در ورود پیش آمد. لطفاً دوباره تلاش کنید",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const authSignup = async () => {
+    try {
+      await signUp(email, password);
+      toast({
+        title: "ثبت‌نام موفقیت‌آمیز",
+        description: "حساب کاربری شما ساخته شد. لطفاً وارد شوید",
+      });
+      setIsLogin(true);
+    } catch (err: any) {
+      const message = err?.message || "مشکلی در ثبت‌نام پیش آمد. لطفاً دوباره تلاش کنید";
+      toast({ title: "خطا در ثبت‌نام", description: message, variant: "destructive" });
     }
   };
 

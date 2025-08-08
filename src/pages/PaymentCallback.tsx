@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 import Layout from "@/components/ui/Layout";
 
@@ -41,17 +41,8 @@ const PaymentCallback = () => {
       }
 
       try {
-        const { data, error } = await supabase.functions.invoke('zarinpal-payment', {
-          body: {
-            action: 'verify',
-            authority,
-            orderId
-          }
-        });
-
-        if (error) throw error;
-
-        if (data.success) {
+        const data: any = await apiClient.verifyPayment({ authority, orderId: orderId || undefined });
+        if (data?.success) {
           setStatus('success');
           setRefId(data.refId);
           toast({
@@ -62,7 +53,7 @@ const PaymentCallback = () => {
           setStatus('failed');
           toast({
             title: "خطا در پرداخت",
-            description: data.error || "پرداخت موفقیت‌آمیز نبود",
+            description: data?.error || "پرداخت موفقیت‌آمیز نبود",
             variant: "destructive",
           });
         }

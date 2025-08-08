@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet as WalletIcon, Plus, ArrowUpDown, History, CreditCard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WalletService } from '@/lib/walletService';
-import { supabase } from '@/integrations/supabase/client';
+// Removed direct Supabase function calls; handled by backend via WalletService
 import type { Transaction } from '@/lib/walletService';
 
 interface WalletCardProps {
@@ -27,6 +27,8 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
 
   useEffect(() => {
     fetchWalletData();
+    // We intentionally don't include fetchWalletData to avoid re-creating the function each render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const fetchWalletData = async () => {
@@ -76,21 +78,16 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
       );
 
       if (transactionId) {
-        // Initiate Zarinpal payment for deposit
-        const paymentRequest = {
-          action: 'request',
-          amount: Math.floor(amount / 10), // Convert from Rials to Tomans
+        // Initiate payment via backend
+        const { apiClient } = await import('@/lib/api-client');
+        const payload: { amount: number; description: string; type: string; orderId?: string } = {
+          amount: Math.floor(amount / 10),
           description: `شارژ کیف پول - ${WalletService.formatAmount(amount)}`,
-          orderId: transactionId
+          type: 'wallet_deposit',
+          orderId: transactionId,
         };
-
-        const { data: paymentData, error: paymentError } = await supabase.functions.invoke('zarinpal-payment', {
-          body: paymentRequest
-        });
-
-        if (paymentError) throw paymentError;
-
-        if (paymentData.success) {
+        const paymentData = await apiClient.requestPayment(payload);
+        if (paymentData.paymentUrl) {
           window.location.href = paymentData.paymentUrl;
         } else {
           throw new Error('Failed to create payment request');
@@ -188,7 +185,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">
-                            {WalletService.getTransactionTypeText(transaction.type as any)}
+                            {WalletService.getTransactionTypeText(transaction.type as import('@/lib/walletService').TransactionType)}
                           </span>
                           <Badge
                             variant="outline"
@@ -206,7 +203,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                           {formatDate(transaction.created_at)}
                         </div>
                       </div>
-                      <div className={`font-medium ${WalletService.getTransactionTypeColor(transaction.type as any)}`}>
+                      <div className={`font-medium ${WalletService.getTransactionTypeColor(transaction.type as import('@/lib/walletService').TransactionType)}`}>
                         {transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? '+' : '-'}
                         {WalletService.formatAmount(transaction.amount)}
                       </div>

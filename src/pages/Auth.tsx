@@ -83,7 +83,7 @@ const Auth = () => {
       await signUp(email, password);
       toast({
         title: "ثبت‌نام موفقیت‌آمیز",
-        description: "حساب کاربری شما ساخته شد. لطفاً وارد شوید",
+        description: "حساب کاربری شما ساخته شد. لطفاً ایمیل خود را برای تایید بررسی کنید",
       });
       setIsLogin(true);
     } catch (err: any) {

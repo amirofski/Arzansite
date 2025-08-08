@@ -198,11 +198,31 @@ class ApiClient {
     return response;
   }
 
-  async signUp(email: string, password: string, metadata?: Record<string, unknown>): Promise<{ message: string; user: BackendUserProfile }> {
-    return this.request('/auth/signup', {
+  async signUp(email: string, password: string, metadata?: Record<string, unknown>): Promise<{ message: string; user: BackendUserProfile; verificationToken?: string }> {
+    const response = await this.request<{ message: string; user: BackendUserProfile; verificationToken?: string }>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ email, password, metadata }),
     });
+
+    // If backend returns a verification token, send the email
+    if (response.verificationToken) {
+      try {
+        await this.sendEmail({
+          to: email,
+          subject: 'تایید ایمیل - Arzan Site',
+          template: 'verification',
+          data: {
+            userEmail: email,
+            actionUrl: `${window.location.origin}/verify-email?token=${response.verificationToken}`,
+            expirationTime: '24 ساعت',
+          },
+        });
+      } catch (error) {
+        console.error('Failed to send verification email:', error);
+      }
+    }
+
+    return response;
   }
 
   async getProfile(): Promise<BackendUserProfile> {
@@ -218,6 +238,13 @@ class ApiClient {
 
   async logout(): Promise<void> {
     return this.request('/auth/logout', { method: 'POST' });
+  }
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    return this.request('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
   }
 
   // Profile endpoints

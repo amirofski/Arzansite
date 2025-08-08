@@ -58,7 +58,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
-    await apiClient.signUp(email, password, metadata);
+    const response = await apiClient.signUp(email, password, metadata);
+    
+    // The backend now handles sending verification email with proper token
+    // If verificationToken is returned, the email is sent automatically
+    
+    return response;
   };
 
   const signOut = async () => {

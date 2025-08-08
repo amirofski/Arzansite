@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Mail, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,73 +20,38 @@ const VerifyEmail = () => {
     const verifyEmail = async () => {
       try {
         const token = searchParams.get('token');
+        const email = searchParams.get('email');
         const type = searchParams.get('type');
-        const redirectTo = searchParams.get('redirect_to');
 
-        if (!token || !type) {
+        if (!token && !email) {
           setVerificationStatus('error');
           setErrorMessage('پارامترهای مورد نیاز برای تایید ایمیل یافت نشد');
           return;
         }
 
-        // Handle different verification types
-        let verificationResult;
-        
-        if (type === 'signup') {
-          // For email confirmation during signup
-          verificationResult = await supabase.auth.verifyOtp({
-            token_hash: token,
-            type: 'signup'
-          });
-        } else if (type === 'magiclink') {
-          // For magic link login
-          verificationResult = await supabase.auth.verifyOtp({
-            token_hash: token,
-            type: 'magiclink'
-          });
-        } else if (type === 'recovery') {
-          // For password recovery
-          verificationResult = await supabase.auth.verifyOtp({
-            token_hash: token,
-            type: 'recovery'
-          });
+        // If we have a token, verify it with the backend
+        if (token) {
+          try {
+            // Call backend verification endpoint
+            await apiClient.verifyEmail(token);
+            
+            setVerificationStatus('success');
+            toast({
+              title: "ایمیل تایید شد",
+              description: "حساب کاربری شما با موفقیت تایید شد",
+            });
+            
+            // Redirect to login after 3 seconds
+            setTimeout(() => {
+              navigate("/auth");
+            }, 3000);
+          } catch (error) {
+            setVerificationStatus('error');
+            setErrorMessage('توکن تایید نامعتبر یا منقضی شده است');
+          }
         } else {
-          // Try generic email verification
-          verificationResult = await supabase.auth.verifyOtp({
-            token_hash: token,
-            type: 'email'
-          });
-        }
-
-        if (verificationResult.error) {
-          setVerificationStatus('error');
-          setErrorMessage(verificationResult.error.message);
-        } else {
-          setVerificationStatus('success');
-          toast({
-            title: "ایمیل تایید شد",
-            description: "حساب کاربری شما با موفقیت تایید شد",
-          });
-          
-          // Redirect based on type and redirect_to parameter
-          setTimeout(() => {
-            if (redirectTo && redirectTo.startsWith('http')) {
-              // External redirect
-              window.location.href = redirectTo;
-            } else if (type === 'signup') {
-              // New user signup - redirect to dashboard
-              navigate("/dashboard");
-            } else if (type === 'magiclink') {
-              // Magic link login - redirect to dashboard
-              navigate("/dashboard");
-            } else if (type === 'recovery') {
-              // Password recovery - redirect to reset password
-              navigate("/reset-password");
-            } else {
-              // Default redirect to dashboard
-              navigate("/dashboard");
-            }
-          }, 3000);
+          // No token provided, show pending status
+          setVerificationStatus('pending');
         }
       } catch (error) {
         console.error('Verification error:', error);
@@ -95,15 +60,7 @@ const VerifyEmail = () => {
       }
     };
 
-    // Check if we have the necessary parameters
-    const token = searchParams.get('token');
-    const type = searchParams.get('type');
-
-    if (token && type) {
-      verifyEmail();
-    } else {
-      setVerificationStatus('pending');
-    }
+    verifyEmail();
   }, [searchParams, navigate, toast]);
 
   const handleResendVerification = async () => {
@@ -120,27 +77,26 @@ const VerifyEmail = () => {
         return;
       }
 
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: email
+      // Call backend to resend verification email
+      await apiClient.sendEmail({
+        to: email,
+        subject: 'تایید ایمیل - Arzan Site',
+        template: 'verification',
+        data: {
+          userEmail: email,
+          actionUrl: `${window.location.origin}/verify-email?email=${encodeURIComponent(email)}`,
+          expirationTime: '24 ساعت',
+        },
       });
 
-      if (error) {
-        toast({
-          title: "خطا در ارسال مجدد",
-          description: "مشکلی در ارسال مجدد ایمیل تایید پیش آمد",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "ایمیل ارسال شد",
-          description: "ایمیل تایید مجدداً ارسال شد",
-        });
-      }
+      toast({
+        title: "ایمیل ارسال شد",
+        description: "ایمیل تایید مجدداً ارسال شد",
+      });
     } catch (error) {
       toast({
-        title: "خطا",
-        description: "مشکلی پیش آمد. لطفاً دوباره تلاش کنید",
+        title: "خطا در ارسال مجدد",
+        description: "مشکلی در ارسال مجدد ایمیل تایید پیش آمد",
         variant: "destructive",
       });
     } finally {

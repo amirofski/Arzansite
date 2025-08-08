@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -19,13 +19,13 @@ const ResetPassword = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { resetPassword } = useAuth();
 
   useEffect(() => {
     // Check if we have the necessary parameters for password reset
-    const accessToken = searchParams.get('access_token');
-    const refreshToken = searchParams.get('refresh_token');
+    const token = searchParams.get('token');
     
-    if (!accessToken || !refreshToken) {
+    if (!token) {
       setError("لینک بازنشانی رمز عبور نامعتبر است");
     }
   }, [searchParams]);
@@ -54,32 +54,26 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: password
-      });
-
-      if (error) {
-        toast({
-          title: "خطا در بازنشانی رمز عبور",
-          description: "مشکلی در بازنشانی رمز عبور پیش آمد. لطفاً دوباره تلاش کنید",
-          variant: "destructive",
-        });
-      } else {
-        setSuccess(true);
-        toast({
-          title: "رمز عبور با موفقیت تغییر یافت",
-          description: "رمز عبور شما با موفقیت بازنشانی شد",
-        });
-        
-        // Redirect to login after 3 seconds
-        setTimeout(() => {
-          navigate("/auth");
-        }, 3000);
+      const token = searchParams.get('token');
+      if (!token) {
+        throw new Error('Reset token is missing');
       }
+
+      await resetPassword(token, password);
+      setSuccess(true);
+      toast({
+        title: "رمز عبور با موفقیت تغییر یافت",
+        description: "رمز عبور شما با موفقیت بازنشانی شد",
+      });
+      
+      // Redirect to login after 3 seconds
+      setTimeout(() => {
+        navigate("/auth");
+      }, 3000);
     } catch (error) {
       toast({
-        title: "خطا",
-        description: "مشکلی پیش آمد. لطفاً دوباره تلاش کنید",
+        title: "خطا در بازنشانی رمز عبور",
+        description: "مشکلی در بازنشانی رمز عبور پیش آمد. لطفاً دوباره تلاش کنید",
         variant: "destructive",
       });
     } finally {

@@ -8,11 +8,18 @@ interface AuthContextType {
   loading: boolean;
   userRole: { role: UserRole } | null;
   roleLoading: boolean;
+  isAuthenticated: boolean;
+  error: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<void>;
   signOut: () => Promise<void>;
   refreshToken: () => Promise<void>;
   refreshUserRole: () => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
+  getCurrentUser: () => Promise<void>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,6 +29,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<{ role: UserRole } | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const clearError = () => setError(null);
 
   const loadUser = async () => {
     setLoading(true);
@@ -29,9 +39,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const me: BackendUserProfile = await apiClient.getProfile();
       setUser(me);
       setUserRole({ role: me.role });
+      setError(null);
     } catch (err) {
       setUser(null);
       setUserRole(null);
+      setError(err instanceof Error ? err.message : 'Failed to load user');
     } finally {
       setLoading(false);
     }
@@ -47,32 +59,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const signIn = async (email: string, password: string) => {
-    const response = await apiClient.signIn(email, password);
-    if (response?.access_token) {
-      apiClient.setToken(response.access_token);
-      if (response?.refresh_token) {
-        localStorage.setItem('refresh_token', response.refresh_token);
+    setError(null);
+    try {
+      const response = await apiClient.signIn(email, password);
+      if (response?.access_token) {
+        apiClient.setToken(response.access_token);
+        if (response?.refresh_token) {
+          localStorage.setItem('refresh_token', response.refresh_token);
+        }
+        await loadUser();
       }
-      await loadUser();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Login failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
     }
   };
 
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
-    const response = await apiClient.signUp(email, password, metadata);
-    
-    // The backend now handles sending verification email with proper token
-    // If verificationToken is returned, the email is sent automatically
-    
-    return response;
+    setError(null);
+    try {
+      const response = await apiClient.signUp(email, password, metadata);
+      
+      // The backend now handles sending verification email with proper token
+      // If verificationToken is returned, the email is sent automatically
+      
+      return response;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Signup failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
   };
 
   const signOut = async () => {
+    setError(null);
     try {
       await apiClient.logout();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
       apiClient.clearToken();
+      localStorage.removeItem('refresh_token');
       setUser(null);
       setUserRole(null);
     }
@@ -80,11 +108,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshToken = async () => {
     const stored = localStorage.getItem('refresh_token');
-    if (!stored) return;
+    if (!stored) {
+      await signOut();
+      return;
+    }
+    
     try {
       const response = await apiClient.refreshToken(stored);
       if (response?.access_token) {
         apiClient.setToken(response.access_token);
+        if (response?.refresh_token) {
+          localStorage.setItem('refresh_token', response.refresh_token);
+        }
       }
     } catch {
       await signOut();
@@ -106,16 +141,60 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const forgotPassword = async (email: string) => {
+    setError(null);
+    try {
+      await apiClient.forgotPassword(email);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to send password reset email';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const resetPassword = async (token: string, newPassword: string) => {
+    setError(null);
+    try {
+      await apiClient.resetPassword(token, newPassword);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to reset password';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const verifyEmail = async (token: string) => {
+    setError(null);
+    try {
+      await apiClient.verifyEmail(token);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to verify email';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const getCurrentUser = async () => {
+    await loadUser();
+  };
+
   const value: AuthContextType = {
     user,
     loading,
     userRole,
     roleLoading,
+    isAuthenticated: !!user,
+    error,
     signIn,
     signUp,
     signOut,
     refreshToken,
     refreshUserRole,
+    forgotPassword,
+    resetPassword,
+    verifyEmail,
+    getCurrentUser,
+    clearError,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

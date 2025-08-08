@@ -1,6 +1,8 @@
 // Comprehensive REST client for the NestJS backend
 // Base URL: https://nest.arzansite.com/api
 
+import { tokenManager, TokenData } from './tokenManager';
+
 export interface BackendUserProfile {
   id: string;
   email: string;
@@ -11,6 +13,8 @@ export interface BackendUserProfile {
   address?: string;
   company?: string;
   bio?: string;
+  user_metadata?: Record<string, unknown>;
+  email_confirmed_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -19,6 +23,17 @@ export interface AuthResponse {
   access_token: string;
   refresh_token?: string;
   user: BackendUserProfile;
+}
+
+export interface SignupResponse {
+  message: string;
+  user: BackendUserProfile;
+  verificationToken?: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
 }
 
 export interface Order {
@@ -134,21 +149,15 @@ class ApiClient {
   }
 
   setToken(token: string) {
-    this.token = token;
-    localStorage.setItem('access_token', token);
+    tokenManager.setTokens({ access_token: token });
   }
 
   getToken(): string | null {
-    if (!this.token) {
-      this.token = localStorage.getItem('access_token');
-    }
-    return this.token;
+    return tokenManager.getAccessToken();
   }
 
   clearToken() {
-    this.token = null;
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    tokenManager.clearTokens();
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -191,15 +200,17 @@ class ApiClient {
       body: JSON.stringify({ email, password }),
     });
     
-    if (response.refresh_token) {
-      localStorage.setItem('refresh_token', response.refresh_token);
-    }
+    // Store tokens securely
+    tokenManager.setTokens({
+      access_token: response.access_token,
+      refresh_token: response.refresh_token,
+    });
     
     return response;
   }
 
-  async signUp(email: string, password: string, metadata?: Record<string, unknown>): Promise<{ message: string; user: BackendUserProfile; verificationToken?: string }> {
-    const response = await this.request<{ message: string; user: BackendUserProfile; verificationToken?: string }>('/auth/signup', {
+  async signUp(email: string, password: string, metadata?: Record<string, unknown>): Promise<SignupResponse> {
+    const response = await this.request<SignupResponse>('/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ email, password, metadata }),
     });
@@ -229,7 +240,7 @@ class ApiClient {
     return this.request('/auth/me');
   }
 
-  async refreshToken(refreshToken: string): Promise<{ access_token: string }> {
+  async refreshToken(refreshToken: string): Promise<TokenResponse> {
     return this.request('/auth/refresh', {
       method: 'POST',
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -244,6 +255,20 @@ class ApiClient {
     return this.request('/auth/verify-email', {
       method: 'POST',
       body: JSON.stringify({ token }),
+    });
+  }
+
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    return this.request('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+    return this.request('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, new_password: newPassword }),
     });
   }
 

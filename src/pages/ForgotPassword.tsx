@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Mail, ArrowLeft, Loader2, CheckCircle } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -15,33 +15,23 @@ const ForgotPassword = () => {
   const [emailSent, setEmailSent] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { forgotPassword } = useAuth();
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+      await forgotPassword(email);
+      setEmailSent(true);
+      toast({
+        title: "ایمیل ارسال شد",
+        description: "ایمیل بازنشانی رمز عبور به آدرس شما ارسال شد",
       });
-
-      if (error) {
-        toast({
-          title: "خطا در ارسال ایمیل",
-          description: "مشکلی در ارسال ایمیل بازنشانی رمز عبور پیش آمد. لطفاً دوباره تلاش کنید",
-          variant: "destructive",
-        });
-      } else {
-        setEmailSent(true);
-        toast({
-          title: "ایمیل ارسال شد",
-          description: "ایمیل بازنشانی رمز عبور به آدرس شما ارسال شد",
-        });
-      }
     } catch (error) {
       toast({
-        title: "خطا",
-        description: "مشکلی پیش آمد. لطفاً دوباره تلاش کنید",
+        title: "خطا در ارسال ایمیل",
+        description: "مشکلی در ارسال ایمیل بازنشانی رمز عبور پیش آمد. لطفاً دوباره تلاش کنید",
         variant: "destructive",
       });
     } finally {

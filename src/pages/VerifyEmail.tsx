@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Mail, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -15,9 +16,10 @@ const VerifyEmail = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { verifyEmail } = useAuth();
 
   useEffect(() => {
-    const verifyEmail = async () => {
+    const verifyEmailToken = async () => {
       try {
         const token = searchParams.get('token');
         const email = searchParams.get('email');
@@ -32,8 +34,8 @@ const VerifyEmail = () => {
         // If we have a token, verify it with the backend
         if (token) {
           try {
-            // Call backend verification endpoint
-            await apiClient.verifyEmail(token);
+            // Call backend verification endpoint using auth hook
+            await verifyEmail(token);
             
             setVerificationStatus('success');
             toast({
@@ -60,8 +62,8 @@ const VerifyEmail = () => {
       }
     };
 
-    verifyEmail();
-  }, [searchParams, navigate, toast]);
+    verifyEmailToken();
+  }, [searchParams, navigate, toast, verifyEmail]);
 
   const handleResendVerification = async () => {
     setResending(true);

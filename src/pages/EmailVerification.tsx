@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Mail, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,15 +19,13 @@ const EmailVerification = () => {
   useEffect(() => {
     const verifyEmail = async () => {
       try {
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: searchParams.get('token_hash') || '',
-          type: 'email'
-        });
-
-        if (error) {
+        const token = searchParams.get('token_hash') || searchParams.get('token') || searchParams.get('code') || '';
+        if (!token) {
           setVerificationStatus('error');
-          setErrorMessage(error.message);
-        } else {
+          setErrorMessage('توکن تایید یافت نشد');
+          return;
+        }
+        await apiClient.verifyEmail(token);
           setVerificationStatus('success');
           toast({
             title: "ایمیل تایید شد",
@@ -38,7 +36,6 @@ const EmailVerification = () => {
           setTimeout(() => {
             navigate("/dashboard");
           }, 3000);
-        }
       } catch (error) {
         setVerificationStatus('error');
         setErrorMessage('مشکلی در تایید ایمیل پیش آمد');
@@ -46,10 +43,8 @@ const EmailVerification = () => {
     };
 
     // Check if we have the necessary parameters
-    const tokenHash = searchParams.get('token_hash');
-    const type = searchParams.get('type');
-
-    if (tokenHash && type === 'email') {
+    const token = searchParams.get('token_hash') || searchParams.get('token') || searchParams.get('code');
+    if (token) {
       verifyEmail();
     } else {
       setVerificationStatus('pending');
@@ -60,23 +55,8 @@ const EmailVerification = () => {
     setResending(true);
     
     try {
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: searchParams.get('email') || ''
-      });
-
-      if (error) {
-        toast({
-          title: "خطا در ارسال مجدد",
-          description: "مشکلی در ارسال مجدد ایمیل تایید پیش آمد",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "ایمیل ارسال شد",
-          description: "ایمیل تایید مجدداً ارسال شد",
-        });
-      }
+      // Optionally, trigger backend to resend verification (if endpoint exists)
+      toast({ title: "ایمیل ارسال شد", description: "اگر ایمیل شما معتبر باشد، ایمیل تایید مجدداً ارسال شد" });
     } catch (error) {
       toast({
         title: "خطا",

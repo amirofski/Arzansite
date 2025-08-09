@@ -11,7 +11,7 @@ import Auth from "./pages/Auth";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import EmailVerification from "./pages/EmailVerification";
-import VerifyEmail from "./pages/VerifyEmail";
+// removed custom auth pages; using unified Auth page
 import PaymentCallback from "./pages/PaymentCallback";
 import NotFound from "./pages/NotFound";
 import { HelmetProvider } from "react-helmet-async";
@@ -52,7 +52,7 @@ const AppContent = () => {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<EmailVerification />} />
-        <Route path="/auth/verify-email" element={<VerifyEmail />} />
+        <Route path="/auth/verify-email" element={<EmailVerification />} />
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />

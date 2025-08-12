@@ -19,7 +19,7 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, userRole, loading: authLoading } = useAuth();
+  const { user, userRole, loading: authLoading, signIn, signUp } = useAuth();
 
   // Check if user is already logged in and redirect based on role
   useEffect(() => {
@@ -63,7 +63,7 @@ const Auth = () => {
     }
   };
 
-  const { signIn, signUp } = useAuth();
+  // using signIn/signUp provided by auth hook
 
   const authLogin = async () => {
     try {

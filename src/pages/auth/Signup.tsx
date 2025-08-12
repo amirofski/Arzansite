@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { authApi } from '@/lib/api';
+import { apiClient } from '@/lib/api-client';
 import { useNavigate } from 'react-router-dom';
 
 export default function Signup() {
@@ -15,7 +15,7 @@ export default function Signup() {
     setLoading(true);
     setStatus(null);
     try {
-      await authApi.signUp({ email, password, metadata: name ? { name } : undefined });
+      await apiClient.signUp(email, password, name ? { name } : undefined);
       setStatus('Check your email to verify your account.');
     } catch (e: any) {
       setStatus(e?.response?.data?.message || 'Signup failed');

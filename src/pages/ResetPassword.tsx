@@ -22,9 +22,8 @@ const ResetPassword = () => {
   const { resetPassword } = useAuth();
 
   useEffect(() => {
-    // Check if we have the necessary parameters for password reset
+    // Accept backend token param; Supabase flow removed
     const token = searchParams.get('token');
-    
     if (!token) {
       setError("لینک بازنشانی رمز عبور نامعتبر است");
     }
@@ -55,11 +54,9 @@ const ResetPassword = () => {
 
     try {
       const token = searchParams.get('token');
-      if (!token) {
-        throw new Error('Reset token is missing');
-      }
-
+      if (!token) throw new Error('Reset token is missing');
       await resetPassword(token, password);
+
       setSuccess(true);
       toast({
         title: "رمز عبور با موفقیت تغییر یافت",

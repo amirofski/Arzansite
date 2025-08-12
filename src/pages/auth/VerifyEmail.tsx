@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { authApi } from '@/lib/api';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { apiClient } from '@/lib/api-client';
 
 export default function VerifyEmail() {
   const [params] = useSearchParams();
@@ -8,23 +8,22 @@ export default function VerifyEmail() {
   const [msg, setMsg] = useState('Verifying...');
 
   useEffect(() => {
-    const token = params.get('token_hash') || params.get('token') || params.get('code');
-    const email = params.get('email') || undefined;
+    const token = params.get('token');
     if (!token) {
-      setMsg('Missing token');
+      setMsg('Missing verification token');
       return;
     }
-    authApi
-      .verifyEmail({ token, email })
+
+    apiClient.verifyEmail(token)
       .then(() => setMsg('Email verified successfully.'))
-      .catch((e) => setMsg(e?.response?.data?.message || 'Verification failed'));
+      .catch(() => setMsg('Verification failed'));
   }, [params]);
 
   return (
     <div className="max-w-md mx-auto p-6 text-center">
       <h1 className="text-2xl font-bold mb-2">Verify Email</h1>
       <p className="mb-4">{msg}</p>
-      <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={() => nav('/auth/login')}>
+      <button className="bg-blue-600 text-white px-4 py-2 rounded" onClick={() => nav('/auth')}>
         Go to login
       </button>
     </div>

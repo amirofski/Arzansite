@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { User, Mail, Globe, Shield, Clock, Check, X, Loader2, DollarSign, Plus, Trash2, LogIn, UserPlus } from 'lucide-react';
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -147,21 +147,11 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
 
     setIsChecking(true);
     try {
-      const { data: result, error } = await supabase.functions.invoke('check-domain-availability', {
-        body: { domain, extension }
+      const result = await (apiClient as any).request('/domains/check', {
+        method: 'POST',
+        body: JSON.stringify({ domain, extension }),
       });
-
-      if (error) {
-        console.error('Domain check error:', error);
-        toast({
-          title: "خطا در بررسی دامنه",
-          description: "نتوانستیم وضعیت دامنه را بررسی کنیم. لطفاً دوباره تلاش کنید.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setDomainCheck(result);
+      setDomainCheck(result as any);
     } catch (error) {
       console.error('Domain check failed:', error);
       toast({
@@ -233,20 +223,12 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
     // Check domain availability
     setIsChecking(true);
     try {
-      const { data: result, error } = await supabase.functions.invoke('check-domain-availability', {
-        body: { domain: additionalDomain, extension: additionalExtension }
+      const result: any = await (apiClient as any).request('/domains/check', {
+        method: 'POST',
+        body: JSON.stringify({ domain: additionalDomain, extension: additionalExtension }),
       });
 
-      if (error) {
-        toast({
-          title: "خطا در بررسی دامنه",
-          description: "نتوانستیم وضعیت دامنه را بررسی کنیم.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if (result.available) {
+      if (result?.available) {
         const extension = DOMAIN_EXTENSIONS.find(ext => ext.value === additionalExtension);
         const newDomain = {
           domain: additionalDomain,

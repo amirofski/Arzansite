@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { calculateTotalPrice, formatPrice } from '@/lib/pricingUtils';
+import { apiClient } from '@/lib/api-client';
 import { DesignService } from '@/lib/designService';
 import { 
   CreditCard, 
@@ -71,15 +71,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
         comments: `دامنه: ${data.userInfo?.domain || 'mywebsite'}.ir`
       };
 
-      const { data: newOrder, error } = await supabase
-        .from('orders')
-        .insert([orderData])
-        .select()
-        .single();
-
-      if (error) {
-        throw error;
-      }
+      const newOrder = await apiClient.createOrder(orderData);
 
       // Save design data if available
       if (data.websiteFramework?.dynamicDesign) {
@@ -103,23 +95,13 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
 
       // Also create/update user profile if needed
       if (data.userInfo) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .upsert(
-            {
-              user_id: user.id,
-              full_name: data.userInfo.name,
-              email: data.userInfo.email,
-              updated_at: new Date().toISOString()
-            },
-            {
-              onConflict: 'user_id'
-            }
-          );
-
-        if (profileError) {
-          console.warn('Profile update warning:', profileError);
-          // Don't throw error for profile issues, continue with order
+        try {
+          await apiClient.updateProfile({
+            first_name: data.userInfo.name,
+            email: data.userInfo.email,
+          } as any);
+        } catch (e) {
+          console.warn('Profile update warning:', e);
         }
       }
 
@@ -133,20 +115,16 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
 
       console.log('Payment request data:', paymentRequest);
 
-      const { data: paymentData, error: paymentError } = await supabase.functions.invoke('zarinpal-payment', {
-        body: paymentRequest
+      const paymentRes = await apiClient.requestPayment({
+        amount: paymentRequest.amount,
+        description: paymentRequest.description,
+        orderId: paymentRequest.orderId,
+        type: 'zarinpal'
       });
 
-      console.log('Payment response:', { paymentData, paymentError });
-
-      if (paymentError) {
-        console.error('Payment error details:', paymentError);
-        throw new Error(`Payment initialization failed: ${paymentError.message}`);
-      }
-
-      if (paymentData.success) {
+      if (paymentRes?.paymentUrl) {
         // Redirect to Zarinpal payment page
-        window.location.href = paymentData.paymentUrl;
+        window.location.href = paymentRes.paymentUrl;
       } else {
         throw new Error('Failed to create payment request');
       }

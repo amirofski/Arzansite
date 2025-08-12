@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Image, FileIcon, Trash2, Download } from 'lucide-react';
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -44,19 +44,13 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const loadUploadedFiles = async () => {
     if (!user) return;
-
-    const { data: files, error } = await supabase
-      .from('user_uploads')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
-
-    if (error) {
+    try {
+      // Assuming backend exposes uploads list endpoint
+      const files = await apiClient.request('/uploads', { method: 'GET' } as any);
+      setUploadedFiles(files || []);
+    } catch {
       toast.error('خطا در بارگذاری فایل‌ها');
-      return;
     }
-
-    setUploadedFiles(files || []);
   };
 
   useEffect(() => {
@@ -76,35 +70,13 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     setUploading(true);
 
     try {
-      // Upload file to storage
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/${fileName}`;
+      // Upload via backend endpoint
+      const form = new FormData();
+      form.append('file', file);
+      form.append('category', selectedCategory);
+      if (fileDescription) form.append('description', fileDescription);
 
-      const { error: uploadError } = await supabase.storage
-        .from('user-uploads')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      // Save file metadata to database
-      const { error: dbError } = await supabase
-        .from('user_uploads')
-        .insert({
-          user_id: user.id,
-          file_name: file.name,
-          file_path: filePath,
-          file_type: file.type,
-          file_size: file.size,
-          category: selectedCategory,
-          description: fileDescription || null,
-        });
-
-      if (dbError) {
-        throw dbError;
-      }
+      await apiClient.request('/uploads', { method: 'POST', body: form } as any);
 
       toast.success('فایل با موفقیت آپلود شد');
       setFileDescription('');
@@ -120,26 +92,9 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     }
   };
 
-  const handleDeleteFile = async (fileId: string, filePath: string) => {
+  const handleDeleteFile = async (fileId: string, _filePath: string) => {
     try {
-      // Delete from storage
-      const { error: storageError } = await supabase.storage
-        .from('user-uploads')
-        .remove([filePath]);
-
-      if (storageError) {
-        throw storageError;
-      }
-
-      // Delete from database
-      const { error: dbError } = await supabase
-        .from('user_uploads')
-        .delete()
-        .eq('id', fileId);
-
-      if (dbError) {
-        throw dbError;
-      }
+      await apiClient.request(`/uploads/${fileId}`, { method: 'DELETE' } as any);
 
       toast.success('فایل حذف شد');
       await loadUploadedFiles();
@@ -165,16 +120,13 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
   };
 
   const getSignedUrl = async (filePath: string) => {
-    const { data, error } = await supabase.storage
-      .from('user-uploads')
-      .createSignedUrl(filePath, 3600); // 1 hour expiry
-
-    if (error) {
+    try {
+      const res = await apiClient.request(`/uploads/signed-url?path=${encodeURIComponent(filePath)}`);
+      return (res as any)?.url || null;
+    } catch {
       toast.error('خطا در دریافت لینک فایل');
       return null;
     }
-
-    return data.signedUrl;
   };
 
   const handleDownload = async (filePath: string, fileName: string) => {

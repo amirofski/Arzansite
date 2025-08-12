@@ -1,5 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { apiClient, BackendUserProfile } from '@/lib/api-client';
+import { tokenManager } from '@/lib/tokenManager';
 
 type UserRole = 'user' | 'admin';
 
@@ -61,8 +62,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     setError(null);
     try {
+      // Use the new API client directly
       const response = await apiClient.signIn(email, password);
+      
       if (response?.access_token) {
+        // Persist tokens for apiClient
+        tokenManager.setTokens({
+          access_token: response.access_token,
+          refresh_token: response.refresh_token,
+        });
         apiClient.setToken(response.access_token);
         if (response?.refresh_token) {
           localStorage.setItem('refresh_token', response.refresh_token);
@@ -79,12 +87,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
     setError(null);
     try {
-      const response = await apiClient.signUp(email, password, metadata);
-      
-      // The backend now handles sending verification email with proper token
-      // If verificationToken is returned, the email is sent automatically
-      
-      return response;
+      // Use the new API client directly
+      await apiClient.signUp(email, password, metadata);
+      // No typed response returned; the UI just needs to know it succeeded
+      return undefined as unknown as void;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Signup failed';
       setError(errorMessage);

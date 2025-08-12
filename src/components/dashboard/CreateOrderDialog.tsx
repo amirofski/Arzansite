@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
@@ -33,17 +33,15 @@ const CreateOrderDialog = ({ open, onOpenChange, onOrderCreated }: CreateOrderDi
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('orders')
-        .insert({
-          user_id: user.id,
-          title: formData.title,
-          description: formData.description,
-          price: formData.price ? parseFloat(formData.price) : null,
-          comments: formData.comments || null
-        });
-
-      if (error) throw error;
+      await apiClient.createOrder({
+        user_id: user.id,
+        title: formData.title,
+        description: formData.description,
+        price: formData.price ? parseFloat(formData.price) : 0,
+        comments: formData.comments || undefined,
+        status: 'pending',
+        payment_status: 'pending',
+      } as any);
 
       toast({
         title: 'سفارش ایجاد شد',

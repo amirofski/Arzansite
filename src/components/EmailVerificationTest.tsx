@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, ExternalLink } from "lucide-react";
 
@@ -26,46 +26,17 @@ const EmailVerificationTest = () => {
 
     try {
       if (testType === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password: "test-password-123", // This won't actually create an account
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/verify-email`,
-          },
+        await apiClient.signUp(email, "test-password-123");
+        toast({
+          title: "ایمیل ارسال شد",
+          description: "درخواست ثبت‌نام به بک‌اند ارسال شد. ایمیل تایید باید برسد.",
         });
-
-        if (error) {
-          toast({
-            title: "خطا در ارسال ایمیل",
-            description: error.message,
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "ایمیل ارسال شد",
-            description: "ایمیل تایید برای ثبت نام ارسال شد",
-          });
-        }
       } else if (testType === "magiclink") {
-        const { error } = await supabase.auth.signInWithOtp({
-          email,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/verify-email`,
-          },
+        toast({
+          title: "غیرفعال",
+          description: "تست Magic Link در فرانت حذف شده است. از جریان بک‌اند استفاده کنید.",
+          variant: "destructive",
         });
-
-        if (error) {
-          toast({
-            title: "خطا در ارسال ایمیل",
-            description: error.message,
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "ایمیل ارسال شد",
-            description: "ایمیل magic link ارسال شد",
-          });
-        }
       }
     } catch (error) {
       toast({
@@ -79,7 +50,7 @@ const EmailVerificationTest = () => {
   };
 
   const testVerificationUrl = () => {
-    const testUrl = `${window.location.origin}/auth/verify-email?token=test-token&type=${testType}&redirect_to=${window.location.origin}`;
+    const testUrl = `${window.location.origin}/verify-email?token=test-token`;
     window.open(testUrl, "_blank");
   };
 

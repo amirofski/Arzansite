@@ -176,17 +176,21 @@ class ApiClient {
 
     try {
       const response = await fetch(url, config);
+      const contentType = response.headers.get('content-type') || '';
+      const isJson = contentType.includes('application/json');
+      const body = isJson ? await response.json().catch(() => null) : await response.text().catch(() => '');
+
       if (!response.ok) {
         if (response.status === 401) {
           this.clearToken();
           window.location.href = '/auth';
           throw new Error('Unauthorized');
         }
-        const message = await response.text().catch(() => `HTTP ${response.status}`);
-        throw new Error(message || `HTTP error! status: ${response.status}`);
+        const message = typeof body === 'string' ? body : body?.message || `HTTP ${response.status}`;
+        throw new Error(message);
       }
-      const text = await response.text();
-      return text ? (JSON.parse(text) as T) : (undefined as unknown as T);
+
+      return (isJson ? (body as T) : (body as unknown as T));
     } catch (error) {
       console.error('API request failed:', error);
       throw error;

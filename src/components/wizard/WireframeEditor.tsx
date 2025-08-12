@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import ImageUploadSystem from './ImageUploadSystem';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api-client';
 import { 
   RectangleHorizontal, 
   Type, 
@@ -741,22 +741,13 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
   const saveWireframe = async () => {
     try {
       setIsSaving(true);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({ title: "خطا", description: "لطفاً ابتدا وارد شوید" });
-        return;
-      }
-
-      const { error } = await supabase
-        .from('wireframes')
-        .insert({
-          user_id: user.id,
+      await apiClient.request('/designs/wireframes', {
+        method: 'POST',
+        body: JSON.stringify({
           name: `وایرفریم ${new Date().toLocaleDateString('fa-IR')}`,
-          data: wireframe as any
-        });
-
-      if (error) throw error;
+          data: wireframe,
+        }),
+      } as any);
       toast({ title: "موفقیت", description: "وایرفریم با موفقیت ذخیره شد" });
     } catch (error) {
       console.error('Error saving wireframe:', error);

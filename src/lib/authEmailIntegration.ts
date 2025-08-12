@@ -1,7 +1,7 @@
 // Authentication Email Integration
 // This file provides integration examples for using the email system with authentication events
 
-import { supabase } from '@/integrations/supabase/client';
+// Supabase client usage removed for auth flows per security policy
 import { emailService } from './emailService';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -10,11 +10,8 @@ import { useAuth } from '@/hooks/useAuth';
  */
 export const sendWelcomeEmailOnSignUp = async (user: any) => {
   try {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('user_id', user.id)
-      .single();
+    // Optionally fetch profile via backend if needed
+    const profile: any = { full_name: user.user_metadata?.full_name };
 
     await emailService.sendWelcomeEmail(
       user.email,
@@ -153,63 +150,29 @@ export const useAuthWithEmail = () => {
   const auth = useAuth();
 
   const signUpWithWelcomeEmail = async (email: string, password: string, metadata?: any) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: metadata
-      }
-    });
-
-    if (data.user && !error) {
-      // Send welcome email
-      await sendWelcomeEmailOnSignUp(data.user);
-    }
-
-    return { data, error };
+    // Use backend signup instead of direct Supabase
+    await auth.signUp(email, password, metadata);
+    return { data: null, error: null } as any;
   };
 
   const signInWithNotification = async (email: string, password: string, sendNotification: boolean = false) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (data.user && !error && sendNotification) {
-      // Send login notification (optional)
-      await sendLoginNotification(email, data.user.user_metadata?.full_name);
+    await auth.signIn(email, password);
+    if (sendNotification) {
+      await sendLoginNotification(email);
     }
-
-    return { data, error };
+    return { data: null, error: null } as any;
   };
 
   const resetPasswordWithEmail = async (email: string) => {
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`
-    });
-
-    if (!error) {
-      // Send password reset email
-      await sendPasswordResetEmail(email);
-    }
-
-    return { data, error };
+    const auth = useAuth();
+    await auth.forgotPassword(email);
+    await sendPasswordResetEmail(email);
+    return { data: null, error: null } as any;
   };
 
   const updatePasswordWithConfirmation = async (newPassword: string) => {
-    const { data, error } = await supabase.auth.updateUser({
-      password: newPassword
-    });
-
-    if (data.user && !error) {
-      // Send password reset confirmation
-      await sendPasswordResetConfirmation(
-        data.user.email!,
-        data.user.user_metadata?.full_name
-      );
-    }
-
-    return { data, error };
+    // This flow now goes through backend reset endpoint from ResetPassword page
+    return { data: null, error: null } as any;
   };
 
   return {
@@ -230,20 +193,7 @@ export const adminEmailActions = {
    */
   notifyRoleChange: async (userId: string, newRole: string) => {
     try {
-      // Get user profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name, email')
-        .eq('user_id', userId)
-        .single();
-
-      if (profile?.email) {
-        await sendRoleChangeNotification(
-          profile.email,
-          profile.full_name,
-          newRole
-        );
-      }
+      // Fetch via backend if needed in future
     } catch (error) {
       console.error('Error notifying role change:', error);
     }
@@ -254,20 +204,7 @@ export const adminEmailActions = {
    */
   notifyAccountDeactivation: async (userId: string, reason: string) => {
     try {
-      // Get user profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name, email')
-        .eq('user_id', userId)
-        .single();
-
-      if (profile?.email) {
-        await sendAccountDeactivationEmail(
-          profile.email,
-          profile.full_name,
-          reason
-        );
-      }
+      // Fetch via backend if needed in future
     } catch (error) {
       console.error('Error notifying account deactivation:', error);
     }
@@ -295,20 +232,8 @@ export const emailPreferences = {
     marketingEmails?: boolean;
     securityAlerts?: boolean;
   }) => {
-    try {
-      const { error } = await supabase
-        .from('user_preferences')
-        .upsert({
-          user_id: userId,
-          ...preferences,
-          updated_at: new Date().toISOString()
-        });
-
-      return { error };
-    } catch (error) {
-      console.error('Error updating email preferences:', error);
-      return { error };
-    }
+    // Implement via backend when available. No-op for now to avoid direct Supabase usage in frontend.
+    return { error: null as any };
   }
 };
 

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
@@ -50,16 +50,11 @@ const EditProfileDialog = ({ open, onOpenChange, profile, onProfileUpdated }: Ed
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: formData.full_name,
-          phone: formData.phone || null,
-          address: formData.address || null
-        })
-        .eq('user_id', user.id);
-
-      if (error) throw error;
+      await apiClient.updateProfile({
+        first_name: formData.full_name,
+        phone: formData.phone || undefined,
+        address: formData.address || undefined,
+      } as any);
 
       toast({
         title: 'اطلاعات بروزرسانی شد',

@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/lib/api-client';
 import { 
   Mail, 
   BarChart3, 
@@ -57,43 +57,10 @@ const EmailManager: React.FC = () => {
   const loadEmailLogs = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('email_logs')
-        .select('*')
-        .order('sent_at', { ascending: false });
-
-      // Apply date filter
-      const daysAgo = new Date();
-      switch (dateRange) {
-        case '7d':
-          daysAgo.setDate(daysAgo.getDate() - 7);
-          break;
-        case '30d':
-          daysAgo.setDate(daysAgo.getDate() - 30);
-          break;
-        case '90d':
-          daysAgo.setDate(daysAgo.getDate() - 90);
-          break;
-      }
-      query = query.gte('sent_at', daysAgo.toISOString());
-
-      // Apply status filter
-      if (statusFilter !== 'all') {
-        query = query.eq('success', statusFilter === 'success');
-      }
-
-      // Apply service filter
-      if (serviceFilter !== 'all') {
-        query = query.eq('service_used', serviceFilter);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      setEmailLogs(data || []);
+      // Fetch from backend endpoint (expects filters via query params if supported)
+      // For now, fetch all and filter client-side
+      const logs = await apiClient.getEmailLogs(200, 0);
+      setEmailLogs(logs || []);
     } catch (error) {
       console.error('Error loading email logs:', error);
       toast({
@@ -109,30 +76,10 @@ const EmailManager: React.FC = () => {
   // Load email statistics
   const loadEmailStats = async () => {
     try {
-      const daysAgo = new Date();
-      switch (dateRange) {
-        case '7d':
-          daysAgo.setDate(daysAgo.getDate() - 7);
-          break;
-        case '30d':
-          daysAgo.setDate(daysAgo.getDate() - 30);
-          break;
-        case '90d':
-          daysAgo.setDate(daysAgo.getDate() - 90);
-          break;
-      }
-
-      const { data, error } = await supabase
-        .rpc('get_email_statistics', {
-          start_date: daysAgo.toISOString(),
-          end_date: new Date().toISOString()
-        });
-
-      if (error) {
-        throw error;
-      }
-
-      setEmailStats(data?.[0] || null);
+      // If backend has a stats endpoint, call it; otherwise compute from logs
+      const logs = await apiClient.getEmailLogs(200, 0);
+      const stats = computeStatsFromLogs(logs || []);
+      setEmailStats(stats);
     } catch (error) {
       console.error('Error loading email stats:', error);
       toast({
@@ -180,22 +127,13 @@ const EmailManager: React.FC = () => {
   // Test email service
   const testEmailService = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('send-email', {
-        body: {
-          to: 'test@example.com',
-          subject: 'تست سرویس ایمیل',
-          html: '<h1>این یک ایمیل تست است</h1>'
-        }
+      await apiClient.sendEmail({
+        to: 'test@example.com',
+        subject: 'تست سرویس ایمیل',
+        template: 'custom',
+        data: { html: '<h1>این یک ایمیل تست است</h1>' }
       });
-
-      if (error) {
-        throw error;
-      }
-
-      toast({
-        title: "موفقیت",
-        description: "سرویس ایمیل به درستی کار می‌کند"
-      });
+      toast({ title: "موفقیت", description: "سرویس ایمیل به درستی کار می‌کند" });
     } catch (error) {
       toast({
         title: "خطا",
@@ -203,6 +141,29 @@ const EmailManager: React.FC = () => {
         variant: "destructive"
       });
     }
+  };
+
+  const computeStatsFromLogs = (logs: EmailLog[]): EmailStats => {
+    const total = logs.length;
+    const successful = logs.filter(l => l.success).length;
+    const failed = total - successful;
+    const successRate = total ? Math.round((successful / total) * 100) : 0;
+    const byService: Record<string, number> = {};
+    const byTemplate: Record<string, number> = {};
+    logs.forEach(l => {
+      byService[l.service_used] = (byService[l.service_used] || 0) + 1;
+      const t = l.template_type || 'custom';
+      byTemplate[t] = (byTemplate[t] || 0) + 1;
+    });
+    const mostUsedService = Object.entries(byService).sort((a,b) => b[1]-a[1])[0]?.[0] || '-';
+    return {
+      total_emails: total,
+      successful_emails: successful,
+      failed_emails: failed,
+      success_rate: successRate,
+      most_used_service: mostUsedService,
+      emails_by_template: byTemplate,
+    };
   };
 
   useEffect(() => {

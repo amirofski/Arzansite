@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Wallet as WalletIcon, Plus, Minus, History, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WalletService } from '@/lib/walletService';
-import { supabase } from '@/integrations/supabase/client';
 import type { Wallet, Transaction } from '@/lib/walletService';
 
 interface AdminWalletManagerProps {
@@ -30,6 +29,7 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
 
   useEffect(() => {
     fetchWalletData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const fetchWalletData = async () => {
@@ -239,7 +239,7 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">
-                            {WalletService.getTransactionTypeText(transaction.type as any)}
+                            {WalletService.getTransactionTypeText(transaction.type as unknown as 'deposit' | 'withdrawal' | 'refund' | 'credit' | 'debit' | 'payment')}
                           </span>
                           <Badge
                             variant="outline"
@@ -257,7 +257,7 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
                           {formatDate(transaction.created_at)}
                         </div>
                       </div>
-                      <div className={`font-medium ${WalletService.getTransactionTypeColor(transaction.type as any)}`}>
+                      <div className={`font-medium ${WalletService.getTransactionTypeColor(transaction.type as unknown as 'deposit' | 'withdrawal' | 'refund' | 'credit' | 'debit' | 'payment')}`}>
                         {transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? '+' : '-'}
                         {WalletService.formatAmount(transaction.amount)}
                       </div>

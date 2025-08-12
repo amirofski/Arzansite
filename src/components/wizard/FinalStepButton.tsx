@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/lib/api-client";
 import { calculateTotalPrice } from '@/lib/pricingUtils';
 import { Check, Clock, CreditCard, UserPlus } from 'lucide-react';
 
@@ -58,29 +58,14 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
         comments: `پروژه ذخیره شده - دامنه: ${wizardData.userInfo?.domain || 'mywebsite'}.ir`
       };
 
-      const { error } = await supabase
-        .from('orders')
-        .insert([orderData]);
-
-      if (error) {
-        throw error;
-      }
+      await apiClient.createOrder(orderData);
 
       // Update user profile if needed
       if (wizardData.userInfo) {
-        await supabase
-          .from('profiles')
-          .upsert(
-            {
-              user_id: user.id,
-              full_name: wizardData.userInfo.name,
-              email: wizardData.userInfo.email,
-              updated_at: new Date().toISOString()
-            },
-            {
-              onConflict: 'user_id'
-            }
-          );
+        await apiClient.updateProfile({
+          first_name: wizardData.userInfo.name,
+          email: wizardData.userInfo.email,
+        } as any);
       }
 
       toast({

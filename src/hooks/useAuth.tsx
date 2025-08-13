@@ -11,8 +11,9 @@ interface AuthContextType {
   roleLoading: boolean;
   isAuthenticated: boolean;
   error: string | null;
-  signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ user: BackendUserProfile } | void>;
+  signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<{ requiresFrontendVerification?: boolean }>;
+  requestVerification: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshToken: () => Promise<void>;
   refreshUserRole: () => Promise<void>;
@@ -76,6 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           localStorage.setItem('refresh_token', response.refresh_token);
         }
         await loadUser();
+        return { user: response.user };
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
@@ -88,11 +90,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     try {
       // Use the new API client directly
-      await apiClient.signUp(email, password, metadata);
-      // No typed response returned; the UI just needs to know it succeeded
-      return undefined as unknown as void;
+      const response = await apiClient.signUp(email, password, metadata);
+      return {
+        requiresFrontendVerification: response.requiresFrontendVerification
+      };
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Signup failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const requestVerification = async (email: string, password: string) => {
+    setError(null);
+    try {
+      await apiClient.requestVerification(email, password);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to request verification email';
       setError(errorMessage);
       throw new Error(errorMessage);
     }
@@ -193,6 +207,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     error,
     signIn,
     signUp,
+    requestVerification,
     signOut,
     refreshToken,
     refreshUserRole,

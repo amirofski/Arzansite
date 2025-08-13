@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmailVerificationPrompt } from "@/components/EmailVerificationPrompt";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -17,6 +18,8 @@ const Auth = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, userRole, loading: authLoading, signIn, signUp } = useAuth();
@@ -67,8 +70,16 @@ const Auth = () => {
 
   const authLogin = async () => {
     try {
-      await signIn(email, password);
-      toast({ title: "ورود موفقیت‌آمیز", description: "به حساب کاربری خود خوش آمدید" });
+      const response = await signIn(email, password);
+      
+      // Check if user's email is verified
+      if (response?.user && !response.user.email_confirmed_at) {
+        // Show verification prompt
+        setPendingVerificationEmail(email);
+        setShowVerificationPrompt(true);
+      } else {
+        toast({ title: "ورود موفقیت‌آمیز", description: "به حساب کاربری خود خوش آمدید" });
+      }
     } catch (err: any) {
       toast({
         title: "خطا در ورود",
@@ -80,12 +91,21 @@ const Auth = () => {
 
   const authSignup = async () => {
     try {
-      await signUp(email, password);
-      toast({
-        title: "ثبت‌نام موفقیت‌آمیز",
-        description: "حساب کاربری شما ساخته شد. لطفاً ایمیل خود را برای تایید بررسی کنید",
-      });
-      setIsLogin(true);
+      const result = await signUp(email, password);
+      
+      if (result?.requiresFrontendVerification) {
+        toast({
+          title: "ثبت‌نام موفقیت‌آمیز",
+          description: "حساب کاربری شما ساخته شد. لطفاً وارد شوید تا ایمیل تایید ارسال شود",
+        });
+        setIsLogin(true);
+      } else {
+        toast({
+          title: "ثبت‌نام موفقیت‌آمیز",
+          description: "حساب کاربری شما ساخته شد. لطفاً ایمیل خود را برای تایید بررسی کنید",
+        });
+        setIsLogin(true);
+      }
     } catch (err: any) {
       const message = err?.message || "مشکلی در ثبت‌نام پیش آمد. لطفاً دوباره تلاش کنید";
       toast({ title: "خطا در ثبت‌نام", description: message, variant: "destructive" });
@@ -264,6 +284,18 @@ const Auth = () => {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Email Verification Prompt */}
+      {showVerificationPrompt && (
+        <EmailVerificationPrompt
+          userEmail={pendingVerificationEmail}
+          onClose={() => setShowVerificationPrompt(false)}
+          onVerified={() => {
+            setShowVerificationPrompt(false);
+            toast({ title: "تایید موفقیت‌آمیز", description: "ایمیل شما تایید شد" });
+          }}
+        />
+      )}
     </div>
   );
 };

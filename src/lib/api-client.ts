@@ -29,6 +29,8 @@ export interface SignupResponse {
   message: string;
   user: BackendUserProfile;
   verificationToken?: string;
+  verificationEmailSent?: boolean;
+  requiresFrontendVerification?: boolean;
 }
 
 export interface TokenResponse {
@@ -238,6 +240,13 @@ class ApiClient {
     }
 
     return response;
+  }
+
+  async requestVerification(email: string, password: string): Promise<{ message: string; verificationEmailSent: boolean }> {
+    return this.request('/auth/request-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    });
   }
 
   async getProfile(): Promise<BackendUserProfile> {

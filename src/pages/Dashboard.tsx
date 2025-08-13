@@ -21,6 +21,7 @@ import EditProfileDialog from '@/components/dashboard/EditProfileDialog';
 import WalletCard from '@/components/dashboard/WalletCard';
 import DesignPreview from '@/components/wizard/DesignPreview';
 import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
+import { EmailVerificationPrompt } from '@/components/EmailVerificationPrompt';
 import { type Wireframe, type StorageFile, type DynamicDesign, type WireframePage, type WireframeElement, type WireframeData } from '@/lib/types';
 
 const Dashboard = () => {
@@ -38,9 +39,17 @@ const Dashboard = () => {
   const [selectedWireframe, setSelectedWireframe] = useState<Wireframe | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
+  const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
 
   useEffect(() => {
     fetchData();
+  }, [user]);
+
+  // Check if user needs email verification
+  useEffect(() => {
+    if (user && !user.email_confirmed_at) {
+      setShowVerificationPrompt(true);
+    }
   }, [user]);
 
   const fetchData = async () => {
@@ -796,6 +805,20 @@ const Dashboard = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Email Verification Prompt */}
+      {showVerificationPrompt && user && (
+        <EmailVerificationPrompt
+          userEmail={user.email}
+          onClose={() => setShowVerificationPrompt(false)}
+          onVerified={() => {
+            setShowVerificationPrompt(false);
+            // Refresh user data to update email verification status
+            fetchData();
+            toast({ title: "تایید موفقیت‌آمیز", description: "ایمیل شما تایید شد" });
+          }}
+        />
+      )}
     </Layout>
   );
 };

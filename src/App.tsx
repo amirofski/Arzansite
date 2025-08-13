@@ -10,8 +10,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Auth from "./pages/Auth";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-import EmailVerification from "./pages/EmailVerification";
-import VerifyEmail from "./pages/auth/VerifyEmail";
+import VerifyEmail from "./pages/VerifyEmail";
 // removed custom auth pages; using unified Auth page
 import PaymentCallback from "./pages/PaymentCallback";
 import NotFound from "./pages/NotFound";
@@ -52,9 +51,7 @@ const AppContent = () => {
         <Route path="/auth" element={<Auth />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
-        <Route path="/verify-email" element={<EmailVerification />} />
-        <Route path="/auth/verify" element={<VerifyEmail />} />
-        <Route path="/auth/verify-email" element={<VerifyEmail />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />

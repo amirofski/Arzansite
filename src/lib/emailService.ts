@@ -1,17 +1,13 @@
 // Handles email sending through the NestJS backend
 
 import { apiClient } from '@/lib/api-client';
-import { 
-  getEmailTemplate, 
-  EmailTemplateData 
-} from './emailTemplates';
 
 export type EmailTemplateType = 'welcome' | 'verification' | 'password-reset' | 'password-reset-confirmation' | 'login-notification' | 'role-notification' | 'deactivation';
 
 export interface EmailSendOptions {
   to: string;
   template: EmailTemplateType;
-  data?: EmailTemplateData;
+  data?: Record<string, unknown>;
   subject?: string;
   from?: string;
 }
@@ -36,8 +32,9 @@ export class EmailService {
    */
   static async sendEmail(options: EmailSendOptions): Promise<EmailResponse> {
     try {
-      // Get the email template HTML
-      const htmlContent = getEmailTemplate(options.template, options.data || {});
+      // No need to pre-render HTML on the client – the backend service builds
+      // the final email body. Eliminating this call avoids unnecessary CPU
+      // cycles on every send operation.
       
       // Send via backend
       const response = await apiClient.sendEmail({

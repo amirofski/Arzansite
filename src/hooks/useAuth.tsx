@@ -60,6 +60,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
+  /**
+   * Ensure the access token is refreshed automatically while the application is
+   * running. This prevents unexpected log-outs when the short-lived JWT
+   * expires.
+   */
+  useEffect(() => {
+    tokenManager.setupAutoRefresh(async () => {
+      const stored = localStorage.getItem('refresh_token');
+      if (!stored) {
+        throw new Error('No refresh token');
+      }
+
+      const res = await apiClient.refreshToken(stored);
+      return {
+        access_token: res.access_token,
+        refresh_token: res.refresh_token,
+      };
+    });
+
+    // Cleanup on unmount
+    return () => tokenManager.stopAutoRefresh();
+  }, []);
+
   const signIn = async (email: string, password: string) => {
     setError(null);
     try {

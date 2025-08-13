@@ -7,6 +7,19 @@ export interface TokenData {
   expires_at?: number;
 }
 
+// Decode JWT and return exp in ms if available
+function decodeJwtExpirationMs(jwtToken: string): number | null {
+  try {
+    const parts = jwtToken.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload || typeof payload.exp !== 'number') return null;
+    return payload.exp * 1000;
+  } catch {
+    return null;
+  }
+}
+
 class TokenManager {
   private static instance: TokenManager;
   private refreshPromise: Promise<TokenData> | null = null;
@@ -31,9 +44,16 @@ class TokenManager {
         localStorage.setItem('refresh_token', tokens.refresh_token);
       }
       
-      // Store expiration time if provided
-      if (tokens.expires_at) {
-        localStorage.setItem('token_expires_at', tokens.expires_at.toString());
+      // Determine and store expiration time
+      let expiresAtMs: number | undefined = tokens.expires_at;
+      if (!expiresAtMs) {
+        const decoded = decodeJwtExpirationMs(tokens.access_token);
+        if (decoded && Number.isFinite(decoded)) {
+          expiresAtMs = decoded;
+        }
+      }
+      if (expiresAtMs) {
+        localStorage.setItem('token_expires_at', String(expiresAtMs));
       }
     } catch (error) {
       console.error('Failed to store tokens:', error);

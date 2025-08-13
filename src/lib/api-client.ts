@@ -144,7 +144,7 @@ export interface EmailLog {
 
 class ApiClient {
   private baseURL: string;
-  private token: string | null = null;
+  private isRefreshing = false;
 
   constructor() {
     this.baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
@@ -162,7 +162,7 @@ class ApiClient {
     tokenManager.clearTokens();
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private async request<T>(endpoint: string, options: RequestInit = {}, retryOn401 = true): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getToken();
 
@@ -183,11 +183,36 @@ class ApiClient {
       const body = isJson ? await response.json().catch(() => null) : await response.text().catch(() => '');
 
       if (!response.ok) {
-        if (response.status === 401) {
-          this.clearToken();
-          window.location.href = '/auth';
+        // Attempt a single refresh on 401 and retry the original request
+        if (response.status === 401 && retryOn401) {
+          const refreshToken = tokenManager.getRefreshToken();
+          if (refreshToken && !this.isRefreshing) {
+            this.isRefreshing = true;
+            try {
+              const refreshed = await this.refreshToken(refreshToken);
+              tokenManager.setTokens({
+                access_token: refreshed.access_token,
+                refresh_token: refreshed.refresh_token,
+              });
+              // Retry original request once with new token
+              return this.request<T>(endpoint, options, false);
+            } catch (refreshError) {
+              this.clearToken();
+              // Fall through to redirect
+            } finally {
+              this.isRefreshing = false;
+            }
+          } else {
+            this.clearToken();
+          }
+
+          // Redirect to login after ensuring tokens are cleared
+          if (typeof window !== 'undefined') {
+            window.location.href = '/auth';
+          }
           throw new Error('Unauthorized');
         }
+
         const message = typeof body === 'string' ? body : body?.message || `HTTP ${response.status}`;
         throw new Error(message);
       }

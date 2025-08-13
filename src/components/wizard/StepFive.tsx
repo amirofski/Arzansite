@@ -341,7 +341,15 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                   <Button 
                     variant="outline" 
                     className="flex-1"
-                    onClick={() => window.location.href = '/auth?redirect=wizard'}
+                    onClick={() => {
+                      try {
+                        // Prefer client-side navigation if available
+                        (window as any).__APP_NAVIGATE__?.('/auth?redirect=wizard');
+                      } catch {}
+                      if (!((window as any).__APP_NAVIGATE__)) {
+                        window.location.href = '/auth?redirect=wizard';
+                      }
+                    }}
                   >
                     <LogIn className="w-4 h-4 ml-2" />
                     ورود
@@ -349,7 +357,14 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                   <Button 
                     variant="outline" 
                     className="flex-1"
-                    onClick={() => window.location.href = '/auth?redirect=wizard&mode=signup'}
+                    onClick={() => {
+                      try {
+                        (window as any).__APP_NAVIGATE__?.('/auth?redirect=wizard&mode=signup');
+                      } catch {}
+                      if (!((window as any).__APP_NAVIGATE__)) {
+                        window.location.href = '/auth?redirect=wizard&mode=signup';
+                      }
+                    }}
                   >
                     <UserPlus className="w-4 h-4 ml-2" />
                     ثبت‌نام

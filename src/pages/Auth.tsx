@@ -78,7 +78,20 @@ const Auth = () => {
         setPendingVerificationEmail(email);
         setShowVerificationPrompt(true);
       } else {
-        toast({ title: "ورود موفقیت‌آمیز", description: "به حساب کاربری خود خوش آمدید" });
+        // Handle automatic redirect if provided by backend
+        if (response?.redirect) {
+          toast({ 
+            title: "ورود موفقیت‌آمیز", 
+            description: response.redirect.message || "به حساب کاربری خود خوش آمدید" 
+          });
+          
+          // Automatic redirect to dashboard
+          setTimeout(() => {
+            navigate(response.redirect.url);
+          }, 1500); // Small delay to show the success message
+        } else {
+          toast({ title: "ورود موفقیت‌آمیز", description: "به حساب کاربری خود خوش آمدید" });
+        }
       }
     } catch (err: any) {
       toast({
@@ -93,16 +106,25 @@ const Auth = () => {
     try {
       const result = await signUp(email, password);
       
-      if (result?.requiresFrontendVerification) {
+      if (result?.verificationEmailSent) {
+        // Email sent successfully during signup
         toast({
           title: "ثبت‌نام موفقیت‌آمیز",
-          description: "حساب کاربری شما ساخته شد. لطفاً وارد شوید تا ایمیل تایید ارسال شود",
+          description: result.message || "حساب کاربری شما ساخته شد. لطفاً ایمیل خود را برای تایید بررسی کنید",
+        });
+        setIsLogin(true);
+      } else if (result?.requiresFrontendVerification) {
+        // Fallback: email failed, need to login first
+        toast({
+          title: "ثبت‌نام موفقیت‌آمیز",
+          description: result.message || "حساب کاربری شما ساخته شد. لطفاً وارد شوید تا ایمیل تایید ارسال شود",
         });
         setIsLogin(true);
       } else {
+        // Default success message
         toast({
           title: "ثبت‌نام موفقیت‌آمیز",
-          description: "حساب کاربری شما ساخته شد. لطفاً ایمیل خود را برای تایید بررسی کنید",
+          description: result.message || "حساب کاربری شما ساخته شد",
         });
         setIsLogin(true);
       }

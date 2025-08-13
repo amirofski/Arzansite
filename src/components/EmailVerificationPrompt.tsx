@@ -22,7 +22,7 @@ export const EmailVerificationPrompt: React.FC<EmailVerificationPromptProps> = (
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const { toast } = useToast();
-  const { requestVerification } = useAuth();
+  const { requestVerification, checkEmailVerification } = useAuth();
 
   const handleRequestVerification = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,10 +46,31 @@ export const EmailVerificationPrompt: React.FC<EmailVerificationPromptProps> = (
     }
   };
 
-  const handleVerificationCheck = () => {
-    // This would typically check if the user has verified their email
-    // For now, we'll just close the prompt and let the user continue
-    onVerified();
+  const handleVerificationCheck = async () => {
+    try {
+      // Use the new endpoint to check verification status
+      const verificationStatus = await checkEmailVerification(userEmail);
+      
+      if (verificationStatus.emailVerified) {
+        toast({
+          title: 'ایمیل تایید شد',
+          description: 'ایمیل شما با موفقیت تایید شد. حالا می‌توانید وارد شوید',
+        });
+        onVerified();
+      } else {
+        toast({
+          title: 'ایمیل هنوز تایید نشده',
+          description: verificationStatus.message || 'لطفاً ایمیل خود را بررسی کنید و روی لینک تایید کلیک کنید',
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'خطا در بررسی وضعیت تایید',
+        description: 'مشکلی در بررسی وضعیت تایید ایمیل پیش آمد',
+        variant: 'destructive',
+      });
+    }
   };
 
   if (emailSent) {

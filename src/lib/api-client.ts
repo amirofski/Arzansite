@@ -23,6 +23,10 @@ export interface AuthResponse {
   access_token: string;
   refresh_token?: string;
   user: BackendUserProfile;
+  redirect?: {
+    url: string;
+    message: string;
+  };
 }
 
 export interface SignupResponse {
@@ -247,6 +251,15 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
+  }
+
+  async checkEmailVerification(email: string): Promise<{ 
+    email: string; 
+    emailVerified: boolean; 
+    userId: string; 
+    message: string; 
+  }> {
+    return this.request(`/auth/check-verification/${encodeURIComponent(email)}`);
   }
 
   async getProfile(): Promise<BackendUserProfile> {

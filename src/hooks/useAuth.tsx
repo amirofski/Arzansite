@@ -11,9 +11,14 @@ interface AuthContextType {
   roleLoading: boolean;
   isAuthenticated: boolean;
   error: string | null;
-  signIn: (email: string, password: string) => Promise<{ user: BackendUserProfile } | void>;
-  signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<{ requiresFrontendVerification?: boolean }>;
+  signIn: (email: string, password: string) => Promise<{ user: BackendUserProfile; redirect?: { url: string; message: string } } | void>;
+  signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<{ 
+    requiresFrontendVerification?: boolean; 
+    verificationEmailSent?: boolean;
+    message?: string;
+  }>;
   requestVerification: (email: string, password: string) => Promise<void>;
+  checkEmailVerification: (email: string) => Promise<{ email: string; emailVerified: boolean; userId: string; message: string }>;
   signOut: () => Promise<void>;
   refreshToken: () => Promise<void>;
   refreshUserRole: () => Promise<void>;
@@ -77,7 +82,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           localStorage.setItem('refresh_token', response.refresh_token);
         }
         await loadUser();
-        return { user: response.user };
+        return { 
+          user: response.user,
+          redirect: response.redirect
+        };
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
@@ -107,6 +115,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await apiClient.requestVerification(email, password);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to request verification email';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const checkEmailVerification = async (email: string) => {
+    setError(null);
+    try {
+      return await apiClient.checkEmailVerification(email);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to check email verification status';
       setError(errorMessage);
       throw new Error(errorMessage);
     }
@@ -208,6 +227,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signIn,
     signUp,
     requestVerification,
+    checkEmailVerification,
     signOut,
     refreshToken,
     refreshUserRole,

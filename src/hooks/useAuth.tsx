@@ -67,15 +67,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const response = await apiClient.signIn(email, password);
       
       if (response?.access_token) {
-        // Persist tokens for apiClient
+        // Use tokenManager for secure token storage - avoid duplicate storage
         tokenManager.setTokens({
           access_token: response.access_token,
           refresh_token: response.refresh_token,
         });
         apiClient.setToken(response.access_token);
-        if (response?.refresh_token) {
-          localStorage.setItem('refresh_token', response.refresh_token);
-        }
         await loadUser();
         return { user: response.user };
       }
@@ -119,15 +116,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Use tokenManager for consistent token clearing
+      tokenManager.clearTokens();
       apiClient.clearToken();
-      localStorage.removeItem('refresh_token');
       setUser(null);
       setUserRole(null);
     }
   };
 
   const refreshToken = async () => {
-    const stored = localStorage.getItem('refresh_token');
+    const stored = tokenManager.getRefreshToken();
     if (!stored) {
       await signOut();
       return;
@@ -136,10 +134,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const response = await apiClient.refreshToken(stored);
       if (response?.access_token) {
+        // Use tokenManager for consistent token storage
+        tokenManager.setTokens({
+          access_token: response.access_token,
+          refresh_token: response.refresh_token,
+        });
         apiClient.setToken(response.access_token);
-        if (response?.refresh_token) {
-          localStorage.setItem('refresh_token', response.refresh_token);
-        }
       }
     } catch {
       await signOut();

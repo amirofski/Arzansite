@@ -42,6 +42,18 @@ const AdminDashboard = () => {
   const { user } = useAuth();
   const { toast } = useToast();
   const { mode, updateSiteMode } = useSiteMode();
+
+  // Security check: Ensure user is admin before rendering anything
+  if (!user || user.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">غیرمجاز</h1>
+          <p className="text-gray-600">شما اجازه دسترسی به این صفحه را ندارید</p>
+        </div>
+      </div>
+    );
+  }
   
   // State for different data
   const [orders, setOrders] = useState<Order[]>([]);

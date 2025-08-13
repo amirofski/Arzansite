@@ -10,6 +10,7 @@ export interface TokenData {
 class TokenManager {
   private static instance: TokenManager;
   private refreshPromise: Promise<TokenData> | null = null;
+  private refreshInterval: NodeJS.Timeout | null = null;
 
   private constructor() {}
 
@@ -77,12 +78,18 @@ class TokenManager {
     }
   }
 
-  // Clear all tokens
+  // Clear all tokens and cleanup intervals
   clearTokens(): void {
     try {
       sessionStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('token_expires_at');
+      
+      // Clear the refresh interval to prevent memory leaks
+      if (this.refreshInterval) {
+        clearInterval(this.refreshInterval);
+        this.refreshInterval = null;
+      }
     } catch (error) {
       console.error('Failed to clear tokens:', error);
     }
@@ -107,8 +114,13 @@ class TokenManager {
     }
   }
 
-  // Set up automatic token refresh
+  // Set up automatic token refresh with proper cleanup
   setupAutoRefresh(refreshCallback: () => Promise<TokenData>): void {
+    // Clear existing interval if any
+    if (this.refreshInterval) {
+      clearInterval(this.refreshInterval);
+    }
+
     const checkAndRefresh = async () => {
       if (this.isTokenExpired() && this.getRefreshToken()) {
         try {
@@ -121,8 +133,8 @@ class TokenManager {
       }
     };
 
-    // Check every minute
-    setInterval(checkAndRefresh, 60 * 1000);
+    // Check every minute and store the interval reference
+    this.refreshInterval = setInterval(checkAndRefresh, 60 * 1000);
     
     // Also check immediately
     checkAndRefresh();

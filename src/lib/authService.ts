@@ -3,6 +3,7 @@
 
 import { apiClient, BackendUserProfile, AuthResponse, SignupResponse } from './api-client';
 import { tokenManager, TokenData } from './tokenManager';
+import { validatePassword } from './passwordValidation';
 
 export interface LoginCredentials {
   email: string;
@@ -53,29 +54,12 @@ export class AuthService {
     return emailRegex.test(email);
   }
 
-  // Validate password strength
-  private validatePassword(password: string): { isValid: boolean; errors: string[] } {
-    const errors: string[] = [];
-    
-    if (password.length < 6) {
-      errors.push('Password must be at least 6 characters long');
-    }
-    
-    if (!/[A-Z]/.test(password)) {
-      errors.push('Password must contain at least one uppercase letter');
-    }
-    
-    if (!/[a-z]/.test(password)) {
-      errors.push('Password must contain at least one lowercase letter');
-    }
-    
-    if (!/\d/.test(password)) {
-      errors.push('Password must contain at least one number');
-    }
-    
+  // Validate password strength using the centralized validation
+  private validatePasswordStrength(password: string): { isValid: boolean; errors: string[] } {
+    const validation = validatePassword(password);
     return {
-      isValid: errors.length === 0,
-      errors,
+      isValid: validation.isValid,
+      errors: validation.errors,
     };
   }
 
@@ -87,7 +71,7 @@ export class AuthService {
         throw new Error('Invalid email format');
       }
 
-      const passwordValidation = this.validatePassword(data.password);
+      const passwordValidation = this.validatePasswordStrength(data.password);
       if (!passwordValidation.isValid) {
         throw new Error(passwordValidation.errors.join(', '));
       }
@@ -206,7 +190,7 @@ export class AuthService {
         throw new Error('Reset token is required');
       }
 
-      const passwordValidation = this.validatePassword(newPassword);
+      const passwordValidation = this.validatePasswordStrength(newPassword);
       if (!passwordValidation.isValid) {
         throw new Error(passwordValidation.errors.join(', '));
       }

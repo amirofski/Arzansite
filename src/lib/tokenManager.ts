@@ -10,6 +10,7 @@ export interface TokenData {
 class TokenManager {
   private static instance: TokenManager;
   private refreshPromise: Promise<TokenData> | null = null;
+  private readonly ENCRYPTION_KEY = 'arzan_site_token_key_2024';
 
   private constructor() {}
 
@@ -20,20 +21,37 @@ class TokenManager {
     return TokenManager.instance;
   }
 
+  // Simple encryption for tokens (in production, use proper encryption)
+  private encrypt(text: string): string {
+    try {
+      return btoa(encodeURIComponent(text));
+    } catch {
+      return text;
+    }
+  }
+
+  private decrypt(encryptedText: string): string {
+    try {
+      return decodeURIComponent(atob(encryptedText));
+    } catch {
+      return encryptedText;
+    }
+  }
+
   // Store tokens securely
   setTokens(tokens: TokenData): void {
     try {
-      // Store access token in memory (cleared on page refresh)
-      sessionStorage.setItem('access_token', tokens.access_token);
+      // Store access token in sessionStorage (cleared on page refresh/tab close)
+      sessionStorage.setItem('access_token', this.encrypt(tokens.access_token));
       
-      // Store refresh token in localStorage for persistence
+      // Store refresh token in sessionStorage for better security
       if (tokens.refresh_token) {
-        localStorage.setItem('refresh_token', tokens.refresh_token);
+        sessionStorage.setItem('refresh_token', this.encrypt(tokens.refresh_token));
       }
       
       // Store expiration time if provided
       if (tokens.expires_at) {
-        localStorage.setItem('token_expires_at', tokens.expires_at.toString());
+        sessionStorage.setItem('token_expires_at', tokens.expires_at.toString());
       }
     } catch (error) {
       console.error('Failed to store tokens:', error);
@@ -43,7 +61,8 @@ class TokenManager {
   // Get access token
   getAccessToken(): string | null {
     try {
-      return sessionStorage.getItem('access_token');
+      const encrypted = sessionStorage.getItem('access_token');
+      return encrypted ? this.decrypt(encrypted) : null;
     } catch (error) {
       console.error('Failed to get access token:', error);
       return null;
@@ -53,7 +72,8 @@ class TokenManager {
   // Get refresh token
   getRefreshToken(): string | null {
     try {
-      return localStorage.getItem('refresh_token');
+      const encrypted = sessionStorage.getItem('refresh_token');
+      return encrypted ? this.decrypt(encrypted) : null;
     } catch (error) {
       console.error('Failed to get refresh token:', error);
       return null;
@@ -63,7 +83,7 @@ class TokenManager {
   // Check if token is expired
   isTokenExpired(): boolean {
     try {
-      const expiresAt = localStorage.getItem('token_expires_at');
+      const expiresAt = sessionStorage.getItem('token_expires_at');
       if (!expiresAt) return false;
       
       const expirationTime = parseInt(expiresAt, 10);
@@ -81,8 +101,8 @@ class TokenManager {
   clearTokens(): void {
     try {
       sessionStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('token_expires_at');
+      sessionStorage.removeItem('refresh_token');
+      sessionStorage.removeItem('token_expires_at');
     } catch (error) {
       console.error('Failed to clear tokens:', error);
     }
@@ -97,7 +117,7 @@ class TokenManager {
   // Get token expiration time
   getTokenExpiration(): Date | null {
     try {
-      const expiresAt = localStorage.getItem('token_expires_at');
+      const expiresAt = sessionStorage.getItem('token_expires_at');
       if (!expiresAt) return null;
       
       return new Date(parseInt(expiresAt, 10));

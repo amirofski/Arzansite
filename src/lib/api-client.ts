@@ -145,9 +145,31 @@ export interface EmailLog {
 class ApiClient {
   private baseURL: string;
   private token: string | null = null;
+  private csrfToken: string | null = null;
 
   constructor() {
     this.baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
+    this.initializeCSRF();
+  }
+
+  // Initialize CSRF protection
+  private async initializeCSRF(): Promise<void> {
+    try {
+      // Get CSRF token from meta tag or cookie
+      const metaTag = document.querySelector('meta[name="csrf-token"]');
+      if (metaTag) {
+        this.csrfToken = metaTag.getAttribute('content');
+      } else {
+        // Try to get from cookie
+        const cookies = document.cookie.split(';');
+        const csrfCookie = cookies.find(cookie => cookie.trim().startsWith('XSRF-TOKEN='));
+        if (csrfCookie) {
+          this.csrfToken = csrfCookie.split('=')[1];
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to initialize CSRF token:', error);
+    }
   }
 
   setToken(token: string) {
@@ -166,12 +188,24 @@ class ApiClient {
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getToken();
 
+    // Prepare headers with security measures
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    };
+
+    // Add CSRF token if available
+    if (this.csrfToken) {
+      headers['X-XSRF-TOKEN'] = this.csrfToken;
+    }
+
+    // Add authorization header if token exists
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {}),
-      },
+      headers,
       credentials: 'include',
       ...options,
     };
@@ -188,6 +222,13 @@ class ApiClient {
           window.location.href = '/auth';
           throw new Error('Unauthorized');
         }
+        
+        // Handle CSRF token expiration
+        if (response.status === 419) {
+          await this.initializeCSRF();
+          throw new Error('CSRF token expired. Please try again.');
+        }
+        
         const message = typeof body === 'string' ? body : body?.message || `HTTP ${response.status}`;
         throw new Error(message);
       }

@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useLoginRateLimit } from "@/hooks/useRateLimit";
+import { validatePassword, getPasswordStrengthColor, getPasswordStrengthText } from "@/lib/passwordValidation";
+import { sanitizeInput, isValidEmail } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmailVerificationPrompt } from "@/components/EmailVerificationPrompt";
 
@@ -20,9 +23,27 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
+  const [passwordValidation, setPasswordValidation] = useState<ReturnType<typeof validatePassword> | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, userRole, loading: authLoading, signIn, signUp } = useAuth();
+  const { 
+    isLockedOut, 
+    getRemainingLockoutTime, 
+    recordFailedAttempt, 
+    recordSuccessfulAttempt,
+    attempts,
+    remainingAttempts 
+  } = useLoginRateLimit();
+
+  // Validate password on change
+  useEffect(() => {
+    if (!isLogin && password) {
+      setPasswordValidation(validatePassword(password));
+    } else {
+      setPasswordValidation(null);
+    }
+  }, [password, isLogin]);
 
   // Check if user is already logged in and redirect based on role
   useEffect(() => {
@@ -38,6 +59,28 @@ const Auth = () => {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Check rate limiting
+    if (isLockedOut()) {
+      const remainingTime = getRemainingLockoutTime();
+      toast({
+        title: "حساب کاربری قفل شده",
+        description: `حساب کاربری شما به دلیل تلاش‌های ناموفق قفل شده است. ${remainingTime} دقیقه دیگر تلاش کنید.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Validate email format
+    if (!isValidEmail(email)) {
+      toast({
+        title: "ایمیل نامعتبر",
+        description: "لطفاً یک آدرس ایمیل معتبر وارد کنید",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -72,6 +115,9 @@ const Auth = () => {
     try {
       const response = await signIn(email, password);
       
+      // Record successful login attempt
+      recordSuccessfulAttempt();
+      
       // Check if user's email is verified
       if (response?.user && !response.user.email_confirmed_at) {
         // Show verification prompt
@@ -81,6 +127,9 @@ const Auth = () => {
         toast({ title: "ورود موفقیت‌آمیز", description: "به حساب کاربری خود خوش آمدید" });
       }
     } catch (err: any) {
+      // Record failed login attempt
+      recordFailedAttempt();
+      
       toast({
         title: "خطا در ورود",
         description: err?.message || "مشکلی در ورود پیش آمد. لطفاً دوباره تلاش کنید",
@@ -90,6 +139,16 @@ const Auth = () => {
   };
 
   const authSignup = async () => {
+    // Validate password strength
+    if (passwordValidation && !passwordValidation.isValid) {
+      toast({
+        title: "رمز عبور ضعیف",
+        description: "لطفاً رمز عبور قوی‌تری انتخاب کنید",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       const result = await signUp(email, password);
       
@@ -171,7 +230,7 @@ const Auth = () => {
                     type="email"
                     placeholder="example@email.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => setEmail(sanitizeInput(e.target.value))}
                     className="pl-10 h-12 text-left"
                     required
                     dir="ltr"
@@ -185,16 +244,16 @@ const Auth = () => {
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-          id="password"
-          type={showPassword ? "text" : "password"}
-          placeholder="رمز عبور خود را وارد کنید"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="pl-10 pr-10 h-12"
-          required
-          minLength={8}
-        />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="رمز عبور خود را وارد کنید"
+                    value={password}
+                    onChange={(e) => setPassword(sanitizeInput(e.target.value))}
+                    className="pl-10 pr-10 h-12"
+                    required
+                    minLength={8}
+                  />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
@@ -203,6 +262,38 @@ const Auth = () => {
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                
+                {/* Password strength indicator for signup */}
+                {!isLogin && passwordValidation && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">قدرت رمز عبور:</span>
+                      <span className={`text-xs font-medium ${getPasswordStrengthColor(passwordValidation.strength)}`}>
+                        {getPasswordStrengthText(passwordValidation.strength)}
+                      </span>
+                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all duration-300 ${
+                            passwordValidation.strength === 'weak' ? 'bg-red-500' :
+                            passwordValidation.strength === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                          }`}
+                          style={{ width: `${passwordValidation.score}%` }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {passwordValidation.errors.length > 0 && (
+                      <div className="text-xs text-red-500 space-y-1">
+                        {passwordValidation.errors.map((error, index) => (
+                          <div key={index} className="flex items-center gap-1">
+                            <span>•</span>
+                            <span>{error}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <AnimatePresence>
@@ -224,7 +315,7 @@ const Auth = () => {
                         type={showPassword ? "text" : "password"}
                         placeholder="رمز عبور خود را دوباره وارد کنید"
                         value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onChange={(e) => setConfirmPassword(sanitizeInput(e.target.value))}
                         className="pl-10 h-12"
                         required={!isLogin}
                         minLength={8}
@@ -236,7 +327,7 @@ const Auth = () => {
 
               <Button
                 type="submit"
-                disabled={loading}
+                disabled={loading || isLockedOut()}
                 className="w-full h-12 bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover text-white font-semibold text-lg transition-all duration-300"
               >
                 {loading ? (
@@ -248,6 +339,21 @@ const Auth = () => {
                   </span>
                 )}
               </Button>
+              
+              {/* Rate limiting information */}
+              {isLogin && attempts > 0 && (
+                <div className="text-center text-sm">
+                  {isLockedOut() ? (
+                    <p className="text-red-500">
+                      حساب کاربری قفل شده - {getRemainingLockoutTime()} دقیقه دیگر تلاش کنید
+                    </p>
+                  ) : (
+                    <p className="text-amber-600">
+                      تلاش‌های باقی‌مانده: {remainingAttempts}
+                    </p>
+                  )}
+                </div>
+              )}
             </form>
 
             <div className="mt-6 text-center space-y-2">

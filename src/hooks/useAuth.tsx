@@ -120,14 +120,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('Logout error:', error);
     } finally {
       apiClient.clearToken();
-      localStorage.removeItem('refresh_token');
+      tokenManager.clearTokens();
       setUser(null);
       setUserRole(null);
     }
   };
 
   const refreshToken = async () => {
-    const stored = localStorage.getItem('refresh_token');
+    const stored = tokenManager.getRefreshToken();
     if (!stored) {
       await signOut();
       return;
@@ -138,7 +138,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (response?.access_token) {
         apiClient.setToken(response.access_token);
         if (response?.refresh_token) {
-          localStorage.setItem('refresh_token', response.refresh_token);
+          tokenManager.setTokens({
+            access_token: response.access_token,
+            refresh_token: response.refresh_token,
+          });
         }
       }
     } catch {

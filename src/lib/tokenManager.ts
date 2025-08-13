@@ -23,6 +23,12 @@ function decodeJwtExpirationMs(jwtToken: string): number | null {
 class TokenManager {
   private static instance: TokenManager;
   private refreshPromise: Promise<TokenData> | null = null;
+  /**
+   * Interval ID for the auto-refresh timer so that we can clear / replace it
+   * when {@link setupAutoRefresh} is invoked multiple times (e.g. if the
+   * application re-mounts <AuthProvider />).
+   */
+  private autoRefreshIntervalId: number | null = null;
 
   private constructor() {}
 
@@ -129,6 +135,13 @@ class TokenManager {
 
   // Set up automatic token refresh
   setupAutoRefresh(refreshCallback: () => Promise<TokenData>): void {
+    // If an interval is already running we clear it to avoid creating multiple
+    // timers that would trigger duplicate network requests and potential memory
+    // leaks when the component tree is re-mounted.
+    if (this.autoRefreshIntervalId) {
+      clearInterval(this.autoRefreshIntervalId);
+    }
+
     const checkAndRefresh = async () => {
       if (this.isTokenExpired() && this.getRefreshToken()) {
         try {
@@ -142,10 +155,21 @@ class TokenManager {
     };
 
     // Check every minute
-    setInterval(checkAndRefresh, 60 * 1000);
+    this.autoRefreshIntervalId = window.setInterval(checkAndRefresh, 60 * 1000);
     
     // Also check immediately
     checkAndRefresh();
+  }
+
+  /**
+   * Explicitly stop the auto-refresh mechanism – useful during log-out or
+   * when the application is being unmounted.
+   */
+  stopAutoRefresh(): void {
+    if (this.autoRefreshIntervalId) {
+      clearInterval(this.autoRefreshIntervalId);
+      this.autoRefreshIntervalId = null;
+    }
   }
 
   // Prevent multiple concurrent refresh requests

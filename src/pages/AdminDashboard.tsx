@@ -82,8 +82,8 @@ const AdminDashboard = () => {
         fetchOrders(),
         fetchUsers(),
         fetchEmailLogs(),
-        calculateStats()
       ]);
+      // Stats will be calculated in a separate effect once orders & users are loaded
     } catch (error) {
       console.error('Error fetching admin data:', error);
       toast({
@@ -132,42 +132,46 @@ const AdminDashboard = () => {
     }
   };
 
-  const calculateStats = async () => {
-    try {
-      const allOrders = await apiClient.getOrders({ admin: true });
-      const allUsers = await apiClient.getAllProfiles();
+  const calculateStats = () => {
+    // Use the data that already exists in state to avoid extra network calls
+    const allOrders = orders;
+    const allUsers = users;
+    
+    const totalOrders = allOrders.length;
+    const totalUsers = allUsers.length;
+    const totalRevenue = allOrders.reduce((sum, order) => sum + (order.price || 0), 0);
+    const pendingOrders = allOrders.filter(order => order.status === 'pending').length;
+    const completedOrders = allOrders.filter(order => order.status === 'completed').length;
+    const activeUsers = allUsers.filter(user => user.role === 'user').length;
       
-      const totalOrders = allOrders.length;
-      const totalUsers = allUsers.length;
-      const totalRevenue = allOrders.reduce((sum, order) => sum + (order.price || 0), 0);
-      const pendingOrders = allOrders.filter(order => order.status === 'pending').length;
-      const completedOrders = allOrders.filter(order => order.status === 'completed').length;
-      const activeUsers = allUsers.filter(user => user.role === 'user').length;
-      
-      // Calculate email sent today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const emailSentToday = emailLogs.filter(log => {
-        const logDate = new Date(log.created_at);
-        return logDate >= today;
-      }).length;
+    // Calculate email sent today
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const emailSentToday = emailLogs.filter(log => {
+      const logDate = new Date(log.created_at);
+      return logDate >= today;
+    }).length;
 
-      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-      setStats({
-        totalOrders,
-        totalUsers,
-        totalRevenue,
-        pendingOrders,
-        completedOrders,
-        activeUsers,
-        emailSentToday,
-        averageOrderValue
-      });
-    } catch (error) {
-      console.error('Error calculating stats:', error);
-    }
+    setStats({
+      totalOrders,
+      totalUsers,
+      totalRevenue,
+      pendingOrders,
+      completedOrders,
+      activeUsers,
+      emailSentToday,
+      averageOrderValue
+    });
   };
+
+  // Re-calculate statistics whenever the orders or users lists change.
+  useEffect(() => {
+    if (!ordersLoading && !usersLoading) {
+      calculateStats();
+    }
+  }, [orders, users, ordersLoading, usersLoading]);
 
   const handleOrderStatusUpdate = async (orderId: string, newStatus: string) => {
     try {

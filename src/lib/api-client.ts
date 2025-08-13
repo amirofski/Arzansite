@@ -176,7 +176,10 @@ class ApiClient {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options.headers || {}),
       },
-      credentials: 'include',
+      // Send cookies **only** when we are talking to the same origin. Otherwise
+      // the request falls back to a stateless JWT-only call which is safer and
+      // avoids CORS pre-flight failures.
+      credentials: url.startsWith(window.location.origin) ? 'include' : 'omit',
       ...options,
     };
 

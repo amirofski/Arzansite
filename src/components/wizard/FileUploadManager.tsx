@@ -46,7 +46,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     if (!user) return;
     try {
       // Assuming backend exposes uploads list endpoint
-      const files = await apiClient.request('/uploads', { method: 'GET' } as any);
+      const files = await apiClient.request('/uploads', { method: 'GET' });
       setUploadedFiles(files || []);
     } catch {
       toast.error('خطا در بارگذاری فایل‌ها');
@@ -76,7 +76,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
       form.append('category', selectedCategory);
       if (fileDescription) form.append('description', fileDescription);
 
-      await apiClient.request('/uploads', { method: 'POST', body: form } as any);
+      await apiClient.request('/uploads', { method: 'POST', body: form });
 
       toast.success('فایل با موفقیت آپلود شد');
       setFileDescription('');
@@ -94,7 +94,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const handleDeleteFile = async (fileId: string, _filePath: string) => {
     try {
-      await apiClient.request(`/uploads/${fileId}`, { method: 'DELETE' } as any);
+      await apiClient.request(`/uploads/${fileId}`, { method: 'DELETE' });
 
       toast.success('فایل حذف شد');
       await loadUploadedFiles();

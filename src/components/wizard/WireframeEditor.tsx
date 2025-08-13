@@ -747,7 +747,7 @@ const WireframeEditor: React.FC<WireframeEditorProps> = ({ data, updateData }) =
           name: `وایرفریم ${new Date().toLocaleDateString('fa-IR')}`,
           data: wireframe,
         }),
-      } as any);
+      });
       toast({ title: "موفقیت", description: "وایرفریم با موفقیت ذخیره شد" });
     } catch (error) {
       console.error('Error saving wireframe:', error);

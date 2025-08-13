@@ -148,6 +148,21 @@ class ApiClient {
 
   constructor() {
     this.baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
+
+    // Set up automatic token refresh using the token manager
+    tokenManager.setupAutoRefresh(async () => {
+      const refreshToken = tokenManager.getRefreshToken();
+      if (!refreshToken) {
+        throw new Error('No refresh token available');
+      }
+      const response = await this.refreshToken(refreshToken);
+      const tokenData: TokenData = {
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      };
+      tokenManager.setTokens(tokenData);
+      return tokenData;
+    });
   }
 
   setToken(token: string) {
@@ -162,16 +177,24 @@ class ApiClient {
     tokenManager.clearTokens();
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  async request<T>(endpoint: string, options: RequestInit = {}, retryOn401 = true): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getToken();
 
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
+    const baseHeaders: Record<string, string> = {
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+
+    const mergedHeaders = {
+      ...baseHeaders,
+      ...(options.headers as Record<string, string> | undefined),
+    } as Record<string, string>;
+
     const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {}),
-      },
+      headers: mergedHeaders,
       credentials: 'include',
       ...options,
     };
@@ -184,6 +207,28 @@ class ApiClient {
 
       if (!response.ok) {
         if (response.status === 401) {
+          // Attempt token refresh once if refresh token is available
+          const refreshToken = tokenManager.getRefreshToken();
+          if (retryOn401 && refreshToken) {
+            try {
+              const newTokens = await tokenManager.refreshTokenSafely(async () => {
+                const refreshed = await this.refreshToken(refreshToken);
+                return {
+                  access_token: refreshed.access_token,
+                  refresh_token: refreshed.refresh_token,
+                } as TokenData;
+              });
+
+              tokenManager.setTokens(newTokens);
+
+              // Retry the original request once without another refresh attempt
+              return await this.request<T>(endpoint, options, false);
+            } catch (refreshError) {
+              // Fall through to clear token and redirect
+              console.error('Token refresh failed:', refreshError);
+            }
+          }
+
           this.clearToken();
           window.location.href = '/auth';
           throw new Error('Unauthorized');

@@ -22,12 +22,9 @@ const VerifyEmail = () => {
     const verifyEmailToken = async () => {
       try {
         const token = searchParams.get('token');
-        const email = searchParams.get('email');
-        const type = searchParams.get('type');
-
-        if (!token && !email) {
+        if (!token) {
           setVerificationStatus('error');
-          setErrorMessage('پارامترهای مورد نیاز برای تایید ایمیل یافت نشد');
+          setErrorMessage('توکن تایید یافت نشد. لطفاً از لینک ارسال‌شده در ایمیل استفاده کنید.');
           return;
         }
 
@@ -51,9 +48,6 @@ const VerifyEmail = () => {
             setVerificationStatus('error');
             setErrorMessage('توکن تایید نامعتبر یا منقضی شده است');
           }
-        } else {
-          // No token provided, show pending status
-          setVerificationStatus('pending');
         }
       } catch (error) {
         console.error('Verification error:', error);
@@ -69,27 +63,8 @@ const VerifyEmail = () => {
     setResending(true);
     
     try {
-      const email = searchParams.get('email');
-      if (!email) {
-        toast({
-          title: "خطا",
-          description: "ایمیل برای ارسال مجدد یافت نشد",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Call backend to resend verification email
-      await apiClient.sendEmail({
-        to: email,
-        subject: 'تایید ایمیل - Arzan Site',
-        template: 'verification',
-        data: {
-          userEmail: email,
-          actionUrl: `${window.location.origin}/verify-email?email=${encodeURIComponent(email)}`,
-          expirationTime: '24 ساعت',
-        },
-      });
+      // Delegate to backend endpoint that validates the authenticated user
+      await apiClient.request('/auth/resend-verification', { method: 'POST' });
 
       toast({
         title: "ایمیل ارسال شد",

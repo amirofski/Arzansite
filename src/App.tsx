@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import Index from "./pages/Index";
 import Wizard from "./pages/Wizard";
 import Dashboard from "./pages/Dashboard";
@@ -24,6 +24,11 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const { mode, loading } = useSiteMode();
+  const navigate = useNavigate();
+
+  // Expose a minimal global navigate helper for non-routed modules
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (window as any).__APP_NAVIGATE__ = (path: string) => navigate(path);
 
   if (loading) {
     return (

@@ -4,28 +4,16 @@ export type Tokens = { access_token: string; refresh_token: string };
 
 const api = axios.create({
   // Should point to your Nest base, e.g. https://nest.arzansite.com/api
-  baseURL: import.meta.env.VITE_API_URL,
+  baseURL: import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api',
 });
 
 api.interceptors.request.use((config) => {
-  // Prefer sessionStorage token set by tokenManager; fallback to legacy localStorage structure
+  // Prefer sessionStorage token set by tokenManager
   let accessToken: string | null = null;
   try {
     accessToken = sessionStorage.getItem('access_token');
   } catch {
     accessToken = null;
-  }
-
-  if (!accessToken) {
-    const raw = localStorage.getItem('tokens');
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw) as Partial<Tokens>;
-        accessToken = parsed?.access_token || null;
-      } catch {
-        // ignore malformed tokens
-      }
-    }
   }
 
   if (accessToken) {

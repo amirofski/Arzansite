@@ -68,19 +68,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     setError(null);
     try {
-      // Use the new API client directly
       const response = await apiClient.signIn(email, password);
       
       if (response?.access_token) {
-        // Persist tokens for apiClient
         tokenManager.setTokens({
           access_token: response.access_token,
           refresh_token: response.refresh_token,
         });
-        apiClient.setToken(response.access_token);
-        if (response?.refresh_token) {
-          localStorage.setItem('refresh_token', response.refresh_token);
-        }
         await loadUser();
         return { 
           user: response.user,
@@ -97,7 +91,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
     setError(null);
     try {
-      // Use the new API client directly
       const response = await apiClient.signUp(email, password, metadata);
       return {
         requiresFrontendVerification: response.requiresFrontendVerification
@@ -139,14 +132,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       console.error('Logout error:', error);
     } finally {
       apiClient.clearToken();
-      localStorage.removeItem('refresh_token');
       setUser(null);
       setUserRole(null);
     }
   };
 
   const refreshToken = async () => {
-    const stored = localStorage.getItem('refresh_token');
+    const stored = tokenManager.getRefreshToken();
     if (!stored) {
       await signOut();
       return;
@@ -155,10 +147,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const response = await apiClient.refreshToken(stored);
       if (response?.access_token) {
-        apiClient.setToken(response.access_token);
-        if (response?.refresh_token) {
-          localStorage.setItem('refresh_token', response.refresh_token);
-        }
+        tokenManager.setTokens({
+          access_token: response.access_token,
+          refresh_token: response.refresh_token,
+        });
       }
     } catch {
       await signOut();

@@ -58,7 +58,7 @@ const Header: React.FC = () => {
           </motion.div>
           <div className="flex flex-col rtl:text-right ltr:text-left">
             <motion.span
-              className="text-2xl font-extrabold leading-tight bg-gradient-to-r from-pink-500 via-yellow-400 to-blue-500 bg-clip-text text-transparent"
+              className="lg:text-2xl sm:text-sm font-extrabold leading-tight bg-gradient-to-r from-pink-500 via-yellow-400 to-blue-500 bg-clip-text text-transparent"
               initial={{ backgroundPosition: "0% 50%" }}
               animate={{ backgroundPosition: "100% 50%" }}
               transition={{
@@ -154,7 +154,7 @@ const Header: React.FC = () => {
           </a>
         </div>
         {/* Mobile menu/socials */}
-        <div className="md:hidden flex items-center gap-2">
+        <div className="hidden lg:inline-flex flex items-center gap-2">
           {socials.map(({ icon: Icon, label, href }) => (
             <a
               key={label}

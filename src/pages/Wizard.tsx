@@ -208,7 +208,7 @@ const Wizard = () => {
         <meta name="description" content="فرآیند ساخت سایت با {siteConfig.name}. در چند قدم ساده وب‌سایت خود را بسازید." />
         <link rel="canonical" href={siteConfig.seo.siteUrl + '/wizard'} />
       </Helmet>
-      <div className="min-h-screen bg-background py-8 mt-20">
+      <div className="min-h-screen bg-background mt-20 pt-16">
         <div className="container mx-auto px-4">
           {/* Progress */}
           <div className="mb-8">
@@ -220,7 +220,7 @@ const Wizard = () => {
           </div>
           {/* Steps Indicator */}
           <div className="flex justify-center mb-8">
-            <div className="flex items-center space-x-4 space-x-reverse">
+            <div className="flex items-center space-x-4 space-x-reverse sm:contents ">
               {steps.map((step, index) => (
                 <div key={step.number} className="flex items-center">
                   <div className="flex flex-col items-center">
@@ -274,7 +274,7 @@ const Wizard = () => {
               variant="outline"
               className="flex items-center gap-2"
             >
-              <ArrowLeft className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4" />
               قدم قبلی
             </Button>
             {currentStep < totalSteps ? (
@@ -284,7 +284,7 @@ const Wizard = () => {
                 className="btn-gradient flex items-center gap-2"
               >
                 قدم بعدی
-                <ArrowRight className="w-4 h-4" />
+                <ArrowLeft className="w-4 h-4" />
               </Button>
             ) : (
               <FinalStepButton 

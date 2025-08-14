@@ -330,7 +330,7 @@ const StepTwo = ({ data, updateData }: StepTwoProps) => {
           className="btn-gradient"
         >
           ادامه به انتخاب روش طراحی
-          <ChevronRight className="w-4 h-4 mr-2" />
+          <ChevronLeft className="w-4 h-4 mr-2" />
         </Button>
       </div>
     </div>

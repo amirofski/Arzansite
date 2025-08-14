@@ -81,20 +81,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     setError(null);
     try {
+      console.log('useAuth: Calling appwriteAuthService.signIn...');
       const response = await appwriteAuthService.signIn(email, password);
+      console.log('useAuth: Response from appwriteAuthService:', response);
       
-      if (response?.access_token) {
-        tokenManager.setTokens({
-          access_token: response.access_token,
-          refresh_token: response.refresh_token,
-        });
-        await loadUser();
-        return { 
-          user: response.user,
-          redirect: response.redirect
-        };
+      // Validate response structure
+      if (!response) {
+        throw new Error('No response received from authentication service');
       }
+      
+      if (!response.access_token) {
+        throw new Error('No access token received from authentication service');
+      }
+      
+      if (!response.user) {
+        throw new Error('No user information received from authentication service');
+      }
+      
+      if (!response.user.id) {
+        throw new Error('Invalid user information received from authentication service');
+      }
+      
+      tokenManager.setTokens({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+      await loadUser();
+      return { 
+        user: response.user,
+        redirect: response.redirect
+      };
     } catch (err) {
+      console.error('useAuth: Sign in error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
       setError(errorMessage);
       throw new Error(errorMessage);

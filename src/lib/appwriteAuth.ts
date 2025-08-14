@@ -145,31 +145,85 @@ class AppwriteAuthService {
 
       const data = await response.json();
       
-      // Set tokens
-      this.setTokens(data.access_token, data.refresh_token);
+      // Debug logging to identify response structure
+      console.log('Full response:', response);
+      console.log('Response data:', data);
+      console.log('Data structure keys:', Object.keys(data));
+      console.log('User object:', data?.user);
+      console.log('Data.data:', data?.data);
       
-      // Create user profile from response
-      const userProfile: UserProfile = {
-        id: data.user.id,
-        email: data.user.email,
-        role: 'user', // Default role, will be updated when we get user details
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      // Set tokens - handle both possible token locations
+      const accessToken = data.access_token || data.accessToken || data.token;
+      const refreshToken = data.refresh_token || data.refreshToken;
+      
+      if (!accessToken) {
+        throw new Error('No access token received from server');
+      }
+      
+      this.setTokens(accessToken, refreshToken);
+      
+      // Create user profile from response - handle multiple possible structures
+      let userProfile: UserProfile;
+      
+      if (data.user && data.user.id) {
+        // Direct user object structure: { user: { id, email, ... } }
+        console.log('Using direct user structure');
+        userProfile = {
+          id: data.user.id,
+          email: data.user.email || email,
+          role: data.user.role || 'user',
+          created_at: data.user.created_at || new Date().toISOString(),
+          updated_at: data.user.updated_at || new Date().toISOString(),
+        };
+      } else if (data.data && data.data.user && data.data.user.id) {
+        // Nested data structure: { data: { user: { id, email, ... } } }
+        console.log('Using nested data structure');
+        userProfile = {
+          id: data.data.user.id,
+          email: data.data.user.email || email,
+          role: data.data.user.role || 'user',
+          created_at: data.data.user.created_at || new Date().toISOString(),
+          updated_at: data.data.user.updated_at || new Date().toISOString(),
+        };
+      } else if (data.id) {
+        // Flat structure: { id, email, ... }
+        console.log('Using flat structure');
+        userProfile = {
+          id: data.id,
+          email: data.email || email,
+          role: data.role || 'user',
+          created_at: data.created_at || new Date().toISOString(),
+          updated_at: data.updated_at || new Date().toISOString(),
+        };
+      } else {
+        // Fallback: create a minimal user profile
+        console.log('Using fallback structure');
+        userProfile = {
+          id: 'unknown',
+          email: email,
+          role: 'user',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        console.warn('Could not extract user ID from response, using fallback');
+      }
 
-      // Determine redirect URL based on user role (will be updated when we get full profile)
-      const redirectUrl = '/dashboard'; // Default to user dashboard
+      // Determine redirect URL based on user role
+      const redirectUrl = '/dashboard';
       const redirectMessage = 'Login successful! Redirecting to dashboard...';
 
-      return {
-        access_token: data.access_token,
-        refresh_token: data.refresh_token,
+      const result: AuthResponse = {
+        access_token: accessToken,
+        refresh_token: refreshToken,
         user: userProfile,
         redirect: {
           url: redirectUrl,
           message: redirectMessage
         }
       };
+
+      console.log('Final auth response:', result);
+      return result;
     } catch (error) {
       console.error('Sign in error:', error);
       throw new Error(error instanceof Error ? error.message : 'Sign in failed');

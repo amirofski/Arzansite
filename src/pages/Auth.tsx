@@ -70,33 +70,43 @@ const Auth = () => {
 
   const authLogin = async () => {
     try {
+      console.log('Auth: Calling signIn...');
       const response = await signIn(email, password);
+      console.log('Auth: Response from signIn:', response);
       
-      // Check if user's email is verified
-      if (response?.user && !response.user.email_confirmed_at) {
-        // Show verification prompt
-        setPendingVerificationEmail(email);
-        setShowVerificationPrompt(true);
-      } else {
-        // Handle automatic redirect if provided by backend
-        if (response?.redirect) {
-          toast({ 
-            title: "ورود موفقیت‌آمیز", 
-            description: response.redirect.message || "به حساب کاربری خود خوش آمدید" 
-          });
-          
-          // Automatic redirect to dashboard
-          setTimeout(() => {
-            navigate(response.redirect.url);
-          }, 1500); // Small delay to show the success message
-        } else {
-          toast({ title: "ورود موفقیت‌آمیز", description: "به حساب کاربری خود خوش آمدید" });
-        }
+      // Validate response structure
+      if (!response) {
+        throw new Error('No response received from sign in');
       }
-    } catch (err: any) {
+      
+      if (!response.user) {
+        throw new Error('No user information received');
+      }
+      
+      if (!response.user.id) {
+        throw new Error('Invalid user information received');
+      }
+      
+      // Handle automatic redirect if provided by backend
+      if (response?.redirect) {
+        toast({ 
+          title: "ورود موفقیت‌آمیز", 
+          description: response.redirect.message || "به حساب کاربری خود خوش آمدید" 
+        });
+        
+        // Automatic redirect to dashboard
+        setTimeout(() => {
+          navigate(response.redirect.url);
+        }, 1500); // Small delay to show the success message
+      } else {
+        toast({ title: "ورود موفقیت‌آمیز", description: "به حساب کاربری خود خوش آمدید" });
+      }
+    } catch (err: unknown) {
+      console.error('Auth: Login error:', err);
+      const errorMessage = err instanceof Error ? err.message : "مشکلی در ورود پیش آمد. لطفاً دوباره تلاش کنید";
       toast({
         title: "خطا در ورود",
-        description: err?.message || "مشکلی در ورود پیش آمد. لطفاً دوباره تلاش کنید",
+        description: errorMessage,
         variant: "destructive",
       });
     }
@@ -128,8 +138,8 @@ const Auth = () => {
         });
         setIsLogin(true);
       }
-    } catch (err: any) {
-      const message = err?.message || "مشکلی در ثبت‌نام پیش آمد. لطفاً دوباره تلاش کنید";
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "مشکلی در ثبت‌نام پیش آمد. لطفاً دوباره تلاش کنید";
       toast({ title: "خطا در ثبت‌نام", description: message, variant: "destructive" });
     }
   };

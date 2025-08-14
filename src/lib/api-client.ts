@@ -340,7 +340,18 @@ class ApiClient {
 
   // Profile endpoints
   async getMyProfile(): Promise<BackendUserProfile> {
-    return this.request('/profiles/me');
+    const result = await this.request<{data: BackendUserProfile, success: boolean, timestamp: string} | BackendUserProfile>('/profiles/me');
+    
+    // Handle nested response structure
+    if (result && typeof result === 'object' && 'data' in result && result.data) {
+      return result.data;
+    } else if (result && typeof result === 'object' && 'id' in result) {
+      // Fallback for direct object response
+      return result as BackendUserProfile;
+    } else {
+      console.warn('getMyProfile returned unexpected result structure:', result);
+      throw new Error('Invalid profile data received');
+    }
   }
 
   async updateProfile(profileData: Partial<BackendUserProfile>): Promise<BackendUserProfile> {
@@ -360,13 +371,16 @@ class ApiClient {
     if (params?.mine) qs.append('mine', 'true');
     if (params?.admin) qs.append('admin', 'true');
     const queryString = qs.toString();
-    const result = await this.request<Order[]>(`/orders${queryString ? `?${queryString}` : ''}`);
+    const result = await this.request<{data: Order[], success: boolean, timestamp: string}>(`/orders${queryString ? `?${queryString}` : ''}`);
     
-    // Ensure we always return an array
-    if (Array.isArray(result)) {
+    // Handle nested response structure
+    if (result && typeof result === 'object' && 'data' in result && Array.isArray(result.data)) {
+      return result.data;
+    } else if (Array.isArray(result)) {
+      // Fallback for direct array response
       return result;
     } else {
-      console.warn('getOrders returned non-array result:', result);
+      console.warn('getOrders returned unexpected result structure:', result);
       return [];
     }
   }
@@ -432,12 +446,34 @@ class ApiClient {
 
   // Wallet endpoints
   async getWalletBalance(): Promise<WalletBalanceResponse> {
-    return this.request('/wallets/me/balance');
+    const result = await this.request<{data: WalletBalanceResponse, success: boolean, timestamp: string} | WalletBalanceResponse>('/wallets/me/balance');
+    
+    // Handle nested response structure
+    if (result && typeof result === 'object' && 'data' in result && result.data) {
+      return result.data;
+    } else if (result && typeof result === 'object' && 'balance' in result) {
+      // Fallback for direct object response
+      return result as WalletBalanceResponse;
+    } else {
+      console.warn('getWalletBalance returned unexpected result structure:', result);
+      throw new Error('Invalid wallet balance data received');
+    }
   }
 
   async getWalletTransactions(limit = 20, offset = 0): Promise<WalletTransaction[]> {
     const qs = `?limit=${limit}&offset=${offset}`;
-    return this.request(`/wallets/me/transactions${qs}`);
+    const result = await this.request<{data: WalletTransaction[], success: boolean, timestamp: string} | WalletTransaction[]>(`/wallets/me/transactions${qs}`);
+    
+    // Handle nested response structure
+    if (result && typeof result === 'object' && 'data' in result && Array.isArray(result.data)) {
+      return result.data;
+    } else if (Array.isArray(result)) {
+      // Fallback for direct array response
+      return result;
+    } else {
+      console.warn('getWalletTransactions returned unexpected result structure:', result);
+      return [];
+    }
   }
 
   async createWalletTransaction(payload: {

@@ -43,9 +43,25 @@ const Dashboard = () => {
 
   // Check if user needs email verification
   useEffect(() => {
-    if (user && !user.email_confirmed_at) {
-      setShowVerificationPrompt(true);
-    }
+    const checkVerificationStatus = async () => {
+      if (user) {
+        try {
+          // Check email verification status from the API
+          const verificationStatus = await apiClient.checkEmailVerification(user.email);
+          if (!verificationStatus.emailVerified) {
+            setShowVerificationPrompt(true);
+          } else {
+            setShowVerificationPrompt(false);
+          }
+        } catch (error) {
+          console.error('Error checking email verification status:', error);
+          // If we can't check the status, assume verified to avoid blocking the user
+          setShowVerificationPrompt(false);
+        }
+      }
+    };
+
+    checkVerificationStatus();
   }, [user]);
 
   const fetchData = async () => {

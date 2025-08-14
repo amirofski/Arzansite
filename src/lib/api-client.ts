@@ -184,7 +184,17 @@ class ApiClient {
       const response = await fetch(url, config);
       const contentType = response.headers.get('content-type') || '';
       const isJson = contentType.includes('application/json');
-      const body = isJson ? await response.json().catch(() => null) : await response.text().catch(() => '');
+      let body;
+      if (isJson) {
+        try {
+          body = await response.json();
+        } catch (jsonError) {
+          console.error('Failed to parse JSON response:', jsonError);
+          body = null;
+        }
+      } else {
+        body = await response.text().catch(() => '');
+      }
 
       if (!response.ok) {
         // Attempt a single refresh on 401 and retry the original request
@@ -221,6 +231,11 @@ class ApiClient {
         throw new Error(message);
       }
 
+      // Log response details for debugging
+      if (body === null) {
+        console.warn('API response body is null for endpoint:', endpoint);
+      }
+      
       return (isJson ? (body as T) : (body as unknown as T));
     } catch (error) {
       console.error('API request failed:', error);
@@ -345,7 +360,15 @@ class ApiClient {
     if (params?.mine) qs.append('mine', 'true');
     if (params?.admin) qs.append('admin', 'true');
     const queryString = qs.toString();
-    return this.request(`/orders${queryString ? `?${queryString}` : ''}`);
+    const result = await this.request<Order[]>(`/orders${queryString ? `?${queryString}` : ''}`);
+    
+    // Ensure we always return an array
+    if (Array.isArray(result)) {
+      return result;
+    } else {
+      console.warn('getOrders returned non-array result:', result);
+      return [];
+    }
   }
 
   async createOrder(orderData: {

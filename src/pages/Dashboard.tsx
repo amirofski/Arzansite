@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Plus, Package, User, Calendar, DollarSign, Eye, FileText, Layers, Search, Trash2, Palette } from 'lucide-react';
+import { Plus, Package, User, Calendar, DollarSign, Search, Trash2, Palette } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
 import { usePagination } from '@/hooks/usePagination';
@@ -22,7 +22,6 @@ import WalletCard from '@/components/dashboard/WalletCard';
 import DesignPreview from '@/components/wizard/DesignPreview';
 import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import { EmailVerificationPrompt } from '@/components/EmailVerificationPrompt';
-import { type Wireframe, type StorageFile, type DynamicDesign, type WireframePage, type WireframeElement, type WireframeData } from '@/lib/types';
 
 const Dashboard = () => {
   const { user } = useAuth();
@@ -34,9 +33,6 @@ const Dashboard = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
-  const [wireframeDialogOpen, setWireframeDialogOpen] = useState(false);
-  const [userWireframes, setUserWireframes] = useState<Wireframe[]>([]);
-  const [selectedWireframe, setSelectedWireframe] = useState<Wireframe | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
@@ -80,7 +76,27 @@ const Dashboard = () => {
     setOrdersLoading(true);
     try {
       const ordersData = await apiClient.getOrders({ mine: true });
-      setOrders(ordersData || []);
+      console.log('Raw orders data from API:', ordersData, 'Type:', typeof ordersData, 'Is Array:', Array.isArray(ordersData));
+      // Ensure ordersData is always an array
+      if (Array.isArray(ordersData)) {
+        // Filter out any invalid order objects
+        const validOrders = ordersData.filter(order => 
+          order && 
+          typeof order === 'object' && 
+          typeof order.id === 'string' &&
+          typeof order.title === 'string' &&
+          typeof order.status === 'string'
+        );
+        
+        if (validOrders.length !== ordersData.length) {
+          console.warn('Filtered out invalid orders:', ordersData.length - validOrders.length, 'Valid orders:', validOrders.length);
+        }
+        
+        setOrders(validOrders);
+      } else {
+        console.warn('API returned non-array orders data:', ordersData);
+        setOrders([]);
+      }
     } catch (error) {
       console.error('Error fetching orders:', error);
       toast({
@@ -88,98 +104,65 @@ const Dashboard = () => {
         description: 'مشکلی در دریافت سفارشات پیش آمد',
         variant: 'destructive',
       });
+      setOrders([]);
     } finally {
       setOrdersLoading(false);
     }
   };
 
-  const viewDesigns = async () => {
-    if (!user) return;
-
-    try {
-      // For now, we'll show a placeholder since wireframes are not yet implemented in the backend
-      setUserWireframes([]);
-      setWireframeDialogOpen(true);
-
-      toast({
-        title: 'طرح‌های شما بارگیری شد',
-        description: 'در حال حاضر این قابلیت در حال توسعه است',
-      });
-    } catch (error) {
-      console.error('Error fetching designs:', error);
-      toast({
-        title: 'خطا در بارگیری طرح‌ها',
-        description: 'مشکلی در دریافت طرح‌های شما پیش آمد',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const viewDesignDetails = (wireframe: Wireframe) => {
-    setSelectedWireframe(wireframe);
-  };
-
-  const renderWireframePreview = (wireframe: Wireframe) => {
-    if (!wireframe?.data?.pages) return null;
-
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
-        {wireframe.data.pages.slice(0, 4).map((page: WireframePage, index: number) => (
-          <div
-            key={index}
-            className="border rounded-lg p-2 bg-background min-h-[80px] relative overflow-hidden"
-          >
-            <div className="text-xs font-medium mb-1 truncate">{page.name}</div>
-            <div className="absolute inset-2 top-6 border border-dashed border-muted-foreground/30 rounded">
-              {page.elements?.slice(0, 3).map((element: WireframeElement, elemIndex: number) => (
-                <div
-                  key={elemIndex}
-                  className="absolute bg-primary/20 rounded-sm"
-                  style={{
-                    left: `${Math.min(element.x / 10, 60)}%`,
-                    top: `${Math.min(element.y / 10, 60)}%`,
-                    width: `${Math.min(element.width / 15, 30)}%`,
-                    height: `${Math.min(element.height / 20, 20)}%`,
-                  }}
-                />
-              ))}
-            </div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {page.elements?.length || 0} عنصر
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   const renderModuleLayoutPreview = (parsedData: Record<string, unknown>) => {
+    if (!parsedData || typeof parsedData !== 'object') {
+      console.warn('Invalid parsedData in renderModuleLayoutPreview:', parsedData);
+      return null;
+    }
+    
     const modules = parsedData.moduleLayout || parsedData.modules;
-    if (!modules || !Array.isArray(modules)) return null;
+    if (!modules || !Array.isArray(modules)) {
+      console.warn('No valid modules found in renderModuleLayoutPreview:', modules);
+      return null;
+    }
     return (
       <div className="border rounded-lg p-4 bg-muted/30">
         <div className="text-sm font-medium mb-2">پیش‌نمایش ساختار سایت</div>
         <div className="flex flex-wrap gap-2">
-          {modules.map((mod: Record<string, unknown>, idx: number) => (
-            <div
-              key={(mod.id as string) || idx}
-              className="flex flex-col items-center justify-center bg-primary/10 border border-primary/20 rounded px-4 py-2 min-w-[80px]"
-            >
-              <span className="font-bold text-xs">{mod.name as string}</span>
-              <span className="text-[10px] text-muted-foreground">{mod.nameEn as string}</span>
-            </div>
-          ))}
+          {modules.map((mod: Record<string, unknown>, idx: number) => {
+            if (!mod || typeof mod !== 'object') {
+              console.warn('Invalid module in renderModuleLayoutPreview:', mod);
+              return null;
+            }
+            return (
+              <div
+                key={(mod.id as string) || idx}
+                className="flex flex-col items-center justify-center bg-primary/10 border border-primary/20 rounded px-4 py-2 min-w-[80px]"
+              >
+                <span className="font-bold text-xs">{mod.name as string || 'نامشخص'}</span>
+                <span className="text-[10px] text-muted-foreground">{mod.nameEn as string || 'Unknown'}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     );
   };
 
   const renderDesignPreview = (order: Order) => {
+    if (!order || !order.description || typeof order.description !== 'string') {
+      console.warn('Invalid order or description in renderDesignPreview:', order);
+      return (
+        <div className="border rounded-lg p-4 bg-muted/30">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-medium">توضیحات سفارش</span>
+          </div>
+          <p className="text-sm text-muted-foreground">توضیحات نامشخص</p>
+        </div>
+      );
+    }
+    
     try {
       const parsedData = JSON.parse(order.description);
       
       // Check for new dynamic design data first
-      if (parsedData.websiteFramework?.dynamicDesign) {
+      if (parsedData && typeof parsedData === 'object' && parsedData.websiteFramework?.dynamicDesign) {
         return (
           <div className="space-y-4">
             <div className="border rounded-lg p-4 bg-muted/30">
@@ -196,35 +179,10 @@ const Dashboard = () => {
         );
       }
       
-      // Legacy support for old format
-      if (parsedData.pages && Array.isArray(parsedData.pages)) {
-        return (
-          <div className="space-y-4">
-            <div className="border rounded-lg p-4 bg-muted/30">
-              <div className="flex items-center gap-2 mb-3">
-                <FileText className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-medium">پیش‌نمایش وایرفریم</span>
-              </div>
-              {/* Visual wireframe preview */}
-              {renderWireframePreview({ 
-                id: 'temp', 
-                name: 'Wireframe', 
-                data: parsedData as WireframeData, 
-                created_at: '', 
-                updated_at: '', 
-                user_id: '' 
-              })}
-              {parsedData.pages.length > 4 && (
-                <div className="mt-3 text-xs text-muted-foreground text-center">
-                  و {parsedData.pages.length - 4} صفحه دیگر...
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      }
       // Otherwise, show the summary/mockup
-      if ((parsedData.moduleLayout && Array.isArray(parsedData.moduleLayout)) || (parsedData.modules && Array.isArray(parsedData.modules))) {
+      if (parsedData && typeof parsedData === 'object' && 
+          ((parsedData.moduleLayout && Array.isArray(parsedData.moduleLayout)) || 
+           (parsedData.modules && Array.isArray(parsedData.modules)))) {
         return (
           <div className="space-y-4">
             {renderModuleLayoutPreview(parsedData)}
@@ -234,7 +192,6 @@ const Dashboard = () => {
       return (
         <div className="border rounded-lg p-4 bg-muted/30">
           <div className="flex items-center gap-2 mb-2">
-            <FileText className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium">توضیحات سفارش</span>
           </div>
           <p className="text-sm text-muted-foreground">{order.description}</p>
@@ -245,7 +202,6 @@ const Dashboard = () => {
       return (
         <div className="border rounded-lg p-4 bg-muted/30">
           <div className="flex items-center gap-2 mb-2">
-            <FileText className="w-4 h-4 text-muted-foreground" />
             <span className="text-sm font-medium">توضیحات سفارش</span>
           </div>
           <p className="text-sm text-muted-foreground">{order.description}</p>
@@ -255,6 +211,10 @@ const Dashboard = () => {
   };
 
   const getStatusColor = (status: string) => {
+    if (!status || typeof status !== 'string') {
+      console.warn('Invalid status value in getStatusColor:', status);
+      return 'bg-gray-100 text-gray-800';
+    }
     switch (status) {
       case 'pending': return 'bg-yellow-100 text-yellow-800';
       case 'in_progress': return 'bg-blue-100 text-blue-800';
@@ -265,6 +225,10 @@ const Dashboard = () => {
   };
 
   const getStatusText = (status: string) => {
+    if (!status || typeof status !== 'string') {
+      console.warn('Invalid status value:', status);
+      return 'نامشخص';
+    }
     switch (status) {
       case 'pending': return 'در انتظار';
       case 'in_progress': return 'در حال انجام';
@@ -275,14 +239,37 @@ const Dashboard = () => {
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('fa-IR').format(price) + ' تومان';
+    if (typeof price !== 'number' || isNaN(price)) {
+      console.warn('Invalid price value in formatPrice:', price);
+      return '0 تومان';
+    }
+    try {
+      return new Intl.NumberFormat('fa-IR').format(price) + ' تومان';
+    } catch (error) {
+      console.error('Error formatting price:', error, 'Price:', price);
+      return '0 تومان';
+    }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('fa-IR');
+    if (!dateString || typeof dateString !== 'string') {
+      console.warn('Invalid date string in formatDate:', dateString);
+      return 'نامشخص';
+    }
+    try {
+      return new Date(dateString).toLocaleDateString('fa-IR');
+    } catch (error) {
+      console.error('Error formatting date:', error, 'Date string:', dateString);
+      return 'نامشخص';
+    }
   };
 
   const formatOrderDescription = (description: string) => {
+    if (!description || typeof description !== 'string') {
+      console.warn('Invalid description in formatOrderDescription:', description);
+      return <span className="text-sm text-muted-foreground">توضیحات نامشخص</span>;
+    }
+    
     try {
       const parsedData = JSON.parse(description);
       
@@ -303,17 +290,24 @@ const Dashboard = () => {
             <div>
               <span className="font-medium">ماژول‌ها:</span>
               <div className="flex flex-wrap gap-1 mt-1">
-                {parsedData.modules.map((module: string, index: number) => (
-                  <span key={index} className="bg-muted px-2 py-1 rounded text-xs">
-                    {module}
-                  </span>
-                ))}
+                {Array.isArray(parsedData.modules) ? parsedData.modules.map((module: string, index: number) => {
+                  if (typeof module !== 'string') {
+                    console.warn('Invalid module in formatOrderDescription:', module);
+                    return null;
+                  }
+                  return (
+                    <span key={index} className="bg-muted px-2 py-1 rounded text-xs">
+                      {module}
+                    </span>
+                  );
+                }) : null}
               </div>
             </div>
           )}
         </div>
       );
     } catch (error) {
+      console.error('Error parsing order description:', error, 'Description:', description);
       // Fallback to original description if not JSON
       return <span className="text-sm text-muted-foreground">{description}</span>;
     }
@@ -321,12 +315,30 @@ const Dashboard = () => {
 
   // Filter function for orders
   const filterOrders = (order: Order, searchTerm: string) => {
-    return order.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           order.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           getStatusText(order.status).toLowerCase().includes(searchTerm.toLowerCase());
+    if (!order || !searchTerm) return true;
+    
+    // Validate order object structure
+    if (typeof order !== 'object' || order === null) {
+      console.warn('Invalid order object in filterOrders:', order);
+      return false;
+    }
+    
+    try {
+      const title = typeof order.title === 'string' ? order.title : '';
+      const description = typeof order.description === 'string' ? order.description : '';
+      const status = typeof order.status === 'string' ? order.status : '';
+      
+      return title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             getStatusText(status).toLowerCase().includes(searchTerm.toLowerCase());
+    } catch (error) {
+      console.error('Error in filterOrders:', error, 'Order:', order);
+      return false;
+    }
   };
 
   // Use pagination hook for orders
+  console.log('Orders state before usePagination:', orders, 'Type:', typeof orders, 'Is Array:', Array.isArray(orders));
   const {
     currentItems: currentOrders,
     totalPages: ordersTotalPages,
@@ -334,7 +346,7 @@ const Dashboard = () => {
     setCurrentPage: setOrdersCurrentPage,
     totalItems: ordersTotalItems
   } = usePagination({
-    data: orders,
+    data: Array.isArray(orders) ? orders : [],
     itemsPerPage: 5,
     searchTerm,
     filterFunction: filterOrders
@@ -342,10 +354,13 @@ const Dashboard = () => {
 
   const handleDeleteOrder = async (order: Order) => {
     setDeleteDialogOpen(false);
-    if (!order) return;
+    if (!order || typeof order !== 'object' || !order.id) {
+      console.warn('Invalid order in handleDeleteOrder:', order);
+      return;
+    }
     try {
       // First, try to refund the order to wallet if it has a price
-      if (order.price && order.price > 0) {
+      if (order.price && typeof order.price === 'number' && order.price > 0) {
         try {
           await WalletService.refundOrder(order.id);
           toast({
@@ -416,7 +431,7 @@ const Dashboard = () => {
                 <Package className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{orders.length}</div>
+                <div className="text-2xl font-bold">{Array.isArray(orders) ? orders.length : 0}</div>
               </CardContent>
             </Card>
 
@@ -427,7 +442,12 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {orders.filter(order => order.status === 'pending' || order.status === 'in_progress').length}
+                  {Array.isArray(orders) ? orders.filter(order => 
+                    order && 
+                    typeof order === 'object' && 
+                    order.status && 
+                    (order.status === 'pending' || order.status === 'in_progress')
+                  ).length : 0}
                 </div>
               </CardContent>
             </Card>
@@ -439,7 +459,9 @@ const Dashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  {formatPrice(orders.reduce((sum, order) => sum + (order.price || 0), 0))}
+                  {formatPrice(Array.isArray(orders) ? orders.reduce((sum, order) => 
+                    sum + (order && typeof order === 'object' && typeof order.price === 'number' ? order.price : 0), 0
+                  ) : 0)}
                 </div>
               </CardContent>
             </Card>
@@ -471,10 +493,6 @@ const Dashboard = () => {
                       سفارش جدید
                     </a>
                   </Button>
-                  <Button onClick={viewDesigns} variant="outline" className="flex items-center gap-2">
-                    <Palette className="w-4 h-4" />
-                    مشاهده طرح‌های طراحی
-                  </Button>
                 </div>
               </div>
 
@@ -495,7 +513,7 @@ const Dashboard = () => {
                     </Card>
                   ))}
                 </div>
-              ) : orders.length === 0 ? (
+              ) : !Array.isArray(orders) || orders.length === 0 ? (
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-center py-8">
@@ -513,7 +531,7 @@ const Dashboard = () => {
                     </div>
                   </CardContent>
                 </Card>
-              ) : currentOrders.length === 0 ? (
+              ) : !Array.isArray(currentOrders) || currentOrders.length === 0 ? (
                 <Card>
                   <CardContent className="pt-6">
                     <div className="text-center py-8">
@@ -531,63 +549,76 @@ const Dashboard = () => {
               ) : (
                 <div className="space-y-6">
                   <div className="grid gap-6">
-                    {currentOrders.map((order) => (
-                    <Card key={order.id}>
-                      <CardHeader>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg">{order.title}</CardTitle>
-                            <div className="mt-3">{renderDesignPreview(order)}</div>
-                          </div>
-                          <div className="flex gap-2 items-center">
-                            <OrderDesignPreview
-                              orderId={order.id}
-                              orderTitle={order.title}
-                              orderPrice={order.price || 0}
-                              paymentStatus={order.payment_status || 'pending'}
-                              onStatusUpdate={fetchOrders}
-                            />
-                            <Badge className={`${getStatusColor(order.status)} border-0`}>
-                              {getStatusText(order.status)}
-                            </Badge>
-                            {order.status === 'pending' && (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                className="flex items-center gap-1"
-                                onClick={() => { setOrderToDelete(order); setDeleteDialogOpen(true); }}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                                حذف سفارش
-                              </Button>
+                    {Array.isArray(currentOrders) ? currentOrders.map((order) => {
+                      if (!order || typeof order !== 'object' || !order.id) {
+                        console.warn('Invalid order in currentOrders map:', order);
+                        return null;
+                      }
+                      return (
+                        <Card key={order.id}>
+                          <CardHeader>
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <CardTitle className="text-lg">{order.title || 'عنوان نامشخص'}</CardTitle>
+                                <div className="mt-3">{renderDesignPreview(order)}</div>
+                              </div>
+                              <div className="flex gap-2 items-center">
+                                <OrderDesignPreview
+                                  orderId={order.id}
+                                  orderTitle={order.title || 'عنوان نامشخص'}
+                                  orderPrice={order.price || 0}
+                                  paymentStatus={order.payment_status || 'pending'}
+                                  onStatusUpdate={fetchOrders}
+                                />
+                                <Badge className={`${getStatusColor(order.status)} border-0`}>
+                                  {getStatusText(order.status)}
+                                </Badge>
+                                {order.status === 'pending' && (
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    className="flex items-center gap-1"
+                                    onClick={() => { 
+                                      if (order && typeof order === 'object' && order.id) {
+                                        setOrderToDelete(order); 
+                                        setDeleteDialogOpen(true); 
+                                      } else {
+                                        console.warn('Invalid order in delete button click:', order);
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                    حذف سفارش
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="font-medium">قیمت: </span>
+                                {order.price ? formatPrice(order.price) : 'نامشخص'}
+                              </div>
+                              <div>
+                                <span className="font-medium">تاریخ ایجاد: </span>
+                                {formatDate(order.created_at)}
+                              </div>
+                              <div>
+                                <span className="font-medium">آخرین بروزرسانی: </span>
+                                {formatDate(order.updated_at)}
+                              </div>
+                            </div>
+                            {order.comments && (
+                              <div className="mt-4 p-3 bg-muted rounded-lg">
+                                <span className="font-medium text-sm">توضیحات: </span>
+                                <p className="text-sm mt-1">{order.comments}</p>
+                              </div>
                             )}
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="font-medium">قیمت: </span>
-                            {order.price ? formatPrice(order.price) : 'نامشخص'}
-                          </div>
-                          <div>
-                            <span className="font-medium">تاریخ ایجاد: </span>
-                            {formatDate(order.created_at)}
-                          </div>
-                          <div>
-                            <span className="font-medium">آخرین بروزرسانی: </span>
-                            {formatDate(order.updated_at)}
-                          </div>
-                        </div>
-                        {order.comments && (
-                          <div className="mt-4 p-3 bg-muted rounded-lg">
-                            <span className="font-medium text-sm">توضیحات: </span>
-                            <p className="text-sm mt-1">{order.comments}</p>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                    ))}
+                          </CardContent>
+                        </Card>
+                      );
+                    }) : null}
                   </div>
                   
                   <PaginationControls
@@ -659,133 +690,6 @@ const Dashboard = () => {
         profile={profile}
         onProfileUpdated={fetchData}
       />
-
-      {/* Wireframe Designs Dialog */}
-      <Dialog open={wireframeDialogOpen} onOpenChange={setWireframeDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>طرح‌های طراحی شما</DialogTitle>
-            <DialogDescription>
-              مشاهده تمام طرح‌های ذخیره شده در پروژه‌های شما
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6">
-            {userWireframes.length === 0 ? (
-              <div className="text-center py-8">
-                <Layers className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">هیچ طرحی یافت نشد</h3>
-                <p className="text-muted-foreground mb-4">
-                  شما هنوز هیچ طرح طراحی ایجاد نکرده‌اید
-                </p>
-                <Button asChild>
-                  <a href="/wizard">
-                    <Plus className="w-4 h-4 ml-2" />
-                    ایجاد طرح جدید
-                  </a>
-                </Button>
-              </div>
-            ) : (
-              userWireframes.map((wireframe) => (
-                <Card key={wireframe.id} className="overflow-hidden">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <CardTitle className="text-xl">{wireframe.name}</CardTitle>
-                        {wireframe.description && (
-                          <CardDescription className="mt-2">
-                            {wireframe.description}
-                          </CardDescription>
-                        )}
-                        <div className="flex gap-4 mt-3 text-sm text-muted-foreground">
-                          <span>تاریخ ایجاد: {formatDate(wireframe.created_at)}</span>
-                          <span>آخرین بروزرسانی: {formatDate(wireframe.updated_at)}</span>
-                          <span>
-                            صفحات: {wireframe.data?.pages?.length || 0}
-                          </span>
-                        </div>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => viewDesignDetails(wireframe)}
-                        className={selectedWireframe?.id === wireframe.id ? "bg-primary text-primary-foreground" : ""}
-                      >
-                        {selectedWireframe?.id === wireframe.id ? "انتخاب شده" : "مشاهده جزئیات"}
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  
-                  <CardContent>
-                    <div className="border rounded-lg p-4 bg-muted/30">
-                      <div className="flex items-center gap-2 mb-3">
-                        <FileText className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm font-medium">پیش‌نمایش طرح</span>
-                      </div>
-                      
-                      {renderWireframePreview(wireframe)}
-                      
-                      {wireframe.data?.pages && wireframe.data.pages.length > 4 && (
-                        <div className="mt-3 text-xs text-muted-foreground text-center">
-                          و {wireframe.data.pages.length - 4} صفحه دیگر...
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Detailed view when selected */}
-                    {selectedWireframe?.id === wireframe.id && (
-                      <div className="mt-6 p-4 border rounded-lg bg-background">
-                        <h4 className="font-semibold mb-3 flex items-center gap-2">
-                          <Layers className="w-4 h-4" />
-                          جزئیات کامل طرح
-                        </h4>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          {wireframe.data?.pages?.map((page: WireframePage, index: number) => (
-                            <div key={index} className="border rounded-lg p-3">
-                              <h5 className="font-medium mb-2">{page.name}</h5>
-                              <div className="text-sm text-muted-foreground mb-2">
-                                {page.elements?.length || 0} عنصر در این صفحه
-                              </div>
-                              
-                              {/* Visual representation of page */}
-                              <div className="border rounded bg-white h-32 relative overflow-hidden">
-                                {page.elements?.map((element: WireframeElement, elemIndex: number) => (
-                                  <div
-                                    key={elemIndex}
-                                    className="absolute border border-primary/40 bg-primary/10 rounded-sm"
-                                    style={{
-                                      left: `${Math.min(element.x / 8, 85)}%`,
-                                      top: `${Math.min(element.y / 8, 85)}%`,
-                                      width: `${Math.min(element.width / 10, 15)}%`,
-                                      height: `${Math.min(element.height / 15, 10)}%`,
-                                    }}
-                                    title={element.type}
-                                  />
-                                ))}
-                              </div>
-                              
-                              {page.elements && page.elements.length > 0 && (
-                                <div className="mt-2 text-xs">
-                                  <div className="flex flex-wrap gap-1">
-                                    {[...new Set(page.elements.map((e: WireframeElement) => e.type))].map((type: string, i: number) => (
-                                      <span key={i} className="bg-muted px-2 py-1 rounded text-xs">
-                                        {type}
-                                      </span>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>

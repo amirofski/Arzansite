@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmailVerificationPrompt } from "@/components/EmailVerificationPrompt";
+import OAuthButton from "@/components/ui/OAuthButton";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -292,6 +293,39 @@ const Auth = () => {
                 )}
               </Button>
             </form>
+
+            {/* OAuth Login Section */}
+            <div className="mt-6">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">
+                    یا
+                  </span>
+                </div>
+              </div>
+              
+              <div className="mt-4 space-y-2">
+                <OAuthButton 
+                  provider="github"
+                  onSuccess={() => {
+                    toast({
+                      title: "OAuth شروع شد",
+                      description: "در حال انتقال به GitHub...",
+                    });
+                  }}
+                  onError={(error) => {
+                    toast({
+                      title: "خطا در OAuth",
+                      description: error,
+                      variant: "destructive",
+                    });
+                  }}
+                />
+              </div>
+            </div>
 
             <div className="mt-6 text-center space-y-2">
               <button

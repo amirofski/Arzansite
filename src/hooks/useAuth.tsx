@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { appwriteAuthService, UserProfile, AuthResponse, SignupResponse } from '@/lib/appwriteAuth';
+import { appwriteAuthService, UserProfile, AuthResponse, SignupResponse, OAuthResponse, OAuthUser } from '@/lib/appwriteAuth';
 import { tokenManager } from '@/lib/tokenManager';
 
 type UserRole = 'user' | 'admin';
@@ -28,6 +28,13 @@ interface AuthContextType {
   verifyEmailWithUserId: (token: string, userId: string) => Promise<{ message: string }>;
   getCurrentUser: () => Promise<void>;
   clearError: () => void;
+  // OAuth methods
+  startOAuth: (provider: string) => Promise<OAuthResponse>;
+  handleOAuthCallback: (provider: string, code: string, state?: string) => Promise<{ user: UserProfile; redirect?: { url: string; message: string } }>;
+  getOAuthUser: () => Promise<OAuthUser | null>;
+  logoutOAuth: () => Promise<void>;
+  checkOAuthSuccess: () => boolean;
+  getOAuthCallbackParams: () => { code?: string; state?: string; error?: string };
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -268,6 +275,88 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await loadUser();
   };
 
+  // OAuth Methods
+  const startOAuth = async (provider: string) => {
+    setError(null);
+    try {
+      const response = await appwriteAuthService.startOAuth(provider);
+      return response;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to start OAuth flow';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const handleOAuthCallback = async (provider: string, code: string, state?: string) => {
+    setError(null);
+    try {
+      const response = await appwriteAuthService.handleOAuthCallback(provider, code, state);
+      
+      if (!response.access_token) {
+        throw new Error('No access token received from OAuth callback');
+      }
+      
+      if (!response.user) {
+        throw new Error('No user information received from OAuth callback');
+      }
+      
+      tokenManager.setTokens({
+        access_token: response.access_token,
+        refresh_token: response.refresh_token,
+      });
+      
+      // Set user immediately
+      setUser(response.user);
+      setUserRole({ role: response.user.role });
+      
+      // Ensure profile exists
+      await ensureProfileExists(response.user);
+      
+      // Load user data
+      await loadUser();
+      
+      return { 
+        user: response.user,
+        redirect: response.redirect
+      };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'OAuth callback failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const getOAuthUser = async () => {
+    try {
+      return await appwriteAuthService.getOAuthUser();
+    } catch (err) {
+      console.error('Get OAuth user error:', err);
+      return null;
+    }
+  };
+
+  const logoutOAuth = async () => {
+    setError(null);
+    try {
+      await appwriteAuthService.logoutOAuth();
+    } catch (error) {
+      console.error('OAuth logout error:', error);
+    } finally {
+      tokenManager.clearTokens();
+      setUser(null);
+      setUserRole(null);
+    }
+  };
+
+  const checkOAuthSuccess = () => {
+    return appwriteAuthService.checkOAuthSuccess();
+  };
+
+  const getOAuthCallbackParams = () => {
+    return appwriteAuthService.getOAuthCallbackParams();
+  };
+
   // Ensure user profile exists after login
   const ensureProfileExists = async (userData: UserProfile) => {
     try {
@@ -315,6 +404,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     verifyEmailWithUserId,
     getCurrentUser,
     clearError,
+    // OAuth methods
+    startOAuth,
+    handleOAuthCallback,
+    getOAuthUser,
+    logoutOAuth,
+    checkOAuthSuccess,
+    getOAuthCallbackParams,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

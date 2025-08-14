@@ -20,7 +20,6 @@ import {
   Target
 } from 'lucide-react';
 import Layout from "@/components/ui/Layout";
-import AppwriteTest from "@/components/AppwriteTest";
 
 const SLIDE_COUNT = 6; // Update if you add/remove slides
 const SCROLL_LOCK_DURATION = 900; // ms, should match Framer Motion transition
@@ -637,10 +636,7 @@ const Index = () => {
         )}
       </AnimatePresence>
       
-      {/* Temporary Appwrite Test Component */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <AppwriteTest />
-      </div>
+
     </Layout>
   );
 };

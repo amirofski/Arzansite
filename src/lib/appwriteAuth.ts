@@ -42,7 +42,7 @@ export interface SignupResponse {
 
 class AppwriteAuthService {
   private baseURL = process.env.NODE_ENV === 'production' 
-    ? 'https://app.arzansite.com/api'  // Production
+    ? 'https://nest.arzansite.com/api'  // Production
     : 'http://localhost:3000/api';     // Development
   private accessToken: string | null = null;
   private refreshToken: string | null = null;

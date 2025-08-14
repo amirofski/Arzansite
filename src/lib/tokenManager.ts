@@ -36,8 +36,9 @@ class TokenManager {
   // Store tokens securely
   setTokens(tokens: TokenData): void {
     try {
-      // Store access token in memory (cleared on page refresh)
+      // Store access token in both sessionStorage and localStorage for consistency
       sessionStorage.setItem('access_token', tokens.access_token);
+      localStorage.setItem('access_token', tokens.access_token);
       
       // Store refresh token in localStorage for persistence
       if (tokens.refresh_token) {
@@ -63,7 +64,16 @@ class TokenManager {
   // Get access token
   getAccessToken(): string | null {
     try {
-      return sessionStorage.getItem('access_token');
+      // Check sessionStorage first, then localStorage for consistency
+      let token = sessionStorage.getItem('access_token');
+      if (!token) {
+        token = localStorage.getItem('access_token');
+        // If found in localStorage, also store in sessionStorage
+        if (token) {
+          sessionStorage.setItem('access_token', token);
+        }
+      }
+      return token;
     } catch (error) {
       console.error('Failed to get access token:', error);
       return null;
@@ -101,6 +111,7 @@ class TokenManager {
   clearTokens(): void {
     try {
       sessionStorage.removeItem('access_token');
+      localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('token_expires_at');
     } catch (error) {

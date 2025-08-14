@@ -25,6 +25,7 @@ interface AuthContextType {
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, newPassword: string) => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
+  verifyEmailWithUserId: (token: string, userId: string) => Promise<{ message: string }>;
   getCurrentUser: () => Promise<void>;
   clearError: () => void;
 }
@@ -90,6 +91,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('No response received from authentication service');
       }
       
+      console.log('useAuth: Access token check:', !!response.access_token);
+      console.log('useAuth: User check:', !!response.user);
+      console.log('useAuth: User ID check:', !!response.user?.id);
+      
       if (!response.access_token) {
         throw new Error('No access token received from authentication service');
       }
@@ -106,7 +111,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         access_token: response.access_token,
         refresh_token: response.refresh_token,
       });
+      
+      // Set user immediately to avoid race conditions
+      setUser(response.user);
+      setUserRole({ role: response.user.role });
+      
+      // Ensure profile exists by calling the profile endpoint
+      await ensureProfileExists(response.user);
+      
+      // Load user data to get the latest information
       await loadUser();
+      
       return { 
         user: response.user,
         redirect: response.redirect
@@ -236,8 +251,48 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Verify email with token and userId
+  const verifyEmailWithUserId = async (token: string, userId: string) => {
+    setError(null);
+    try {
+      const result = await appwriteAuthService.verifyEmail(token, userId);
+      return result;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to verify email';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
   const getCurrentUser = async () => {
     await loadUser();
+  };
+
+  // Ensure user profile exists after login
+  const ensureProfileExists = async (userData: UserProfile) => {
+    try {
+      // Try to get the profile first
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api'}/profiles/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tokenManager.getAccessToken()}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.status === 404) {
+        // Profile doesn't exist, create it using the service method
+        console.log('Profile not found, creating new profile...');
+        await appwriteAuthService.createUserProfile(userData);
+        console.log('Profile created successfully');
+      } else if (!response.ok) {
+        console.error('Error checking profile:', response.statusText);
+        throw new Error('Failed to check user profile');
+      }
+    } catch (error) {
+      console.error('Error ensuring profile exists:', error);
+      // Don't throw here, as this is not critical for login
+    }
   };
 
   const value: AuthContextType = {
@@ -257,6 +312,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     forgotPassword,
     resetPassword,
     verifyEmail,
+    verifyEmailWithUserId,
     getCurrentUser,
     clearError,
   };

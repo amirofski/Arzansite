@@ -103,7 +103,18 @@ const Auth = () => {
       }
     } catch (err: unknown) {
       console.error('Auth: Login error:', err);
-      const errorMessage = err instanceof Error ? err.message : "مشکلی در ورود پیش آمد. لطفاً دوباره تلاش کنید";
+      let errorMessage = "مشکلی در ورود پیش آمد. لطفاً دوباره تلاش کنید";
+      
+      if (err instanceof Error) {
+        if (err.message.includes('email verification')) {
+          errorMessage = "لطفاً ابتدا ایمیل خود را تایید کنید. ایمیل تایید به صندوق ورودی شما ارسال شده است.";
+        } else if (err.message.includes('Profile not found')) {
+          errorMessage = "مشکلی در ایجاد پروفایل کاربری پیش آمد. لطفاً دوباره تلاش کنید.";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
       toast({
         title: "خطا در ورود",
         description: errorMessage,

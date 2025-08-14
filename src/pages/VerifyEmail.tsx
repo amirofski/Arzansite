@@ -1,211 +1,192 @@
-import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Mail, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react";
-import { Helmet } from "react-helmet-async";
-import { useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
-import { apiClient } from "@/lib/api-client";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { CheckCircle, XCircle, Loader2, Mail, ArrowRight } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
-const VerifyEmail = () => {
-  const [verificationStatus, setVerificationStatus] = useState<'loading' | 'success' | 'error' | 'pending'>('loading');
-  const [errorMessage, setErrorMessage] = useState<string>('');
-  const [resending, setResending] = useState(false);
-  const navigate = useNavigate();
+const VerifyEmail: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
-  const { verifyEmail } = useAuth();
+  const { verifyEmailWithUserId } = useAuth();
+  
+  const [verificationStatus, setVerificationStatus] = useState<'verifying' | 'success' | 'error' | 'idle'>('idle');
+  const [message, setMessage] = useState('');
+  const [isResending, setIsResending] = useState(false);
+
+  const token = searchParams.get('token');
+  const userId = searchParams.get('userId');
 
   useEffect(() => {
-    const verifyEmailToken = async () => {
-      try {
-        const token = searchParams.get('token');
-        const email = searchParams.get('email');
-        const type = searchParams.get('type');
+    if (token && userId) {
+      handleVerification();
+    } else {
+      setVerificationStatus('error');
+      setMessage('Invalid verification link. Please check your email for the correct link.');
+    }
+  }, [token, userId]);
 
-        if (!token && !email) {
-          setVerificationStatus('error');
-          setErrorMessage('پارامترهای مورد نیاز برای تایید ایمیل یافت نشد');
-          return;
-        }
+  const handleVerification = async () => {
+    if (!token || !userId) return;
 
-        // If we have a token, verify it with the backend
-        if (token) {
-          try {
-            // Call backend verification endpoint using auth hook
-            await verifyEmail(token);
-            
-            setVerificationStatus('success');
-            toast({
-              title: "ایمیل تایید شد",
-              description: "حساب کاربری شما با موفقیت تایید شد",
-            });
-            
-            // Redirect to login after 3 seconds
-            setTimeout(() => {
-              navigate("/auth");
-            }, 3000);
-          } catch (error) {
-            setVerificationStatus('error');
-            setErrorMessage('توکن تایید نامعتبر یا منقضی شده است');
-          }
-        } else {
-          // No token provided, show pending status
-          setVerificationStatus('pending');
-        }
-      } catch (error) {
-        console.error('Verification error:', error);
-        setVerificationStatus('error');
-        setErrorMessage('مشکلی در تایید ایمیل پیش آمد');
-      }
-    };
+    setVerificationStatus('verifying');
+    setMessage('Verifying your email...');
 
-    verifyEmailToken();
-  }, [searchParams, navigate, toast, verifyEmail]);
+    try {
+      // Use the auth hook method
+      const result = await verifyEmailWithUserId(token, userId);
+      setVerificationStatus('success');
+      setMessage(result.message || 'Email verified successfully! You can now log in to your account.');
+      
+      toast({
+        title: 'ایمیل تایید شد',
+        description: 'ایمیل شما با موفقیت تایید شد. حالا می‌توانید وارد شوید',
+      });
+
+      // Redirect to login after 3 seconds
+      setTimeout(() => {
+        navigate('/auth');
+      }, 3000);
+    } catch (error) {
+      console.error('Verification error:', error);
+      setVerificationStatus('error');
+      setMessage(error instanceof Error ? error.message : 'Verification failed. Please try again or request a new verification email.');
+    }
+  };
 
   const handleResendVerification = async () => {
-    setResending(true);
-    
+    if (!userId) return;
+
+    setIsResending(true);
     try {
-      const email = searchParams.get('email');
-      if (!email) {
-        toast({
-          title: "خطا",
-          description: "ایمیل برای ارسال مجدد یافت نشد",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Call backend to resend verification email
-      await apiClient.sendEmail({
-        to: email,
-        subject: 'تایید ایمیل - Arzan Site',
-        template: 'verification',
-        data: {
-          userEmail: email,
-          actionUrl: `${window.location.origin}/verify-email?email=${encodeURIComponent(email)}`,
-          expirationTime: '24 ساعت',
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api'}/auth/request-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          userId,
+        }),
       });
 
-      toast({
-        title: "ایمیل ارسال شد",
-        description: "ایمیل تایید مجدداً ارسال شد",
-      });
+      if (response.ok) {
+        toast({
+          title: 'ایمیل تایید ارسال شد',
+          description: 'ایمیل تایید جدید به صندوق ورودی شما ارسال شد',
+        });
+      } else {
+        const errorData = await response.json();
+        toast({
+          title: 'خطا در ارسال ایمیل',
+          description: errorData.message || 'مشکلی در ارسال ایمیل تایید پیش آمد',
+          variant: 'destructive',
+        });
+      }
     } catch (error) {
+      console.error('Resend verification error:', error);
       toast({
-        title: "خطا در ارسال مجدد",
-        description: "مشکلی در ارسال مجدد ایمیل تایید پیش آمد",
-        variant: "destructive",
+        title: 'خطا در ارسال ایمیل',
+        description: 'مشکلی در ارسال ایمیل تایید پیش آمد',
+        variant: 'destructive',
       });
     } finally {
-      setResending(false);
+      setIsResending(false);
     }
   };
 
   const renderContent = () => {
     switch (verificationStatus) {
-      case 'loading':
+      case 'verifying':
         return (
-          <div className="space-y-4 text-center">
-            <Loader2 className="w-16 h-16 mx-auto animate-spin text-primary" />
-            <p className="text-muted-foreground">در حال تایید ایمیل...</p>
-          </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center space-y-4"
+          >
+            <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
+              <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">در حال تایید ایمیل</h3>
+              <p className="text-gray-600 mt-2">{message}</p>
+            </div>
+          </motion.div>
         );
 
       case 'success':
         return (
-          <div className="space-y-4 text-center">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center"
-            >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center space-y-4"
+          >
+            <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center">
               <CheckCircle className="w-8 h-8 text-green-600" />
-            </motion.div>
-            <h2 className="text-xl font-semibold text-green-600">ایمیل تایید شد</h2>
-            <p className="text-muted-foreground">
-              حساب کاربری شما با موفقیت تایید شد. در حال انتقال...
-            </p>
-          </div>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">ایمیل تایید شد!</h3>
+              <p className="text-gray-600 mt-2">{message}</p>
+            </div>
+            <div className="pt-4">
+              <Button
+                onClick={() => navigate('/auth')}
+                className="w-full"
+              >
+                <ArrowRight className="w-4 h-4 ml-2" />
+                رفتن به صفحه ورود
+              </Button>
+            </div>
+          </motion.div>
         );
 
       case 'error':
         return (
-          <div className="space-y-4 text-center">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-              className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center"
-            >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center space-y-4"
+          >
+            <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center">
               <XCircle className="w-8 h-8 text-red-600" />
-            </motion.div>
-            <h2 className="text-xl font-semibold text-red-600">خطا در تایید ایمیل</h2>
-            <p className="text-muted-foreground">{errorMessage}</p>
-            <div className="space-y-2">
-              <Button onClick={() => navigate("/auth")} className="w-full">
-                بازگشت به صفحه ورود
-              </Button>
-              <Button 
-                variant="outline" 
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">خطا در تایید ایمیل</h3>
+              <p className="text-gray-600 mt-2">{message}</p>
+            </div>
+            <div className="pt-4 space-y-3">
+              <Button
                 onClick={handleResendVerification}
-                disabled={resending}
+                disabled={isResending}
+                variant="outline"
                 className="w-full"
               >
-                {resending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                {isResending ? (
+                  <Loader2 className="w-4 h-4 animate-spin ml-2" />
                 ) : (
-                  <RefreshCw className="w-4 h-4" />
+                  <Mail className="w-4 h-4 ml-2" />
                 )}
                 ارسال مجدد ایمیل تایید
               </Button>
-            </div>
-          </div>
-        );
-
-      case 'pending':
-        return (
-          <div className="space-y-4 text-center">
-            <motion.div
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-              className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center"
-            >
-              <Mail className="w-8 h-8 text-blue-600" />
-            </motion.div>
-            <h2 className="text-xl font-semibold">تایید ایمیل</h2>
-            <p className="text-muted-foreground">
-              لطفاً ایمیل خود را چک کنید و روی لینک تایید کلیک کنید
-            </p>
-            <div className="space-y-2">
-              <Button onClick={() => navigate("/auth")} className="w-full">
-                بازگشت به صفحه ورود
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleResendVerification}
-                disabled={resending}
+              <Button
+                onClick={() => navigate('/auth')}
                 className="w-full"
               >
-                {resending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="w-4 h-4" />
-                )}
-                ارسال مجدد ایمیل تایید
+                بازگشت به صفحه ورود
               </Button>
             </div>
-          </div>
+          </motion.div>
         );
 
       default:
-        return null;
+        return (
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto" />
+          </div>
+        );
     }
   };
 
@@ -213,7 +194,7 @@ const VerifyEmail = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 px-4">
       <Helmet>
         <title>تایید ایمیل - ارزان سایت</title>
-        <meta name="description" content="تایید حساب کاربری" />
+        <meta name="description" content="تایید ایمیل حساب کاربری" />
       </Helmet>
 
       <motion.div
@@ -224,11 +205,19 @@ const VerifyEmail = () => {
       >
         <Card className="border-0 shadow-2xl bg-white/80 backdrop-blur-sm">
           <CardHeader className="text-center space-y-2">
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="w-16 h-16 mx-auto bg-gradient-to-r from-primary to-secondary rounded-2xl flex items-center justify-center"
+            >
+              <Mail className="w-8 h-8 text-white" />
+            </motion.div>
             <CardTitle className="text-2xl font-bold text-foreground">
-              تایید حساب کاربری
+              تایید ایمیل
             </CardTitle>
             <CardDescription>
-              تایید ایمیل حساب کاربری شما
+              لطفاً صبر کنید تا ایمیل شما تایید شود
             </CardDescription>
           </CardHeader>
 

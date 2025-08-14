@@ -1,17 +1,17 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { apiClient, BackendUserProfile } from '@/lib/api-client';
+import { appwriteAuthService, UserProfile, AuthResponse, SignupResponse } from '@/lib/appwriteAuth';
 import { tokenManager } from '@/lib/tokenManager';
 
 type UserRole = 'user' | 'admin';
 
 interface AuthContextType {
-  user: BackendUserProfile | null;
+  user: UserProfile | null;
   loading: boolean;
   userRole: { role: UserRole } | null;
   roleLoading: boolean;
   isAuthenticated: boolean;
   error: string | null;
-  signIn: (email: string, password: string) => Promise<{ user: BackendUserProfile; redirect?: { url: string; message: string } } | void>;
+  signIn: (email: string, password: string) => Promise<{ user: UserProfile; redirect?: { url: string; message: string } } | void>;
   signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<{ 
     requiresFrontendVerification?: boolean; 
     verificationEmailSent?: boolean;
@@ -32,7 +32,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  const [user, setUser] = useState<BackendUserProfile | null>(null);
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<{ role: UserRole } | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
@@ -43,10 +43,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const loadUser = async () => {
     setLoading(true);
     try {
-      const me: BackendUserProfile = await apiClient.getProfile();
-      setUser(me);
-      setUserRole({ role: me.role });
-      setError(null);
+      const me: UserProfile | null = await appwriteAuthService.getCurrentUser();
+      if (me) {
+        setUser(me);
+        setUserRole({ role: me.role });
+        setError(null);
+      } else {
+        setUser(null);
+        setUserRole(null);
+      }
     } catch (err) {
       setUser(null);
       setUserRole(null);
@@ -57,18 +62,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    const existingToken = apiClient.getToken();
-    if (existingToken) {
-      loadUser();
-    } else {
-      setLoading(false);
-    }
+    const checkAuth = async () => {
+      try {
+        const isAuth = await appwriteAuthService.isAuthenticated();
+        if (isAuth) {
+          await loadUser();
+        } else {
+          setLoading(false);
+        }
+      } catch (error) {
+        setLoading(false);
+      }
+    };
+    
+    checkAuth();
   }, []);
 
   const signIn = async (email: string, password: string) => {
     setError(null);
     try {
-      const response = await apiClient.signIn(email, password);
+      const response = await appwriteAuthService.signIn(email, password);
       
       if (response?.access_token) {
         tokenManager.setTokens({
@@ -91,7 +104,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
     setError(null);
     try {
-      const response = await apiClient.signUp(email, password, metadata);
+      const response = await appwriteAuthService.signUp(email, password, metadata);
       return {
         requiresFrontendVerification: response.requiresFrontendVerification
       };
@@ -105,7 +118,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const requestVerification = async (email: string, password: string) => {
     setError(null);
     try {
-      await apiClient.requestVerification(email, password);
+      // Appwrite handles email verification automatically during signup
+      // This function is kept for compatibility but doesn't need to do anything
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to request verification email';
       setError(errorMessage);
@@ -116,7 +130,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const checkEmailVerification = async (email: string) => {
     setError(null);
     try {
-      return await apiClient.checkEmailVerification(email);
+      const result = await appwriteAuthService.checkEmailVerification(email);
+      return result;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to check email verification status';
       setError(errorMessage);
@@ -127,33 +142,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     setError(null);
     try {
-      await apiClient.logout();
+      await appwriteAuthService.signOut();
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      apiClient.clearToken();
+      tokenManager.clearTokens();
       setUser(null);
       setUserRole(null);
     }
   };
 
   const refreshToken = async () => {
-    const stored = tokenManager.getRefreshToken();
-    if (!stored) {
-      await signOut();
-      return;
-    }
-    
     try {
-      const response = await apiClient.refreshToken(stored);
-      if (response?.access_token) {
-        tokenManager.setTokens({
-          access_token: response.access_token,
-          refresh_token: response.refresh_token,
-        });
-      }
-    } catch {
-      await signOut();
+      await appwriteAuthService.refreshUserToken();
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      // If refresh fails, clear tokens and redirect to login
+      tokenManager.clearTokens();
+      setUser(null);
+      setUserRole(null);
     }
   };
 
@@ -161,10 +168,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user) return;
     setRoleLoading(true);
     try {
-      const me: BackendUserProfile = await apiClient.getProfile();
-      const role = me.role;
-      setUserRole({ role });
-      setUser((prev) => (prev ? { ...prev, role } : prev));
+      const me: UserProfile | null = await appwriteAuthService.getCurrentUser();
+      if (me) {
+        const role = me.role;
+        setUserRole({ role });
+        setUser((prev) => (prev ? { ...prev, role } : prev));
+      }
     } catch {
       // ignore
     } finally {
@@ -175,7 +184,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const forgotPassword = async (email: string) => {
     setError(null);
     try {
-      await apiClient.forgotPassword(email);
+      await appwriteAuthService.forgotPassword(email);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to send password reset email';
       setError(errorMessage);
@@ -186,7 +195,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const resetPassword = async (token: string, newPassword: string) => {
     setError(null);
     try {
-      await apiClient.resetPassword(token, newPassword);
+      // For Appwrite, we need userId and secret from the reset link
+      // This will need to be updated based on how the reset link is structured
+      throw new Error('Password reset not yet implemented for Appwrite');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to reset password';
       setError(errorMessage);
@@ -197,7 +208,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const verifyEmail = async (token: string) => {
     setError(null);
     try {
-      await apiClient.verifyEmail(token);
+      // For Appwrite, we need userId and secret from the verification link
+      // This will need to be updated based on how the verification link is structured
+      throw new Error('Email verification not yet implemented for Appwrite');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to verify email';
       setError(errorMessage);

@@ -275,8 +275,7 @@ const AdminDashboard = () => {
 
   const filterUsers = (user: BackendUserProfile, searchTerm: string) => {
     return user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           (user.first_name && user.first_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-           (user.last_name && user.last_name.toLowerCase().includes(searchTerm.toLowerCase()));
+           (user.full_name && user.full_name.toLowerCase().includes(searchTerm.toLowerCase()));
   };
 
   const filterEmailLogs = (log: EmailLog, searchTerm: string) => {
@@ -610,7 +609,7 @@ const AdminDashboard = () => {
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
                             <CardTitle className="text-lg">
-                              {user.first_name ? `${user.first_name} ${user.last_name || ''}` : user.email}
+                              {user.full_name || user.email}
                             </CardTitle>
                             <CardDescription className="mt-2">
                               {user.email}

@@ -63,7 +63,7 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
       // Update user profile if needed
       if (wizardData.userInfo) {
         await apiClient.updateProfile({
-          first_name: wizardData.userInfo.name,
+          full_name: wizardData.userInfo.name,
           email: wizardData.userInfo.email,
         } as any);
       }

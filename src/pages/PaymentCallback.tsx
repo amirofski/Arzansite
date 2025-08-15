@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/lib/api-client";
-import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, RefreshCw, Home, CreditCard } from 'lucide-react';
 import Layout from "@/components/ui/Layout";
 
 const PaymentCallback = () => {
@@ -41,7 +41,7 @@ const PaymentCallback = () => {
       }
 
       try {
-        const data: any = await apiClient.verifyPayment({ authority, orderId: orderId || undefined });
+        const data = await apiClient.verifyPayment({ authority, orderId: orderId || undefined });
         if (data?.success) {
           setStatus('success');
           setRefId(data.refId);
@@ -57,14 +57,15 @@ const PaymentCallback = () => {
             variant: "destructive",
           });
         }
-      } catch (error: any) {
-        console.error('Payment verification error:', error);
-        setStatus('failed');
-        toast({
-          title: "خطا در تأیید پرداخت",
-          description: error.message || "مشکلی در تأیید پرداخت پیش آمد",
-          variant: "destructive",
-        });
+              } catch (error: unknown) {
+          console.error('Payment verification error:', error);
+          setStatus('failed');
+          const errorMessage = error instanceof Error ? error.message : "مشکلی در تأیید پرداخت پیش آمد";
+          toast({
+            title: "خطا در تأیید پرداخت",
+            description: errorMessage,
+            variant: "destructive",
+          });
       }
     };
 
@@ -77,6 +78,16 @@ const PaymentCallback = () => {
 
   const handleBackToHome = () => {
     navigate('/');
+  };
+
+  const handleRetryPayment = () => {
+    // Get the order ID from URL params and redirect to payment
+    const orderId = searchParams.get('order_id');
+    if (orderId) {
+      navigate(`/wizard?step=payment&orderId=${orderId}`);
+    } else {
+      navigate('/wizard');
+    }
   };
 
   return (
@@ -127,27 +138,68 @@ const PaymentCallback = () => {
             )}
             
             {status === 'failed' && (
-              <p className="text-destructive mb-4">
-                متأسفانه پرداخت شما انجام نشد. می‌توانید دوباره تلاش کنید
-              </p>
+              <>
+                <p className="text-destructive mb-4">
+                  متأسفانه پرداخت شما انجام نشد. می‌توانید دوباره تلاش کنید
+                </p>
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-destructive">
+                    <strong>نکات مهم:</strong>
+                  </p>
+                  <ul className="text-sm text-destructive mt-2 space-y-1">
+                    <li>• اطمینان حاصل کنید که اطلاعات کارت بانکی صحیح است</li>
+                    <li>• موجودی حساب کافی باشد</li>
+                    <li>• در صورت مشکل، با پشتیبانی تماس بگیرید</li>
+                  </ul>
+                </div>
+              </>
             )}
             
             <div className="flex flex-col gap-2">
-              <Button 
-                onClick={handleBackToDashboard}
-                className="w-full"
-                disabled={status === 'loading'}
-              >
-                بازگشت به داشبورد
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={handleBackToHome}
-                className="w-full"
-                disabled={status === 'loading'}
-              >
-                بازگشت به صفحه اصلی
-              </Button>
+              {status === 'success' && (
+                <>
+                  <Button 
+                    onClick={handleBackToDashboard}
+                    className="w-full"
+                  >
+                    بازگشت به داشبورد
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={handleBackToHome}
+                    className="w-full"
+                  >
+                    بازگشت به صفحه اصلی
+                  </Button>
+                </>
+              )}
+              
+              {status === 'failed' && (
+                <>
+                  <Button 
+                    onClick={handleRetryPayment}
+                    className="w-full"
+                  >
+                    <RefreshCw className="w-4 h-4 ml-2" />
+                    تلاش مجدد
+                  </Button>
+                  <Button 
+                    onClick={handleBackToDashboard}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    بازگشت به داشبورد
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={handleBackToHome}
+                    className="w-full"
+                  >
+                    <Home className="w-4 h-4 ml-2" />
+                    بازگشت به صفحه اصلی
+                  </Button>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>

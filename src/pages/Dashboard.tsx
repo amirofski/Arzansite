@@ -43,25 +43,10 @@ const Dashboard = () => {
 
   // Check if user needs email verification
   useEffect(() => {
-    const checkVerificationStatus = async () => {
-      if (user) {
-        try {
-          // Check email verification status from the API
-          const verificationStatus = await apiClient.checkEmailVerification(user.email);
-          if (!verificationStatus.emailVerified) {
-            setShowVerificationPrompt(true);
-          } else {
-            setShowVerificationPrompt(false);
-          }
-        } catch (error) {
-          console.error('Error checking email verification status:', error);
-          // If we can't check the status, assume verified to avoid blocking the user
-          setShowVerificationPrompt(false);
-        }
-      }
-    };
-
-    checkVerificationStatus();
+    // Since the login response shows emailVerified: true, 
+    // we don't need to make an additional API call to check verification status
+    // The user is already verified, so we won't show the verification prompt
+    setShowVerificationPrompt(false);
   }, [user]);
 
   const fetchData = async () => {
@@ -432,7 +417,7 @@ const Dashboard = () => {
         >
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground mb-2">
-              خوش آمدید، {profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}` : user?.email}
+              خوش آمدید، {profile?.full_name || user?.email}
             </h1>
             <p className="text-muted-foreground">
               از این صفحه می‌توانید سفارشات و اطلاعات حساب خود را مدیریت کنید
@@ -672,7 +657,7 @@ const Dashboard = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">نام کامل</label>
-                      <p className="mt-1">{profile?.first_name ? `${profile.first_name} ${profile.last_name || ''}` : 'نامشخص'}</p>
+                      <p className="mt-1">{profile?.full_name || 'نامشخص'}</p>
                     </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">ایمیل</label>

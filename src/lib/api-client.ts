@@ -7,8 +7,7 @@ export interface BackendUserProfile {
   id: string;
   email: string;
   role: 'user' | 'admin';
-  first_name?: string;
-  last_name?: string;
+  full_name?: string;
   phone?: string;
   address?: string;
   company?: string;

@@ -97,7 +97,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
       if (data.userInfo) {
         try {
           await apiClient.updateProfile({
-            first_name: data.userInfo.name,
+            full_name: data.userInfo.name,
             email: data.userInfo.email,
           } as any);
         } catch (e) {

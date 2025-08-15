@@ -10,10 +10,10 @@ import { Loader2 } from 'lucide-react';
 
 interface Profile {
   id: string;
-  full_name: string;
+  full_name?: string;
   email: string;
-  phone: string;
-  address: string;
+  phone?: string;
+  address?: string;
 }
 
 interface EditProfileDialogProps {
@@ -51,7 +51,7 @@ const EditProfileDialog = ({ open, onOpenChange, profile, onProfileUpdated }: Ed
 
     try {
       await apiClient.updateProfile({
-        first_name: formData.full_name,
+        full_name: formData.full_name,
         phone: formData.phone || undefined,
         address: formData.address || undefined,
       } as any);

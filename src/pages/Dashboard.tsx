@@ -19,6 +19,8 @@ import { WalletService } from '@/lib/walletService';
 import CreateOrderDialog from '@/components/dashboard/CreateOrderDialog';
 import EditProfileDialog from '@/components/dashboard/EditProfileDialog';
 import WalletCard from '@/components/dashboard/WalletCard';
+import InvoiceList from '@/components/dashboard/InvoiceList';
+import ReceiptList from '@/components/dashboard/ReceiptList';
 import DesignPreview from '@/components/wizard/DesignPreview';
 import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import { EmailVerificationPrompt } from '@/components/EmailVerificationPrompt';
@@ -469,9 +471,11 @@ const Dashboard = () => {
           </div>
 
           <Tabs defaultValue="orders" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="orders">سفارشات من</TabsTrigger>
               <TabsTrigger value="wallet">کیف پول</TabsTrigger>
+              <TabsTrigger value="invoices">فاکتورها</TabsTrigger>
+              <TabsTrigger value="receipts">رسیدها</TabsTrigger>
               <TabsTrigger value="profile">اطلاعات حساب</TabsTrigger>
             </TabsList>
 
@@ -638,6 +642,20 @@ const Dashboard = () => {
                 <h2 className="text-2xl font-bold">کیف پول</h2>
               </div>
               <WalletCard userId={user?.id || ''} />
+            </TabsContent>
+
+            <TabsContent value="invoices" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">فاکتورها</h2>
+              </div>
+              <InvoiceList />
+            </TabsContent>
+
+            <TabsContent value="receipts" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">رسیدها</h2>
+              </div>
+              <ReceiptList />
             </TabsContent>
 
             <TabsContent value="profile" className="space-y-6">

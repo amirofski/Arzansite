@@ -98,7 +98,11 @@ export class WalletService {
         referenceType,
         metadata,
       };
+      
+      console.log('Creating wallet transaction with payload:', payload);
       const res = await apiClient.createWalletTransaction(payload);
+      console.log('Wallet transaction response:', res);
+      
       return res?.id ?? null;
     } catch (error) {
       console.error('Error processing transaction:', error);

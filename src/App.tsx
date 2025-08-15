@@ -13,6 +13,7 @@ import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
 // removed custom auth pages; using unified Auth page
 import PaymentCallback from "./pages/PaymentCallback";
+import WalletPaymentCallback from "./pages/WalletPaymentCallback";
 import OAuthCallback from "./components/OAuthCallback";
 import NotFound from "./pages/NotFound";
 import { HelmetProvider } from "react-helmet-async";
@@ -70,6 +71,7 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
         <Route path="/payment-callback" element={<PaymentCallback />} />
+        <Route path="/wallet-payment-callback" element={<WalletPaymentCallback />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

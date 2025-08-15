@@ -119,7 +119,6 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
         amount: paymentRequest.amount,
         description: paymentRequest.description,
         orderId: paymentRequest.orderId,
-        type: 'zarinpal'
       });
 
       if (paymentRes?.paymentUrl) {

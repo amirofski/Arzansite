@@ -130,6 +130,68 @@ export interface PaymentResponse {
   error?: string;
 }
 
+// Invoices and receipts
+export interface Invoice {
+  id: string;
+  user_id: string;
+  order_id?: string;
+  amount: number;
+  due_date?: string;
+  status: 'pending' | 'paid' | 'due' | 'overdue' | 'cancelled';
+  service_name?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Receipt {
+  id: string;
+  user_id: string;
+  invoice_id?: string;
+  payment_id?: string;
+  ref_id?: string;
+  amount: number;
+  service?: string;
+  created_at: string;
+}
+
+// Admin dashboard statistics
+export interface AdminDashboardStats {
+  totalUsers: number;
+  totalRevenue: number;
+  pendingInvoices: number;
+  overdueInvoices: number;
+  totalTransactions: number;
+}
+
+// Wallet adjustment for admin
+export interface WalletAdjustmentDto {
+  amount: number;
+  type: 'credit' | 'debit' | 'correction';
+  reason: string;
+  notes?: string;
+}
+
+// Create invoice DTO
+export interface CreateInvoiceDto {
+  orderId: string;
+  amount: number;
+  dueDate: string;
+  description: string;
+}
+
+// Pay invoice DTO
+export interface PayInvoiceDto {
+  refId?: string;
+  paymentMethod: 'wallet' | 'gateway';
+}
+
+export interface AdminWalletSummary {
+  user_id: string;
+  email?: string;
+  balance: number;
+  updated_at: string;
+}
+
 export interface SiteConfig {
   id: string;
   mode: 'normal' | 'temporarily_unavailable' | 'update_mode' | 'development_mode';
@@ -483,10 +545,25 @@ class ApiClient {
     referenceType?: string;
     metadata?: Record<string, unknown>;
   }): Promise<{ id: string }> {
-    return this.request('/wallets/me/transactions', {
+    const result = await this.request('/wallets/me/transactions', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    
+    // Handle the actual API response structure
+    if (result && typeof result === 'object') {
+      if ('data' in result && result.data && typeof result.data === 'object' && 'transactionId' in result.data) {
+        return { id: result.data.transactionId as string };
+      }
+      if ('id' in result) {
+        return { id: result.id as string };
+      }
+      if ('transactionId' in result) {
+        return { id: result.transactionId as string };
+      }
+    }
+    
+    throw new Error('Invalid response structure from createWalletTransaction');
   }
 
   async addWalletBalance(amount: number, paymentMethod = 'zarinpal'): Promise<{ paymentUrl: string }> {
@@ -515,11 +592,14 @@ class ApiClient {
     return this.request(`/payments/${paymentId}`);
   }
 
-  async requestPayment(payload: { amount: number; description: string; orderId?: string; type?: string }): Promise<{ paymentUrl: string }> {
-    return this.request('/payments/request', {
+  async requestPayment(payload: { amount: number; description: string; orderId?: string }): Promise<{ paymentUrl: string }> {
+    console.log('Requesting payment with payload:', payload);
+    const result = await this.request<{ paymentUrl: string }>('/payments/request', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    console.log('Payment request response:', result);
+    return result;
   }
 
   async verifyPayment(payload: { authority: string; orderId?: string }): Promise<{ success: boolean; refId?: string; error?: string }> {
@@ -527,6 +607,171 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  }
+
+  // Helpers
+  private extractList<TItem>(result: unknown): TItem[] {
+    if (Array.isArray(result)) {
+      return result as TItem[];
+    }
+    if (typeof result === 'object' && result !== null) {
+      const maybe = result as { data?: unknown };
+      if (Array.isArray(maybe.data)) {
+        return maybe.data as TItem[];
+      }
+    }
+    return [];
+  }
+
+  // Invoice endpoints (user)
+  async getInvoices(params?: { status?: string; from?: string; to?: string }): Promise<Invoice[]> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.append('status', params.status);
+    if (params?.from) qs.append('from', params.from);
+    if (params?.to) qs.append('to', params.to);
+    const queryString = qs.toString();
+    const result = await this.request<unknown>(`/invoices${queryString ? `?${queryString}` : ''}`);
+    return this.extractList<Invoice>(result);
+  }
+
+  async getInvoice(invoiceId: string): Promise<Invoice> {
+    return this.request(`/invoices/${invoiceId}`);
+  }
+
+  async payInvoice(invoiceId: string): Promise<{ success: boolean; refId?: string } > {
+    return this.request(`/invoices/${invoiceId}/pay`, { method: 'POST' });
+  }
+
+  // Receipts (user)
+  async getReceipts(params?: { from?: string; to?: string; service?: string }): Promise<Receipt[]> {
+    const qs = new URLSearchParams();
+    if (params?.from) qs.append('from', params.from);
+    if (params?.to) qs.append('to', params.to);
+    if (params?.service) qs.append('service', params.service);
+    const queryString = qs.toString();
+    const result = await this.request<unknown>(`/receipts${queryString ? `?${queryString}` : ''}`);
+    return this.extractList<Receipt>(result);
+  }
+
+  async downloadReceipt(receiptId: string, format: 'pdf' | 'html' = 'pdf'): Promise<Blob> {
+    const endpoint = `/receipts/${receiptId}/download?format=${format}`;
+    const url = `${this.baseURL}${endpoint}`;
+    const token = this.getToken();
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+    if (!response.ok) throw new Error('Failed to download receipt');
+    return await response.blob();
+  }
+
+  // Admin finance
+  async getAdminWallets(): Promise<AdminWalletSummary[]> {
+    return this.request('/admin/wallets');
+  }
+
+  async adjustAdminWallet(walletUserId: string, payload: { amount: number; type: 'credit' | 'debit'; reason: string; notes?: string }): Promise<{ success: boolean }>{
+    return this.request(`/admin/wallets/${walletUserId}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getAdminInvoices(params?: { status?: string; user?: string; from?: string; to?: string }): Promise<Invoice[]> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.append('status', params.status);
+    if (params?.user) qs.append('user', params.user);
+    if (params?.from) qs.append('from', params.from);
+    if (params?.to) qs.append('to', params.to);
+    const queryString = qs.toString();
+    return this.request(`/admin/invoices${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getAdminPayments(params?: { status?: string; user?: string }): Promise<Array<{ id: string; user_id: string; status: string; ref_id?: string; amount: number; created_at: string }>> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.append('status', params.status);
+    if (params?.user) qs.append('user', params.user);
+    const queryString = qs.toString();
+    return this.request(`/admin/payments${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getAdminReceipts(params?: { user?: string; service?: string; from?: string; to?: string }): Promise<Receipt[]> {
+    const qs = new URLSearchParams();
+    if (params?.user) qs.append('user', params.user);
+    if (params?.service) qs.append('service', params.service);
+    if (params?.from) qs.append('from', params.from);
+    if (params?.to) qs.append('to', params.to);
+    const queryString = qs.toString();
+    const result = await this.request<unknown>(`/admin/receipts${queryString ? `?${queryString}` : ''}`);
+    return this.extractList<Receipt>(result);
+  }
+
+  // Admin dashboard statistics
+  async getAdminDashboardStats(): Promise<AdminDashboardStats> {
+    return this.request('/admin/dashboard/stats');
+  }
+
+  // Create invoice
+  async createInvoice(payload: CreateInvoiceDto): Promise<Invoice> {
+    return this.request('/invoices', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Update invoice (admin only)
+  async updateInvoice(invoiceId: string, payload: Partial<Invoice>): Promise<Invoice> {
+    return this.request(`/invoices/${invoiceId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Wallet deposit with payment gateway
+  async requestWalletDeposit(payload: { amount: number; description?: string }): Promise<{ paymentUrl: string; orderId: string }> {
+    console.log('Requesting wallet deposit with payload:', payload);
+    const result = await this.request<{ paymentUrl: string; orderId: string }>('/wallets/me/deposit', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    console.log('Wallet deposit response:', result);
+    return result;
+  }
+
+  // Verify wallet deposit
+  async verifyWalletDeposit(payload: { orderId: string; authority: string }): Promise<{ success: boolean; newBalance: number }> {
+    return this.request('/wallets/me/deposit/verify', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Top up wallet with RefId
+  async topUpWallet(payload: { amount: number; refId: string }): Promise<{ success: boolean; transactionId: string; newBalance: number }> {
+    return this.request('/wallets/me/topup', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Admin wallet adjustment
+  async adjustWalletBalance(walletId: string, payload: WalletAdjustmentDto): Promise<{ success: boolean; balanceBefore: number; balanceAfter: number }> {
+    return this.request(`/admin/wallets/${walletId}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Get all user wallets (admin)
+  async getAllUserWallets(params?: { page?: number; limit?: number; search?: string }): Promise<{ wallets: AdminWalletSummary[]; pagination: { page: number; limit: number; total: number; pages: number } }> {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.append('page', params.page.toString());
+    if (params?.limit) qs.append('limit', params.limit.toString());
+    if (params?.search) qs.append('search', params.search);
+    const queryString = qs.toString();
+    return this.request(`/admin/wallets${queryString ? `?${queryString}` : ''}`);
   }
 
   // Site configuration endpoints

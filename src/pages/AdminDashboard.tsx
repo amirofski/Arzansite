@@ -37,6 +37,10 @@ import { WalletService } from '@/lib/walletService';
 import { PaymentService } from '@/lib/paymentService';
 import { DesignService } from '@/lib/designService';
 import { emailService } from '@/lib/emailService';
+import AdminInvoiceManager from '@/components/admin/AdminInvoiceManager';
+import AdminReceiptManager from '@/components/admin/AdminReceiptManager';
+import AdminPaymentLogs from '@/components/admin/AdminPaymentLogs';
+import AdminDashboardStats from '@/components/admin/AdminDashboardStats';
 
 const AdminDashboard = () => {
   const { user } = useAuth();
@@ -441,10 +445,14 @@ const AdminDashboard = () => {
           </Card>
 
           <Tabs defaultValue="orders" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-8">
               <TabsTrigger value="orders">سفارشات</TabsTrigger>
               <TabsTrigger value="users">کاربران</TabsTrigger>
               <TabsTrigger value="emails">ایمیل‌ها</TabsTrigger>
+              <TabsTrigger value="stats">آمار</TabsTrigger>
+              <TabsTrigger value="invoices">فاکتورها</TabsTrigger>
+              <TabsTrigger value="receipts">رسیدها</TabsTrigger>
+              <TabsTrigger value="payments">پرداخت‌ها</TabsTrigger>
               <TabsTrigger value="tools">ابزارها</TabsTrigger>
             </TabsList>
 
@@ -743,6 +751,34 @@ const AdminDashboard = () => {
                   />
                 </div>
               )}
+            </TabsContent>
+
+            <TabsContent value="stats" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">آمار سیستم</h2>
+              </div>
+              <AdminDashboardStats />
+            </TabsContent>
+
+            <TabsContent value="invoices" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">مدیریت فاکتورها</h2>
+              </div>
+              <AdminInvoiceManager />
+            </TabsContent>
+
+            <TabsContent value="receipts" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">مدیریت رسیدها</h2>
+              </div>
+              <AdminReceiptManager />
+            </TabsContent>
+
+            <TabsContent value="payments" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">لاگ پرداخت‌ها</h2>
+              </div>
+              <AdminPaymentLogs />
             </TabsContent>
 
             <TabsContent value="tools" className="space-y-6">

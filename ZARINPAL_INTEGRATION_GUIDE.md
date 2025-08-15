@@ -15,7 +15,7 @@ Add to your `.env` file:
 ```env
 ZARINPAL_MERCHANT_ID=your_merchant_id_here
 ZARINPAL_SANDBOX=true  # Set to false for production
-ZARINPAL_CALLBACK_URL=https://yourdomain.com/payment/callback
+ZARINPAL_CALLBACK_URL=https://arzansite.com/payment/callback
 ```
 
 ### 3. Create Zarinpal Service

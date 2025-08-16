@@ -1,5 +1,9 @@
 // Comprehensive REST client for the NestJS backend
 // Base URL: https://nest.arzansite.com/api
+// 
+// SECURITY: This client uses ephemeral memory storage for tokens to prevent XSS attacks.
+// For maximum security, the backend should set tokens as httpOnly cookies.
+// See SECURITY_IMPROVEMENTS.md for details.
 
 import { tokenManager, TokenData } from './tokenManager';
 
@@ -237,7 +241,7 @@ class ApiClient {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options.headers || {}),
       },
-      credentials: 'include',
+      credentials: 'include', // Always include cookies for httpOnly token storage
       ...options,
     };
 
@@ -311,7 +315,8 @@ class ApiClient {
       body: JSON.stringify({ email, password }),
     });
     
-    // Store tokens securely
+    // Store tokens in ephemeral memory only (not localStorage)
+    // Server should set httpOnly cookies for secure token storage
     tokenManager.setTokens({
       access_token: response.access_token,
       refresh_token: response.refresh_token,
@@ -730,22 +735,74 @@ class ApiClient {
   }
 
   // Wallet deposit with payment gateway
-  async requestWalletDeposit(payload: { amount: number; description?: string }): Promise<{ paymentUrl: string; orderId: string }> {
-    console.log('Requesting wallet deposit with payload:', payload);
+  async requestWalletDeposit(payload: { 
+    amount: number; // Amount in Rials (normalized)
+    description?: string; 
+    user_id?: string; 
+    metadata?: string | Record<string, unknown> 
+  }): Promise<{ paymentUrl: string; orderId: string }> {
+    // Validate amount (minimum 1,000,000 Rials as per ZarinPal docs)
+    if (payload.amount < 1000000) {
+      throw new Error('Amount must be at least 1,000,000 Rials (100,000 Tomans)');
+    }
+
+    console.log('=== API CLIENT: WALLET DEPOSIT REQUEST ===');
+    console.log('Payload:', JSON.stringify(payload, null, 2));
+    
     const result = await this.request<{ paymentUrl: string; orderId: string }>('/wallets/me/deposit', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
-    console.log('Wallet deposit response:', result);
+    
+    console.log('=== API CLIENT: WALLET DEPOSIT RESPONSE ===');
+    console.log('Response:', JSON.stringify(result, null, 2));
+    console.log('==========================================');
+    
     return result;
   }
 
-  // Verify wallet deposit
-  async verifyWalletDeposit(payload: { orderId: string; authority: string }): Promise<{ success: boolean; newBalance: number }> {
-    return this.request('/wallets/me/deposit/verify', {
+  // Verify wallet deposit with enhanced error handling
+  async verifyWalletDeposit(payload: { 
+    orderId?: string; 
+    authority: string 
+  }): Promise<{
+    success: boolean;
+    newBalance?: number;
+    refId?: string;
+    orderId?: string;
+    amount?: number;
+    description?: string;
+    error?: string;
+    errorCode?: string;
+    errorDetails?: string;
+    retryable?: boolean;
+    supportRequired?: boolean;
+  }> {
+    console.log('=== API CLIENT: WALLET VERIFICATION REQUEST ===');
+    console.log('Payload:', JSON.stringify(payload, null, 2));
+    
+    const result = await this.request<{
+      success: boolean;
+      newBalance?: number;
+      refId?: string;
+      orderId?: string;
+      amount?: number;
+      description?: string;
+      error?: string;
+      errorCode?: string;
+      errorDetails?: string;
+      retryable?: boolean;
+      supportRequired?: boolean;
+    }>('/wallets/me/deposit/verify', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+    
+    console.log('=== API CLIENT: WALLET VERIFICATION RESPONSE ===');
+    console.log('Response:', JSON.stringify(result, null, 2));
+    console.log('===============================================');
+    
+    return result;
   }
 
   // Top up wallet with RefId

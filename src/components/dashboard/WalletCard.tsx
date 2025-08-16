@@ -9,6 +9,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet as WalletIcon, Plus, ArrowUpDown, History, CreditCard, AlertCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WalletService } from '@/lib/walletService';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/ui/PaginationControls';
 // Removed direct Supabase function calls; handled by backend via WalletService
 import type { Transaction } from '@/lib/walletService';
 
@@ -32,7 +34,27 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
     timestamp: number;
   } | null>(null);
 
+
+
+  // Pagination settings
+  const ITEMS_PER_PAGE = 10;
+  const { currentItems: currentTransactions, totalPages, currentPage, setCurrentPage, totalItems } = usePagination({
+    data: transactions,
+    itemsPerPage: ITEMS_PER_PAGE
+  });
+
+  // Reset to first page when transactions change
   useEffect(() => {
+    setCurrentPage(1);
+  }, [transactions.length, setCurrentPage]);
+
+  useEffect(() => {
+    // Only proceed if we have a valid user ID
+    if (!userId || userId.trim() === '') {
+      setLoading(false);
+      return;
+    }
+
     // Check if we're returning from a successful payment
     const urlParams = new URLSearchParams(window.location.search);
     const paymentSuccess = urlParams.get('payment_success');
@@ -86,27 +108,30 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
   };
 
   const fetchWalletData = async (showSuccessMessage = false) => {
+    // Only proceed if we have a valid user ID
+    if (!userId || userId.trim() === '') {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
+    
     try {
-      const [balanceData, transactionsData] = await Promise.all([
-        WalletService.getWalletBalance(userId),
-        WalletService.getTransactions(userId, 10)
-      ]);
+      const balanceData = await WalletService.getWalletBalance(userId);
+      
+      const transactionsData = await WalletService.getTransactions(userId, 50); // Fetch more transactions for pagination
       
       const previousBalance = balance;
       setBalance(balanceData);
-      console.log('Fetched transactions:', transactionsData);
       
       // Validate transaction data and ensure unique IDs
       const validatedTransactions = transactionsData.map((transaction, index) => {
         if (!transaction.id) {
-          console.warn(`Transaction at index ${index} has no ID:`, transaction);
           return { ...transaction, id: `temp-${index}-${Date.now()}` };
         }
         return transaction;
       });
       
-      console.log('Validated transactions:', validatedTransactions);
       setTransactions(validatedTransactions);
       
       // Show success message if balance increased
@@ -158,6 +183,16 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
   };
 
   const handleDeposit = async () => {
+    // Validate user ID first
+    if (!userId || userId.trim() === '') {
+      toast({
+        title: 'خطا در احراز هویت',
+        description: 'شناسه کاربر نامعتبر است. لطفاً دوباره وارد شوید',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const validation = validateDepositForm();
     if (!validation.isValid) {
       validation.errors.forEach(error => {
@@ -191,15 +226,18 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
       const { apiClient } = await import('@/lib/api-client');
       const depositPayload = {
         amount: Math.floor(amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
-        description: depositDescription || `شارژ کیف پول - ${WalletService.formatAmount(amount)}`
+        description: depositDescription || `شارژ کیف پول - ${WalletService.formatAmount(amount)}`,
+        user_id: userId, // Backend might expect snake_case
+        metadata: JSON.stringify({
+          type: 'wallet_deposit',
+          source: 'web',
+          timestamp: Date.now(),
+          amountInTomans: amount,
+          amountInRials: Math.floor(amount * 10)
+        })
       };
       
-      console.log('Requesting wallet deposit with payload:', depositPayload);
-      console.log('Amount in Tomans:', amount);
-      console.log('Amount in Rials:', depositPayload.amount);
-      
       const depositData = await apiClient.requestWalletDeposit(depositPayload);
-      console.log('Wallet deposit response:', depositData);
       
       // Store payment information for callback handling
       const paymentInfo = {
@@ -215,7 +253,6 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
       sessionStorage.setItem('walletPaymentInfo', JSON.stringify(paymentInfo));
       
       if (depositData.paymentUrl) {
-        console.log('Redirecting to payment URL:', depositData.paymentUrl);
         // Add callback URL parameter for wallet payment
         const callbackUrl = `${window.location.origin}/wallet-payment-callback`;
         const paymentUrlWithCallback = `${depositData.paymentUrl}&callback_url=${encodeURIComponent(callbackUrl)}`;
@@ -253,7 +290,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
     return new Date(dateString).toLocaleDateString('fa-IR');
   };
 
-  if (loading) {
+  if (loading && transactions.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -263,9 +300,37 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="animate-pulse space-y-2">
+          <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/3"></div>
             <div className="h-4 bg-muted rounded w-1/2"></div>
+            <div className="grid grid-cols-3 gap-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="p-3 bg-muted rounded-lg">
+                  <div className="h-6 bg-muted-foreground/20 rounded w-16 mx-auto mb-2"></div>
+                  <div className="h-3 bg-muted-foreground/20 rounded w-20 mx-auto"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!userId) {
+    return (
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <WalletIcon className="h-5 w-5" />
+            <CardTitle>کیف پول</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <p className="text-muted-foreground mb-2">خطا در احراز هویت</p>
+            <p className="text-sm text-muted-foreground">شناسه کاربر نامعتبر است</p>
+
           </div>
         </CardContent>
       </Card>
@@ -307,7 +372,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
             </div>
 
             {/* Payment Statistics */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-center">
                 <div className="text-lg font-bold text-green-700">
                   {transactions.filter(t => t.type === 'deposit' || t.type === 'credit').length}
@@ -315,10 +380,16 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                 <div className="text-xs text-green-600">شارژهای موفق</div>
               </div>
               <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
+                <div className="text-xs text-blue-600">برداشت‌ها</div>
                 <div className="text-lg font-bold text-blue-700">
                   {transactions.filter(t => t.type === 'withdrawal' || t.type === 'debit').length}
                 </div>
-                <div className="text-xs text-blue-600">برداشت‌ها</div>
+              </div>
+              <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg text-center">
+                <div className="text-xs text-purple-600">کل تراکنش‌ها</div>
+                <div className="text-lg font-bold text-purple-700">
+                  {transactions.length}
+                </div>
               </div>
             </div>
 
@@ -344,7 +415,13 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                         const { apiClient } = await import('@/lib/api-client');
                         const depositPayload = {
                           amount: Math.floor(pendingPayment.amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
-                          description: pendingPayment.description
+                          description: pendingPayment.description,
+                          user_id: userId,
+                          metadata: {
+                            type: 'wallet_deposit',
+                            source: 'web',
+                            timestamp: Date.now()
+                          }
                         };
                         
                         const depositData = await apiClient.requestWalletDeposit(depositPayload);
@@ -385,62 +462,152 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
             )}
 
             {/* Recent Transactions */}
-            <div>
+            <div data-transactions-section>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <History className="w-4 h-4" />
-                  <h4 className="font-medium">آخرین تراکنش‌ها</h4>
+                  <h4 className="font-medium">تراکنش‌های کیف پول</h4>
+                  {transactions.length > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {transactions.length} تراکنش
+                    </Badge>
+                  )}
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => fetchWalletData()}
-                  disabled={loading}
-                  className="h-8 px-2"
-                >
-                  <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      fetchWalletData();
+                      // Reset to first page when refreshing
+                      setCurrentPage(1);
+                    }}
+                    disabled={loading}
+                    className="h-8 px-2"
+                    title="بروزرسانی تراکنش‌ها"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+                  </Button>
+
+                  {transactions.length > ITEMS_PER_PAGE && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-3 text-xs"
+                      onClick={() => {
+                        // For now, just scroll to transactions section
+                        // In the future, this could navigate to a dedicated transactions page
+                        document.querySelector('[data-transactions-section]')?.scrollIntoView({ 
+                          behavior: 'smooth' 
+                        });
+                      }}
+                    >
+                      مشاهده همه
+                    </Button>
+                  )}
+                </div>
               </div>
               
-              {transactions.length === 0 ? (
-                <div className="text-center py-4 text-muted-foreground text-sm">
-                  هیچ تراکنشی یافت نشد
-                </div>
-              ) : (
+              {loading ? (
                 <div className="space-y-2">
-                  {transactions.slice(0, 5).map((transaction, index) => (
-                    <div
-                      key={transaction.id || `transaction-${index}`}
-                      className="flex items-center justify-between p-3 bg-background border rounded-lg"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">
-                            {WalletService.getTransactionTypeText(transaction.type as import('@/lib/walletService').TransactionType)}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={`text-xs ${WalletService.getTransactionStatusColor(transaction.status)}`}
-                          >
-                            {WalletService.getTransactionStatusText(transaction.status)}
-                          </Badge>
-                        </div>
-                        {transaction.description && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {transaction.description}
-                          </div>
-                        )}
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {formatDate(transaction.created_at)}
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-background border rounded-lg">
+                      <div className="flex items-center gap-3 flex-1">
+                        <div className="w-8 h-8 bg-muted rounded-full animate-pulse"></div>
+                        <div className="flex-1 space-y-2">
+                          <div className="h-4 bg-muted rounded w-24 animate-pulse"></div>
+                          <div className="h-3 bg-muted rounded w-32 animate-pulse"></div>
+                          <div className="h-3 bg-muted rounded w-20 animate-pulse"></div>
                         </div>
                       </div>
-                      <div className={`font-medium ${WalletService.getTransactionTypeColor(transaction.type as import('@/lib/walletService').TransactionType)}`}>
-                        {transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? '+' : '-'}
-                        {WalletService.formatAmount(transaction.amount)}
+                      <div className="space-y-2 ml-3">
+                        <div className="h-4 bg-muted rounded w-20 animate-pulse"></div>
+                        <div className="h-3 bg-muted rounded w-16 animate-pulse"></div>
                       </div>
                     </div>
                   ))}
                 </div>
+              ) : transactions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <History className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+                  <p className="text-sm mb-2">هیچ تراکنشی یافت نشد</p>
+                  <p className="text-xs mb-3">تراکنش‌های کیف پول شما در اینجا نمایش داده خواهد شد</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDepositDialogOpen(true)}
+                    className="text-xs"
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    اولین تراکنش را ایجاد کنید
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {currentTransactions.map((transaction, index) => (
+                      <div
+                        key={transaction.id || `transaction-${index}`}
+                        className="flex items-center justify-between p-3 bg-background border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit'
+                              ? 'bg-green-100 text-green-600'
+                              : 'bg-red-100 text-red-600'
+                          }`}>
+                            {transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? (
+                              <Plus className="w-4 h-4" />
+                            ) : (
+                              <ArrowUpDown className="w-4 h-4" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium text-sm truncate">
+                                {WalletService.getTransactionTypeText(transaction.type as import('@/lib/walletService').TransactionType)}
+                              </span>
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${WalletService.getTransactionStatusColor(transaction.status)}`}
+                              >
+                                {WalletService.getTransactionStatusText(transaction.status)}
+                              </Badge>
+                            </div>
+                            {transaction.description && (
+                              <div className="text-xs text-muted-foreground mb-1 truncate">
+                                {transaction.description}
+                              </div>
+                            )}
+                            <div className="text-xs text-muted-foreground">
+                              {formatDate(transaction.created_at)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className={`font-medium text-right ml-3 ${WalletService.getTransactionTypeColor(transaction.type as import('@/lib/walletService').TransactionType)}`}>
+                          <div className="text-sm">
+                            {transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? '+' : '-'}
+                            {WalletService.formatAmount(transaction.amount)}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            موجودی: {WalletService.formatAmount(transaction.balance_after || 0)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Pagination Controls */}
+                  {totalPages > 1 && (
+                    <PaginationControls
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={setCurrentPage}
+                      totalItems={totalItems}
+                      itemsPerPage={ITEMS_PER_PAGE}
+                    />
+                  )}
+                </>
               )}
             </div>
           </div>

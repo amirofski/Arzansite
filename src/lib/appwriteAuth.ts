@@ -337,11 +337,25 @@ class AppwriteAuthService {
         return null;
       }
 
-      const data = await response.json();
+            const data = await response.json();
+      
+      // Try to extract user ID from JWT token if not in response
+      let userId = data.id || data.user_id || data.userId;
+      if (!userId && this.accessToken) {
+        try {
+          const tokenParts = this.accessToken.split('.');
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            userId = payload.sub || payload.user_id || payload.userId;
+          }
+        } catch (tokenError) {
+          // Silently handle token parsing errors
+        }
+      }
       
       // Create user profile from response
       const userProfile: UserProfile = {
-        id: data.id,
+        id: userId || '',
         email: data.email || '',
         role: data.role || 'user',
         first_name: data.first_name || '',
@@ -350,7 +364,12 @@ class AppwriteAuthService {
         created_at: data.created_at || new Date().toISOString(),
         updated_at: data.updated_at || new Date().toISOString(),
       };
-
+      
+      // Validate that we have a user ID
+      if (!userProfile.id) {
+        return null;
+      }
+      
       return userProfile;
     } catch (error) {
       console.error('Get current user error:', error);

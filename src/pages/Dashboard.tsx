@@ -26,7 +26,7 @@ import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import { EmailVerificationPrompt } from '@/components/EmailVerificationPrompt';
 
 const Dashboard = () => {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>([]);
   const [profile, setProfile] = useState<BackendUserProfile | null>(null);
@@ -39,9 +39,11 @@ const Dashboard = () => {
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [user]);
+  
+
+     useEffect(() => {
+     fetchData();
+   }, [user]);
 
   // Check if user needs email verification
   useEffect(() => {
@@ -51,17 +53,19 @@ const Dashboard = () => {
     setShowVerificationPrompt(false);
   }, [user]);
 
-  const fetchData = async () => {
-    if (!user) return;
+     const fetchData = async () => {
+     if (!user) {
+       return;
+     }
 
-    try {
-      // Fetch user profile first
-      const profileData = await apiClient.getMyProfile();
-      setProfile(profileData);
+     try {
+       // Fetch user profile first
+       const profileData = await apiClient.getMyProfile();
+       setProfile(profileData);
 
-      // Fetch user orders with loading state
-      await fetchOrders();
-    } catch (error) {
+       // Fetch user orders with loading state
+       await fetchOrders();
+     } catch (error) {
       console.error('Error fetching data:', error);
       toast({
         title: 'خطا در بارگیری اطلاعات',
@@ -73,34 +77,28 @@ const Dashboard = () => {
     }
   };
 
-  const fetchOrders = async () => {
-    if (!user) return;
+     const fetchOrders = async () => {
+     if (!user) return;
 
-    setOrdersLoading(true);
-    try {
-      const ordersData = await apiClient.getOrders({ mine: true });
-      console.log('Raw orders data from API:', ordersData, 'Type:', typeof ordersData, 'Is Array:', Array.isArray(ordersData));
-      // Ensure ordersData is always an array
-      if (Array.isArray(ordersData)) {
-        // Filter out any invalid order objects
-        const validOrders = ordersData.filter(order => 
-          order && 
-          typeof order === 'object' && 
-          typeof order.id === 'string' &&
-          typeof order.title === 'string' &&
-          typeof order.status === 'string'
-        );
-        
-        if (validOrders.length !== ordersData.length) {
-          console.warn('Filtered out invalid orders:', ordersData.length - validOrders.length, 'Valid orders:', validOrders.length);
-        }
-        
-        setOrders(validOrders);
-      } else {
-        console.warn('API returned non-array orders data:', ordersData);
-        setOrders([]);
-      }
-    } catch (error) {
+     setOrdersLoading(true);
+     try {
+       const ordersData = await apiClient.getOrders({ mine: true });
+       // Ensure ordersData is always an array
+       if (Array.isArray(ordersData)) {
+         // Filter out any invalid order objects
+         const validOrders = ordersData.filter(order => 
+           order && 
+           typeof order === 'object' && 
+           typeof order.id === 'string' &&
+           typeof order.title === 'string' &&
+           typeof order.status === 'string'
+         );
+         
+         setOrders(validOrders);
+       } else {
+         setOrders([]);
+       }
+     } catch (error) {
       console.error('Error fetching orders:', error);
       toast({
         title: 'خطا در بارگیری سفارشات',
@@ -340,9 +338,8 @@ const Dashboard = () => {
     }
   };
 
-  // Use pagination hook for orders
-  console.log('Orders state before usePagination:', orders, 'Type:', typeof orders, 'Is Array:', Array.isArray(orders));
-  const {
+     // Use pagination hook for orders
+   const {
     currentItems: currentOrders,
     totalPages: ordersTotalPages,
     currentPage: ordersCurrentPage,
@@ -641,7 +638,22 @@ const Dashboard = () => {
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">کیف پول</h2>
               </div>
-              <WalletCard userId={user?.id || ''} />
+              {authLoading ? (
+                <Card>
+                  <CardContent className="text-center py-8">
+                    <p className="text-muted-foreground">در حال بارگیری اطلاعات احراز هویت...</p>
+                  </CardContent>
+                </Card>
+                             ) : user?.id ? (
+                 <WalletCard userId={user.id} />
+               ) : (
+                 <Card>
+                   <CardContent className="text-center py-8">
+                     <p className="text-muted-foreground">خطا در بارگیری اطلاعات کاربر</p>
+                     <p className="text-sm text-muted-foreground mt-2">لطفاً دوباره وارد شوید</p>
+                   </CardContent>
+                 </Card>
+               )}
             </TabsContent>
 
             <TabsContent value="invoices" className="space-y-6">

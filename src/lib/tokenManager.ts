@@ -1,10 +1,11 @@
-// Token Management Service for ArzanSite Authentication
-// Handles secure token storage and automatic refresh
+// Secure Token Management Service for ArzanSite Authentication
+// Uses httpOnly cookies and ephemeral memory to prevent XSS attacks
 
 export interface TokenData {
   access_token: string;
   refresh_token?: string;
   expires_at?: number;
+  user_info?: Record<string, unknown>;
 }
 
 // Decode JWT and return exp in ms if available
@@ -23,6 +24,13 @@ function decodeJwtExpirationMs(jwtToken: string): number | null {
 class TokenManager {
   private static instance: TokenManager;
   private refreshPromise: Promise<TokenData> | null = null;
+  
+  // Ephemeral memory storage for tokens (cleared on page reload)
+  private ephemeralTokens: {
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: number;
+  } = {};
 
   private constructor() {}
 
@@ -33,17 +41,12 @@ class TokenManager {
     return TokenManager.instance;
   }
 
-  // Store tokens securely
+  // Store tokens securely - only non-sensitive data in ephemeral memory
   setTokens(tokens: TokenData): void {
     try {
-      // Store access token in both sessionStorage and localStorage for consistency
-      sessionStorage.setItem('access_token', tokens.access_token);
-      localStorage.setItem('access_token', tokens.access_token);
-      
-      // Store refresh token in localStorage for persistence
-      if (tokens.refresh_token) {
-        localStorage.setItem('refresh_token', tokens.refresh_token);
-      }
+      // Store tokens in ephemeral memory only (cleared on page reload)
+      this.ephemeralTokens.access_token = tokens.access_token;
+      this.ephemeralTokens.refresh_token = tokens.refresh_token;
       
       // Determine and store expiration time
       let expiresAtMs: number | undefined = tokens.expires_at;
@@ -53,37 +56,32 @@ class TokenManager {
           expiresAtMs = decoded;
         }
       }
-      if (expiresAtMs) {
-        localStorage.setItem('token_expires_at', String(expiresAtMs));
+      this.ephemeralTokens.expires_at = expiresAtMs;
+      
+      // Store non-sensitive user info in sessionStorage for UI purposes only
+      // This should not contain any tokens or secrets
+      if (tokens.user_info) {
+        sessionStorage.setItem('user_info', JSON.stringify(tokens.user_info));
       }
     } catch (error) {
       console.error('Failed to store tokens:', error);
     }
   }
 
-  // Get access token
+  // Get access token from ephemeral memory
   getAccessToken(): string | null {
     try {
-      // Check sessionStorage first, then localStorage for consistency
-      let token = sessionStorage.getItem('access_token');
-      if (!token) {
-        token = localStorage.getItem('access_token');
-        // If found in localStorage, also store in sessionStorage
-        if (token) {
-          sessionStorage.setItem('access_token', token);
-        }
-      }
-      return token;
+      return this.ephemeralTokens.access_token || null;
     } catch (error) {
       console.error('Failed to get access token:', error);
       return null;
     }
   }
 
-  // Get refresh token
+  // Get refresh token from ephemeral memory
   getRefreshToken(): string | null {
     try {
-      return localStorage.getItem('refresh_token');
+      return this.ephemeralTokens.refresh_token || null;
     } catch (error) {
       console.error('Failed to get refresh token:', error);
       return null;
@@ -93,27 +91,25 @@ class TokenManager {
   // Check if token is expired
   isTokenExpired(): boolean {
     try {
-      const expiresAt = localStorage.getItem('token_expires_at');
+      const expiresAt = this.ephemeralTokens.expires_at;
       if (!expiresAt) return false;
       
-      const expirationTime = parseInt(expiresAt, 10);
       const now = Date.now();
       
       // Consider token expired 5 minutes before actual expiration
-      return now >= (expirationTime - 5 * 60 * 1000);
+      return now >= (expiresAt - 5 * 60 * 1000);
     } catch (error) {
       console.error('Failed to check token expiration:', error);
       return true;
     }
   }
 
-  // Clear all tokens
+  // Clear all tokens from ephemeral memory
   clearTokens(): void {
     try {
-      sessionStorage.removeItem('access_token');
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('token_expires_at');
+      this.ephemeralTokens = {};
+      // Clear any non-sensitive UI data
+      sessionStorage.removeItem('user_info');
     } catch (error) {
       console.error('Failed to clear tokens:', error);
     }
@@ -128,10 +124,10 @@ class TokenManager {
   // Get token expiration time
   getTokenExpiration(): Date | null {
     try {
-      const expiresAt = localStorage.getItem('token_expires_at');
+      const expiresAt = this.ephemeralTokens.expires_at;
       if (!expiresAt) return null;
       
-      return new Date(parseInt(expiresAt, 10));
+      return new Date(expiresAt);
     } catch (error) {
       console.error('Failed to get token expiration:', error);
       return null;
@@ -170,6 +166,17 @@ class TokenManager {
     });
 
     return this.refreshPromise;
+  }
+
+  // Get user info from sessionStorage (non-sensitive data only)
+  getUserInfo(): Record<string, unknown> | null {
+    try {
+      const userInfo = sessionStorage.getItem('user_info');
+      return userInfo ? JSON.parse(userInfo) : null;
+    } catch (error) {
+      console.error('Failed to get user info:', error);
+      return null;
+    }
   }
 }
 

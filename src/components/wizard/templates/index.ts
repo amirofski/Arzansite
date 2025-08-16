@@ -18,6 +18,7 @@ export interface SkeletonTemplate {
   category: string;
   component: React.ComponentType<{ className?: string }>;
   preview?: string;
+  previewImage?: string; // Path to PNG image
   tags?: string[];
 }
 
@@ -61,4 +62,45 @@ export const getAllTemplates = async (): Promise<Record<string, SkeletonTemplate
   }
   
   return templates;
+};
+
+// New function to get image-based templates for a category
+export const getImageTemplatesByCategory = async (category: string): Promise<SkeletonTemplate[]> => {
+  try {
+    // Import the image loader utility
+    const { getImagesByCategory } = await import('@/lib/imageLoader');
+    const images = await getImagesByCategory(category);
+    
+    // Convert images to template format
+    return images.map((image, index) => ({
+      id: image.id,
+      name: image.name,
+      description: `${image.name} - طراحی ${index + 1}`,
+      category: image.category,
+      component: () => null, // We don't need components for image-based templates
+      previewImage: image.path,
+      tags: ['image-based', category]
+    }));
+  } catch (error) {
+    console.error(`Failed to load image templates for category: ${category}`, error);
+    return [];
+  }
+};
+
+// Function to get all available image-based templates
+export const getAllImageTemplates = async (): Promise<Record<string, SkeletonTemplate[]>> => {
+  try {
+    const { getSectionCategories } = await import('@/lib/imageLoader');
+    const categories = getSectionCategories();
+    const templates: Record<string, SkeletonTemplate[]> = {};
+    
+    for (const category of categories) {
+      templates[category.id] = await getImageTemplatesByCategory(category.id);
+    }
+    
+    return templates;
+  } catch (error) {
+    console.error('Failed to load all image templates', error);
+    return {};
+  }
 }; 

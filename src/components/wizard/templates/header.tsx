@@ -136,83 +136,93 @@ const HeaderMinimalDark: React.FC<{ className?: string }> = ({ className = '' })
 
 const headerTemplates: SkeletonTemplate[] = [
   {
-    id: 'header-1',
+    id: 'headers-1',
     name: 'هدر مینیمال',
     description: 'طراحی ساده و تمیز برای سایت‌های مدرن',
-    category: 'header',
+    category: 'headers',
     component: HeaderMinimal,
+    previewImage: '/designs/headers/1.png',
     tags: ['minimal', 'clean', 'modern']
   },
   {
-    id: 'header-2',
+    id: 'headers-2',
     name: 'هدر مدرن',
     description: 'طراحی تیره با دکمه‌های برجسته',
-    category: 'header',
+    category: 'headers',
     component: HeaderModern,
+    previewImage: '/designs/headers/2.png',
     tags: ['dark', 'modern', 'bold']
   },
   {
-    id: 'header-3',
+    id: 'headers-3',
     name: 'هدر فروشگاهی',
     description: 'مناسب برای سایت‌های تجارت الکترونیک',
-    category: 'header',
+    category: 'headers',
     component: HeaderEcommerce,
+    previewImage: '/designs/headers/3.png',
     tags: ['ecommerce', 'shopping', 'business']
   },
   {
-    id: 'header-4',
+    id: 'headers-4',
     name: 'هدر شیشه‌ای',
     description: 'طراحی شفاف با افکت شیشه‌ای',
-    category: 'header',
+    category: 'headers',
     component: HeaderGlass,
+    previewImage: '/designs/headers/4.png',
     tags: ['glass', 'transparent', 'modern']
   },
   {
-    id: 'header-5',
+    id: 'headers-5',
     name: 'هدر مرکزی',
     description: 'لوگو در مرکز با منوهای جانبی',
-    category: 'header',
+    category: 'headers',
     component: HeaderCentered,
+    previewImage: '/designs/headers/5.png',
     tags: ['centered', 'balanced', 'elegant']
   },
   {
-    id: 'header-6',
+    id: 'headers-6',
     name: 'هدر سایدبار',
     description: 'منوی همبرگری با آیکون‌های کناری',
-    category: 'header',
+    category: 'headers',
     component: HeaderSidebar,
+    previewImage: '/designs/headers/6.png',
     tags: ['sidebar', 'hamburger', 'mobile-friendly']
   },
   {
-    id: 'header-7',
+    id: 'headers-7',
     name: 'هدر چسبان',
     description: 'هدر ثابت با سایه و منوهای کامل',
-    category: 'header',
+    category: 'headers',
     component: HeaderSticky,
+    previewImage: '/designs/headers/7.png',
     tags: ['sticky', 'fixed', 'professional']
   },
   {
-    id: 'header-8',
+    id: 'headers-8',
     name: 'هدر گرادیانت',
     description: 'رنگ‌های گرادیانت جذاب',
-    category: 'header',
+    category: 'headers',
     component: HeaderGradient,
+    previewImage: '/designs/headers/8.png',
     tags: ['gradient', 'colorful', 'attractive']
   },
   {
-    id: 'header-9',
+    id: 'headers-9',
     name: 'هدر دو قسمتی',
     description: 'منوی بالا و پایین جداگانه',
-    category: 'header',
+    category: 'headers',
     component: HeaderSplit,
+    previewImage: '/designs/headers/9.png',
     tags: ['split', 'two-level', 'organized']
   },
   {
-    id: 'header-10',
+    id: 'headers-10',
     name: 'هدر مینیمال تیره',
     description: 'طراحی ساده با تم تیره',
-    category: 'header',
+    category: 'headers',
     component: HeaderMinimalDark,
+    previewImage: '/designs/headers/10.png',
     tags: ['dark', 'minimal', 'simple']
   }
 ];

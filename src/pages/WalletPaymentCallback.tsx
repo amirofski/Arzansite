@@ -173,7 +173,13 @@ const WalletPaymentCallback = () => {
       // Request new wallet deposit for retry
              const depositPayload = {
          amount: Math.floor(paymentInfo.amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
-         description: paymentInfo.description
+         description: paymentInfo.description,
+         user_id: paymentInfo.userId,
+         metadata: JSON.stringify({
+           type: 'wallet_deposit',
+           source: 'web',
+           timestamp: Date.now()
+         })
        };
       
       console.log('Requesting retry wallet deposit with payload:', depositPayload);

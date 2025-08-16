@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,14 @@ import {
   Mail,
   ExternalLink,
   Download,
-  Share2
+  Share2,
+  Image as ImageIcon,
+  ShoppingBag,
+  BarChart3,
+  Monitor
 } from 'lucide-react';
-import { useTemplateLoader } from './templates';
+import { useTemplateLoader, getImageTemplatesByCategory } from './templates';
+import { getAdjacentImage, SECTION_NAMES } from '@/lib/imageLoader';
 
 interface PageSection {
   id: string;
@@ -40,10 +45,7 @@ interface PageDesign {
 }
 
 interface DesignPreviewProps {
-  design: {
-    pages: PageDesign[];
-    currentPageId: string;
-  };
+  design: { pages: PageDesign[]; currentPageId: string };
   showActions?: boolean;
   onDownload?: () => void;
   onShare?: () => void;
@@ -58,36 +60,265 @@ const DesignPreview = ({
   onViewLive 
 }: DesignPreviewProps) => {
   const { templates, getTemplatesByCategory } = useTemplateLoader();
+  const [imageTemplates, setImageTemplates] = useState<Record<string, any[]>>({});
+  const [fullPreview, setFullPreview] = useState<string | null>(null);
+  const [generatingPreview, setGeneratingPreview] = useState(false);
 
-  // Render section component
-  const renderSection = (section: PageSection) => {
-    const layouts = getTemplatesByCategory(section.sectionType);
-    const layout = layouts.find(l => l.id === section.layoutId) || layouts[0];
+  // Load image templates only when needed (lazy loading)
+  const loadImageTemplatesForCategory = async (category: string) => {
+    // Check if already loaded
+    if (imageTemplates[category]) {
+      return imageTemplates[category];
+    }
+
+    try {
+      console.log(`🔄 Loading templates for ${category} in preview...`);
+      const temps = await getImageTemplatesByCategory(category);
+      
+      setImageTemplates(prev => ({
+        ...prev,
+        [category]: temps
+      }));
+      
+      return temps;
+    } catch (error) {
+      console.error(`Failed to load image templates for ${category}:`, error);
+      
+      setImageTemplates(prev => ({
+        ...prev,
+        [category]: []
+      }));
+      
+      return [];
+    }
+  };
+
+  // Generate full website preview
+  const generateFullPreview = async () => {
+    if (!design || generatingPreview) return;
     
-    if (!layout) {
+    setGeneratingPreview(true);
+    
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      if (!ctx) {
+        setGeneratingPreview(false);
+        return;
+      }
+      
+      // Calculate total height and collect images
+      let totalHeight = 0;
+      const sectionImages: HTMLImageElement[] = [];
+      const imagePromises: Promise<void>[] = [];
+      
+      for (const page of design.pages) {
+        for (const section of page.sections) {
+          const templates = imageTemplates[section.sectionType] || [];
+          const template = templates.find(t => t.id === section.layoutId);
+          
+          if (template?.previewImage) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            const loadPromise = new Promise<void>((resolve, reject) => {
+              img.onload = () => {
+                sectionImages.push(img);
+                totalHeight += img.height;
+                resolve();
+              };
+              img.onerror = reject;
+            });
+            
+            imagePromises.push(loadPromise);
+            img.src = template.previewImage;
+          }
+        }
+      }
+      
+      // Wait for all images to load
+      await Promise.all(imagePromises);
+      
+      if (sectionImages.length === 0) {
+        setGeneratingPreview(false);
+        return;
+      }
+      
+      // Set canvas dimensions
+      const maxWidth = 1200;
+      canvas.width = maxWidth;
+      canvas.height = totalHeight;
+      
+      // Draw sections
+      let currentY = 0;
+      for (const img of sectionImages) {
+        const scale = maxWidth / img.width;
+        const scaledHeight = img.height * scale;
+        
+        ctx.drawImage(img, 0, currentY, maxWidth, scaledHeight);
+        currentY += scaledHeight;
+      }
+      
+      const dataUrl = canvas.toDataURL('image/png');
+      setFullPreview(dataUrl);
+    } catch (error) {
+      console.error('Failed to generate preview:', error);
+    } finally {
+      setGeneratingPreview(false);
+    }
+  };
+
+  // Auto-generate preview when design changes
+  useEffect(() => {
+    if (design && Object.keys(imageTemplates).length > 0) {
+      generateFullPreview();
+    }
+  }, [design, imageTemplates]);
+
+  // Render section component using image
+  const renderSection = (section: PageSection) => {
+    const templates = imageTemplates[section.sectionType] || [];
+    const template = templates.find(t => t.id === section.layoutId) || templates[0];
+    
+    if (!template) {
+      // Try to load templates for this category
+      loadImageTemplatesForCategory(section.sectionType);
+      
       return (
         <div className="h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">
-          قالب در دسترس نیست
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+            <p>در حال بارگذاری قالب...</p>
+          </div>
         </div>
       );
     }
 
-    const LayoutComponent = layout.component;
+    if (template.previewImage) {
+      return (
+        <img
+          src={template.previewImage}
+          alt={template.name}
+          className="w-full h-auto rounded-lg"
+          onError={(e) => {
+            console.error(`Failed to load image: ${template.previewImage}`);
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      );
+    }
+
+    // Fallback to component if no image
+    const LayoutComponent = template.component;
     return <LayoutComponent className="w-full" />;
   };
 
-  // Get section info
+  // Get section info - dynamically generated from SECTION_NAMES
   const getSectionInfo = (sectionType: string) => {
-    const sectionMap = {
-      header: { name: 'هدر', icon: Layout, color: 'bg-blue-100 text-blue-800' },
-      hero: { name: 'بخش اصلی', icon: Star, color: 'bg-yellow-100 text-yellow-800' },
-      about: { name: 'درباره', icon: Users, color: 'bg-green-100 text-green-800' },
-      services: { name: 'خدمات', icon: Settings, color: 'bg-purple-100 text-purple-800' },
-      contact: { name: 'تماس', icon: Mail, color: 'bg-red-100 text-red-800' },
-      newsletter: { name: 'خبرنامه', icon: Mail, color: 'bg-indigo-100 text-indigo-800' },
-      footer: { name: 'فوتر', icon: Layout, color: 'bg-gray-100 text-gray-800' },
+    // Map section types to appropriate icons and colors
+    const getIcon = (type: string) => {
+      switch (type) {
+        case 'headers':
+        case 'footer':
+          return Layout;
+        case 'hero':
+          return Star;
+        case 'about':
+        case 'team':
+          return Users;
+        case 'services':
+        case 'features':
+          return Settings;
+        case 'contact':
+        case 'newsletter':
+          return Mail;
+        case 'gallery':
+          return ImageIcon;
+        case 'pricing':
+          return ShoppingBag;
+        case 'faqs':
+        case 'blog_posts':
+        case 'content':
+        case 'forms':
+        case 'accordion':
+        case 'tables':
+          return FileText;
+        case 'stats':
+          return BarChart3;
+        case 'socials':
+          return Share2;
+        case 'logos':
+          return ImageIcon;
+        case 'left_right_sections':
+          return Layout;
+        case 'full_page':
+          return Monitor;
+        default:
+          return Layout;
+      }
     };
-    return sectionMap[sectionType as keyof typeof sectionMap] || { name: sectionType, icon: Layout, color: 'bg-gray-100 text-gray-800' };
+
+    const getColor = (type: string) => {
+      switch (type) {
+        case 'headers':
+          return 'bg-blue-100 text-blue-800';
+        case 'hero':
+          return 'bg-yellow-100 text-yellow-800';
+        case 'about':
+          return 'bg-green-100 text-green-800';
+        case 'services':
+          return 'bg-purple-100 text-purple-800';
+        case 'contact':
+          return 'bg-red-100 text-red-800';
+        case 'newsletter':
+          return 'bg-indigo-100 text-indigo-800';
+        case 'footer':
+          return 'bg-gray-100 text-gray-800';
+        case 'features':
+          return 'bg-emerald-100 text-emerald-800';
+        case 'gallery':
+          return 'bg-pink-100 text-pink-800';
+        case 'testimonials':
+          return 'bg-amber-100 text-amber-800';
+        case 'team':
+          return 'bg-cyan-100 text-cyan-800';
+        case 'pricing':
+          return 'bg-orange-100 text-orange-800';
+        case 'faqs':
+          return 'bg-lime-100 text-lime-800';
+        case 'blog_posts':
+          return 'bg-violet-100 text-violet-800';
+        case 'call_to_actions':
+          return 'bg-rose-100 text-rose-800';
+        case 'content':
+          return 'bg-slate-100 text-slate-800';
+        case 'forms':
+          return 'bg-teal-100 text-teal-800';
+        case 'accordion':
+          return 'bg-fuchsia-100 text-fuchsia-800';
+        case 'tables':
+          return 'bg-sky-100 text-sky-800';
+        case 'stats':
+          return 'bg-amber-100 text-amber-800';
+        case 'socials':
+          return 'bg-indigo-100 text-indigo-800';
+        case 'logos':
+          return 'bg-purple-100 text-purple-800';
+        case 'left_right_sections':
+          return 'bg-gray-100 text-gray-800';
+        case 'full_page':
+          return 'bg-neutral-100 text-neutral-800';
+        default:
+          return 'bg-gray-100 text-gray-800';
+      }
+    };
+
+    return {
+      name: SECTION_NAMES[sectionType] || sectionType,
+      icon: getIcon(sectionType),
+      color: getColor(sectionType)
+    };
   };
 
   // Calculate total sections
@@ -107,19 +338,19 @@ const DesignPreview = ({
         {showActions && (
           <div className="flex items-center gap-2">
             {onDownload && (
-              <Button variant="outline" size="sm" onClick={onDownload}>
+              <Button onClick={onDownload} variant="outline">
                 <Download className="w-4 h-4 mr-2" />
                 دانلود
               </Button>
             )}
             {onShare && (
-              <Button variant="outline" size="sm" onClick={onShare}>
+              <Button onClick={onShare} variant="outline">
                 <Share2 className="w-4 h-4 mr-2" />
                 اشتراک‌گذاری
               </Button>
             )}
             {onViewLive && (
-              <Button size="sm" onClick={onViewLive}>
+              <Button onClick={onViewLive}>
                 <ExternalLink className="w-4 h-4 mr-2" />
                 مشاهده زنده
               </Button>
@@ -128,139 +359,117 @@ const DesignPreview = ({
         )}
       </div>
 
-      {/* Pages Navigation */}
-      {design.pages.length > 1 && (
+      {/* Full Website Preview */}
+      {fullPreview && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              صفحات سایت
+              <Eye className="w-5 h-5" />
+              پیش‌نمایش کامل سایت
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {design.pages.map((page) => (
-                <div
-                  key={page.id}
-                  className={`px-4 py-2 rounded-lg border-2 transition-all ${
-                    design.currentPageId === page.id
-                      ? 'border-primary bg-primary/5'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-sm">{page.name}</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {page.sections.length} بخش
-                    </Badge>
+            <div className="relative">
+              <img
+                src={fullPreview}
+                alt="Full website preview"
+                className="w-full h-auto border rounded-lg shadow-lg"
+              />
+              {generatingPreview && (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                    <p className="text-sm text-gray-600">در حال تولید پیش‌نمایش...</p>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Design Preview */}
-      {design.pages.map((page) => (
-        <Card key={page.id} className={design.currentPageId === page.id ? '' : 'hidden'}>
+      {/* Individual Pages */}
+      {design.pages.map((page, pageIndex) => (
+        <Card key={page.id}>
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Eye className="w-5 h-5" />
-                  {page.name}
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {page.sections.length} بخش • ابعاد: {page.canvasDimensions.width}×{page.canvasDimensions.height}px
-                </p>
-              </div>
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              {page.name}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {page.sections.length} بخش • {page.canvasDimensions.width}×{page.canvasDimensions.height}px
+            </p>
           </CardHeader>
           <CardContent>
-            {/* Page Preview */}
-            <div className="relative">
-              <div 
-                className="border-2 border-gray-200 rounded-lg bg-white mx-auto overflow-hidden shadow-lg"
-                style={{
-                  width: Math.min(page.canvasDimensions.width, 800),
-                  maxWidth: '100%'
-                }}
-              >
-                <ScrollArea className="max-h-[600px]">
-                  <div className="p-4 space-y-4">
-                    {page.sections.length === 0 ? (
-                      <div className="h-64 flex items-center justify-center text-gray-400">
-                        <div className="text-center">
-                          <Layout className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                          <p>هیچ بخشی در این صفحه وجود ندارد</p>
+            <div className="space-y-4">
+              {page.sections.length === 0 ? (
+                <div className="h-32 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400">
+                  هیچ بخشی در این صفحه وجود ندارد
+                </div>
+              ) : (
+                page.sections.map((section, index) => {
+                  const sectionInfo = getSectionInfo(section.sectionType);
+                  const templates = imageTemplates[section.sectionType] || [];
+                  const currentTemplate = templates.find(t => t.id === section.layoutId);
+                  
+                  return (
+                    <div
+                      key={section.id}
+                      className="relative border rounded-lg p-4 bg-gray-50"
+                    >
+                      {/* Section Header */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Badge className={sectionInfo.color}>
+                            {sectionInfo.icon && <sectionInfo.icon className="w-3 h-3" />}
+                            {sectionInfo.name}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            بخش {index + 1}
+                          </span>
                         </div>
+                        <Badge variant="outline" className="text-xs">
+                          {currentTemplate?.name || 'قالب پیش‌فرض'}
+                        </Badge>
                       </div>
-                    ) : (
-                      page.sections.map((section, index) => {
-                        const sectionInfo = getSectionInfo(section.sectionType);
-                        const Icon = sectionInfo.icon;
-                        
-                        return (
-                          <div
-                            key={section.id}
-                            className="relative border border-gray-200 rounded-lg overflow-hidden"
-                          >
-                            {/* Section Header */}
-                            <div className="absolute top-2 right-2 z-10">
-                              <Badge 
-                                variant="secondary" 
-                                className={`text-xs ${sectionInfo.color}`}
-                              >
-                                <Icon className="w-3 h-3 mr-1" />
-                                {sectionInfo.name}
-                              </Badge>
-                            </div>
 
-                            {/* Section Number */}
-                            <div className="absolute top-2 left-2 z-10">
-                              <Badge variant="outline" className="text-xs">
-                                {index + 1}
-                              </Badge>
-                            </div>
-
-                            {/* Section Content */}
-                            <div className="p-4 pt-12">
-                              {renderSection(section)}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
+                      {/* Section Content */}
+                      <div className="relative">
+                        {renderSection(section)}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </CardContent>
         </Card>
       ))}
 
-      {/* Design Summary */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{design.pages.length}</div>
-              <div className="text-sm text-muted-foreground">تعداد صفحات</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{totalSections}</div>
-              <div className="text-sm text-muted-foreground">تعداد بخش‌ها</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">
-                {Math.round(totalSections / design.pages.length * 10) / 10}
-              </div>
-              <div className="text-sm text-muted-foreground">میانگین بخش در هر صفحه</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Regenerate Preview Button */}
+      {!fullPreview && !generatingPreview && (
+        <Card>
+          <CardContent className="pt-6">
+            <Button 
+              onClick={generateFullPreview} 
+              className="w-full"
+              disabled={generatingPreview}
+            >
+              {generatingPreview ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  در حال تولید پیش‌نمایش...
+                </>
+              ) : (
+                <>
+                  <Eye className="w-4 h-4 mr-2" />
+                  تولید پیش‌نمایش کامل
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

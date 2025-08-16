@@ -1,0 +1,540 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { apiClient } from '../lib/api-client';
+import { SafeTransactionDescription } from './SafeTransactionDescription';
+
+export interface PaymentCallbackData {
+  authority: string;
+  status: string;
+  orderId?: string;
+  amount?: number;
+  description?: string;
+}
+
+export interface PaymentVerificationResult {
+  success: boolean;
+  refId?: string;
+  orderId?: string;
+  amount?: number;
+  description?: string;
+  error?: string;
+  errorCode?: string;
+  errorDetails?: string;
+  retryable: boolean;
+  supportRequired: boolean;
+}
+
+export interface PaymentError {
+  code: string;
+  message: string;
+  description: string;
+  retryable: boolean;
+  supportRequired: boolean;
+  action?: string;
+}
+
+// Payment error definitions
+const PAYMENT_ERRORS: Record<string, PaymentError> = {
+  'PAYMENT_CANCELED': {
+    code: 'PAYMENT_CANCELED',
+    message: 'پرداخت لغو شد',
+    description: 'شما پرداخت را لغو کردید یا از درگاه خارج شدید.',
+    retryable: true,
+    supportRequired: false,
+    action: 'می‌توانید دوباره تلاش کنید'
+  },
+  'PAYMENT_FAILED': {
+    code: 'PAYMENT_FAILED',
+    message: 'پرداخت ناموفق بود',
+    description: 'پرداخت در درگاه پرداخت با خطا مواجه شد.',
+    retryable: true,
+    supportRequired: false,
+    action: 'لطفاً دوباره تلاش کنید'
+  },
+  'VERIFICATION_FAILED': {
+    code: 'VERIFICATION_FAILED',
+    message: 'تأیید پرداخت ناموفق بود',
+    description: 'پرداخت انجام شده اما تأیید آن با مشکل مواجه شد.',
+    retryable: true,
+    supportRequired: true,
+    action: 'در صورت کسر مبلغ، با پشتیبانی تماس بگیرید'
+  },
+  'INVALID_AUTHORITY': {
+    code: 'INVALID_AUTHORITY',
+    message: 'کد پرداخت نامعتبر است',
+    description: 'کد پرداخت ارسالی معتبر نیست یا منقضی شده است.',
+    retryable: false,
+    supportRequired: true,
+    action: 'لطفاً با پشتیبانی تماس بگیرید'
+  },
+  'DUPLICATE_PAYMENT': {
+    code: 'DUPLICATE_PAYMENT',
+    message: 'پرداخت تکراری',
+    description: 'این پرداخت قبلاً انجام شده است.',
+    retryable: false,
+    supportRequired: false,
+    action: 'پرداخت شما قبلاً ثبت شده است'
+  },
+  'INSUFFICIENT_FUNDS': {
+    code: 'INSUFFICIENT_FUNDS',
+    message: 'موجودی کافی نیست',
+    description: 'موجودی حساب شما برای این پرداخت کافی نیست.',
+    retryable: true,
+    supportRequired: false,
+    action: 'لطفاً موجودی حساب خود را بررسی کنید'
+  },
+  'GATEWAY_ERROR': {
+    code: 'GATEWAY_ERROR',
+    message: 'خطای درگاه پرداخت',
+    description: 'خطایی در درگاه پرداخت رخ داده است.',
+    retryable: true,
+    supportRequired: true,
+    action: 'لطفاً بعداً تلاش کنید'
+  },
+  'NETWORK_ERROR': {
+    code: 'NETWORK_ERROR',
+    message: 'خطای شبکه',
+    description: 'خطایی در ارتباط با سرور رخ داده است.',
+    retryable: true,
+    supportRequired: false,
+    action: 'لطفاً اتصال اینترنت خود را بررسی کنید'
+  },
+  'TIMEOUT_ERROR': {
+    code: 'TIMEOUT_ERROR',
+    message: 'خطای زمان انتظار',
+    description: 'عملیات پرداخت به دلیل طولانی شدن زمان انتظار متوقف شد.',
+    retryable: true,
+    supportRequired: false,
+    action: 'لطفاً دوباره تلاش کنید'
+  },
+  'UNKNOWN_ERROR': {
+    code: 'UNKNOWN_ERROR',
+    message: 'خطای نامشخص',
+    description: 'خطای غیرمنتظره‌ای رخ داده است.',
+    retryable: false,
+    supportRequired: true,
+    action: 'لطفاً با پشتیبانی تماس بگیرید'
+  }
+};
+
+export const PaymentCallbackHandler: React.FC = () => {
+  const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
+  const [verificationResult, setVerificationResult] = useState<PaymentVerificationResult | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [callbackData, setCallbackData] = useState<PaymentCallbackData | null>(null);
+  const [errorDetails, setErrorDetails] = useState<PaymentError | null>(null);
+  
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const MAX_RETRY_ATTEMPTS = 3;
+  const RETRY_DELAY = 2000; // 2 seconds
+
+  // Parse callback parameters
+  const parseCallbackParams = useCallback((): PaymentCallbackData => {
+    const params = new URLSearchParams(location.search);
+    const authority = params.get('Authority') ?? params.get('authority') ?? '';
+    const statusParam = params.get('Status') ?? '';
+    const orderId = params.get('orderId') ?? '';
+    const amount = params.get('amount') ? parseInt(params.get('amount')!) : undefined;
+    const description = params.get('description') ?? '';
+
+    return {
+      authority,
+      status: statusParam,
+      orderId,
+      amount,
+      description
+    };
+  }, [location.search]);
+
+  // Get error details based on error code
+  const getErrorDetails = useCallback((errorCode: string, errorMessage?: string): PaymentError => {
+    const error = PAYMENT_ERRORS[errorCode] || PAYMENT_ERRORS['UNKNOWN_ERROR'];
+    
+    return {
+      ...error,
+      description: errorMessage || error.description
+    };
+  }, []);
+
+  // Verify payment with retry mechanism
+  const verifyPayment = useCallback(async (data: PaymentCallbackData, isRetry = false): Promise<PaymentVerificationResult> => {
+    try {
+      // Check if payment was canceled by user
+      if (data.status !== 'OK') {
+        return {
+          success: false,
+          error: 'Payment was canceled or failed on gateway',
+          errorCode: 'PAYMENT_CANCELED',
+          retryable: true,
+          supportRequired: false
+        };
+      }
+
+      // Verify payment with backend
+      const response = await apiClient.verifyWalletDeposit({
+        authority: data.authority,
+        orderId: data.orderId
+      });
+
+      if (response.success) {
+        return {
+          success: true,
+          refId: response.refId,
+          orderId: response.orderId,
+          amount: response.amount,
+          description: response.description
+        };
+      } else {
+        return {
+          success: false,
+          error: response.error || 'Payment verification failed',
+          errorCode: response.errorCode || 'VERIFICATION_FAILED',
+          errorDetails: response.errorDetails,
+          retryable: response.retryable !== false,
+          supportRequired: response.supportRequired === true
+        };
+      }
+    } catch (error: any) {
+      console.error('Payment verification error:', error);
+      
+      // Determine error type based on error details
+      let errorCode = 'UNKNOWN_ERROR';
+      let retryable = false;
+      
+      if (error.name === 'TypeError' || error.message?.includes('fetch')) {
+        errorCode = 'NETWORK_ERROR';
+        retryable = true;
+      } else if (error.message?.includes('timeout')) {
+        errorCode = 'TIMEOUT_ERROR';
+        retryable = true;
+      } else if (error.status === 400) {
+        errorCode = 'INVALID_AUTHORITY';
+        retryable = false;
+      } else if (error.status === 409) {
+        errorCode = 'DUPLICATE_PAYMENT';
+        retryable = false;
+      } else if (error.status >= 500) {
+        errorCode = 'GATEWAY_ERROR';
+        retryable = true;
+      }
+
+      return {
+        success: false,
+        error: error.message || 'Network error during verification',
+        errorCode,
+        retryable,
+        supportRequired: errorCode === 'UNKNOWN_ERROR' || errorCode === 'GATEWAY_ERROR'
+      };
+    }
+  }, []);
+
+  // Handle payment verification
+  const handleVerification = useCallback(async (isRetry = false) => {
+    try {
+      const data = parseCallbackParams();
+      setCallbackData(data);
+
+      if (isRetry) {
+        setIsRetrying(true);
+        setRetryCount(prev => prev + 1);
+      }
+
+      const result = await verifyPayment(data, isRetry);
+      setVerificationResult(result);
+
+      if (result.success) {
+        setStatus('success');
+      } else {
+        setStatus('failed');
+        const errorDetails = getErrorDetails(result.errorCode!, result.error);
+        setErrorDetails(errorDetails);
+      }
+    } catch (error: any) {
+      console.error('Verification handler error:', error);
+      setStatus('failed');
+      const errorDetails = getErrorDetails('UNKNOWN_ERROR', error.message);
+      setErrorDetails(errorDetails);
+    } finally {
+      setIsRetrying(false);
+    }
+  }, [parseCallbackParams, verifyPayment, getErrorDetails]);
+
+  // Retry verification
+  const handleRetry = useCallback(async () => {
+    if (retryCount >= MAX_RETRY_ATTEMPTS) {
+      setErrorDetails(prev => prev ? {
+        ...prev,
+        retryable: false,
+        action: 'حداکثر تعداد تلاش‌ها انجام شده. لطفاً با پشتیبانی تماس بگیرید.'
+      } : null);
+      return;
+    }
+
+    await handleVerification(true);
+  }, [retryCount, handleVerification]);
+
+  // Navigate to wallet
+  const handleGoToWallet = useCallback(() => {
+    navigate('/dashboard/wallet');
+  }, [navigate]);
+
+  // Contact support
+  const handleContactSupport = useCallback(() => {
+    // You can implement this based on your support system
+    const supportData = {
+      errorCode: errorDetails?.code,
+      authority: callbackData?.authority,
+      orderId: callbackData?.orderId,
+      amount: callbackData?.amount,
+      description: callbackData?.description,
+      retryCount,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('Support data:', supportData);
+    
+    // Example: Open support chat or redirect to support page
+    window.open('/support', '_blank');
+  }, [errorDetails, callbackData, retryCount]);
+
+  // Initialize verification on component mount
+  useEffect(() => {
+    handleVerification();
+  }, [handleVerification]);
+
+  // Loading state
+  if (status === 'loading') {
+    return (
+      <div className="payment-callback-loading">
+        <div className="loading-spinner"></div>
+        <h2>در حال تأیید پرداخت...</h2>
+        <p>لطفاً صبر کنید، در حال بررسی وضعیت پرداخت شما هستیم.</p>
+      </div>
+    );
+  }
+
+  // Success state
+  if (status === 'success' && verificationResult) {
+    return (
+      <div className="payment-callback-success">
+        <div className="success-icon">✅</div>
+        <h2>پرداخت موفقیت‌آمیز بود</h2>
+        
+        <div className="payment-details">
+          <div className="detail-item">
+            <span className="label">شماره پیگیری:</span>
+            <span className="value">{verificationResult.refId}</span>
+          </div>
+          {verificationResult.orderId && (
+            <div className="detail-item">
+              <span className="label">شماره سفارش:</span>
+              <span className="value">{verificationResult.orderId}</span>
+            </div>
+          )}
+          {verificationResult.amount && (
+            <div className="detail-item">
+              <span className="label">مبلغ:</span>
+              <span className="value">{verificationResult.amount.toLocaleString()} ریال</span>
+            </div>
+          )}
+          {verificationResult.description && (
+            <div className="detail-item">
+              <span className="label">توضیحات:</span>
+              <SafeTransactionDescription
+                description={verificationResult.description}
+                allowHtml={false}
+                maxLength={100}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="success-message">
+          <p>پرداخت شما با موفقیت انجام شد و مبلغ به کیف پول شما اضافه شد.</p>
+          <p>شماره پیگیری را برای مراجعات بعدی یادداشت کنید.</p>
+        </div>
+
+        <div className="action-buttons">
+          <button 
+            onClick={handleGoToWallet}
+            className="primary-button"
+          >
+            مشاهده کیف پول
+          </button>
+          <button 
+            onClick={() => navigate('/dashboard')}
+            className="secondary-button"
+          >
+            بازگشت به داشبورد
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Failed state
+  if (status === 'failed' && errorDetails) {
+    return (
+      <div className="payment-callback-failed">
+        <div className="error-icon">❌</div>
+        <h2>{errorDetails.message}</h2>
+        
+        <div className="error-details">
+          <p className="error-description">{errorDetails.description}</p>
+          
+          {verificationResult?.errorDetails && (
+            <div className="technical-details">
+              <details>
+                <summary>جزئیات فنی</summary>
+                <pre>{verificationResult.errorDetails}</pre>
+              </details>
+            </div>
+          )}
+
+          {callbackData && (
+            <div className="callback-data">
+              <details>
+                <summary>اطلاعات پرداخت</summary>
+                <div className="data-grid">
+                  <div className="data-item">
+                    <span className="label">کد پرداخت:</span>
+                    <span className="value">{callbackData.authority}</span>
+                  </div>
+                  {callbackData.orderId && (
+                    <div className="data-item">
+                      <span className="label">شماره سفارش:</span>
+                      <span className="value">{callbackData.orderId}</span>
+                    </div>
+                  )}
+                  {callbackData.amount && (
+                    <div className="data-item">
+                      <span className="label">مبلغ:</span>
+                      <span className="value">{callbackData.amount.toLocaleString()} ریال</span>
+                    </div>
+                  )}
+                  <div className="data-item">
+                    <span className="label">وضعیت درگاه:</span>
+                    <span className="value">{callbackData.status}</span>
+                  </div>
+                  <div className="data-item">
+                    <span className="label">تعداد تلاش:</span>
+                    <span className="value">{retryCount + 1}</span>
+                  </div>
+                </div>
+              </details>
+            </div>
+          )}
+        </div>
+
+        <div className="error-action">
+          <p className="action-text">{errorDetails.action}</p>
+        </div>
+
+        <div className="action-buttons">
+          {errorDetails.retryable && retryCount < MAX_RETRY_ATTEMPTS && (
+            <button 
+              onClick={handleRetry}
+              disabled={isRetrying}
+              className="retry-button"
+            >
+              {isRetrying ? 'در حال تلاش مجدد...' : 'تلاش مجدد'}
+            </button>
+          )}
+          
+          {errorDetails.supportRequired && (
+            <button 
+              onClick={handleContactSupport}
+              className="support-button"
+            >
+              تماس با پشتیبانی
+            </button>
+          )}
+          
+          <button 
+            onClick={() => navigate('/dashboard/wallet')}
+            className="wallet-button"
+          >
+            بازگشت به کیف پول
+          </button>
+          
+          <button 
+            onClick={() => navigate('/dashboard')}
+            className="dashboard-button"
+          >
+            بازگشت به داشبورد
+          </button>
+        </div>
+
+        {retryCount >= MAX_RETRY_ATTEMPTS && (
+          <div className="max-retries-warning">
+            <p>⚠️ حداکثر تعداد تلاش‌ها انجام شده است.</p>
+            <p>در صورت کسر مبلغ از حساب شما، لطفاً با پشتیبانی تماس بگیرید.</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Fallback error state
+  return (
+    <div className="payment-callback-error">
+      <div className="error-icon">⚠️</div>
+      <h2>خطای غیرمنتظره</h2>
+      <p>خطایی در پردازش درخواست شما رخ داده است.</p>
+      
+      <div className="action-buttons">
+        <button 
+          onClick={() => window.location.reload()}
+          className="retry-button"
+        >
+          بارگذاری مجدد
+        </button>
+        <button 
+          onClick={() => navigate('/dashboard')}
+          className="dashboard-button"
+        >
+          بازگشت به داشبورد
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Hook for payment callback handling
+export const usePaymentCallback = () => {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [result, setResult] = useState<PaymentVerificationResult | null>(null);
+
+  const processCallback = useCallback(async (callbackData: PaymentCallbackData) => {
+    setIsProcessing(true);
+    try {
+      const response = await apiClient.verifyWalletDeposit({
+        authority: callbackData.authority,
+        orderId: callbackData.orderId
+      });
+      setResult(response);
+      return response;
+    } catch (error: any) {
+      const errorResult: PaymentVerificationResult = {
+        success: false,
+        error: error.message || 'Verification failed',
+        errorCode: 'UNKNOWN_ERROR',
+        retryable: false,
+        supportRequired: true
+      };
+      setResult(errorResult);
+      return errorResult;
+    } finally {
+      setIsProcessing(false);
+    }
+  }, []);
+
+  return {
+    isProcessing,
+    result,
+    processCallback
+  };
+};

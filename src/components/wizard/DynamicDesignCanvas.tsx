@@ -26,9 +26,13 @@ import {
   Palette,
   Monitor,
   Smartphone,
-  Tablet
+  Tablet,
+  Image as ImageIcon,
+  BarChart3,
+  Share2
 } from 'lucide-react';
-import { useTemplateLoader, SkeletonTemplate } from './templates';
+import { useTemplateLoader, SkeletonTemplate, getImageTemplatesByCategory } from './templates';
+import { getAdjacentImage, SECTION_NAMES } from '@/lib/imageLoader';
 
 interface PageSection {
   id: string;
@@ -84,6 +88,7 @@ const DynamicDesignCanvas = ({
   const [editingPageName, setEditingPageName] = useState<string | null>(null);
   const [tempPageName, setTempPageName] = useState<string>('');
   const [canvasWidth, setCanvasWidth] = useState<number>(800);
+  const [imageTemplates, setImageTemplates] = useState<Record<string, SkeletonTemplate[]>>({});
 
   const { templates, loading, getTemplatesByCategory } = useTemplateLoader();
 
@@ -99,16 +104,151 @@ const DynamicDesignCanvas = ({
     return () => window.removeEventListener('resize', updateCanvasWidth);
   }, []);
 
-  // Available sections for adding
-  const availableSections = [
-    { id: 'header', name: 'هدر', icon: Layout, description: 'منوی ناوبری و لوگو' },
-    { id: 'hero', name: 'بخش اصلی', icon: Star, description: 'معرفی اولیه و جذاب' },
-    { id: 'about', name: 'درباره', icon: Users, description: 'معرفی و توضیحات' },
-    { id: 'services', name: 'خدمات', icon: Settings, description: 'خدمات و محصولات' },
-    { id: 'contact', name: 'تماس', icon: Mail, description: 'اطلاعات تماس' },
-    { id: 'newsletter', name: 'خبرنامه', icon: Mail, description: 'عضویت در خبرنامه' },
-    { id: 'footer', name: 'فوتر', icon: Layout, description: 'اطلاعات تکمیلی' },
-  ];
+  // Load image templates only when needed (lazy loading)
+  const loadImageTemplatesForCategory = async (category: string) => {
+    // Check if already loaded
+    if (imageTemplates[category]) {
+      return imageTemplates[category];
+    }
+
+    try {
+      console.log(`🔄 Loading templates for ${category}...`);
+      const temps = await getImageTemplatesByCategory(category);
+      
+      setImageTemplates(prev => ({
+        ...prev,
+        [category]: temps
+      }));
+      
+      console.log(`✅ Loaded ${temps.length} templates for ${category}`);
+      return temps;
+    } catch (error) {
+      console.error(`Failed to load image templates for ${category}:`, error);
+      
+      setImageTemplates(prev => ({
+        ...prev,
+        [category]: []
+      }));
+      
+      return [];
+    }
+  };
+
+  // Available sections for adding - dynamically generated from SECTION_NAMES
+  const availableSections = Object.entries(SECTION_NAMES).map(([id, name]) => {
+    // Map section types to appropriate icons
+    const getIcon = (sectionId: string) => {
+      switch (sectionId) {
+        case 'headers':
+        case 'footer':
+          return Layout;
+        case 'hero':
+          return Star;
+        case 'about':
+        case 'team':
+          return Users;
+        case 'services':
+        case 'features':
+          return Settings;
+        case 'contact':
+        case 'newsletter':
+          return Mail;
+        case 'gallery':
+          return ImageIcon;
+        case 'pricing':
+          return ShoppingBag;
+        case 'faqs':
+          return FileText;
+        case 'blog_posts':
+          return FileText;
+        case 'call_to_actions':
+          return Star;
+        case 'content':
+          return FileText;
+        case 'forms':
+          return FileText;
+        case 'accordion':
+          return FileText;
+        case 'tables':
+          return FileText;
+        case 'stats':
+          return BarChart3;
+        case 'socials':
+          return Share2;
+        case 'logos':
+          return ImageIcon;
+        case 'left_right_sections':
+          return Layout;
+        case 'full_page':
+          return Monitor;
+        default:
+          return Layout;
+      }
+    };
+
+    // Generate descriptions based on section type
+    const getDescription = (sectionId: string) => {
+      switch (sectionId) {
+        case 'headers':
+          return 'منوی ناوبری و لوگو';
+        case 'hero':
+          return 'معرفی اولیه و جذاب';
+        case 'about':
+          return 'معرفی و توضیحات';
+        case 'services':
+          return 'خدمات و محصولات';
+        case 'contact':
+          return 'اطلاعات تماس';
+        case 'newsletter':
+          return 'عضویت در خبرنامه';
+        case 'footer':
+          return 'اطلاعات تکمیلی';
+        case 'features':
+          return 'ویژگی‌های محصول';
+        case 'gallery':
+          return 'نمایش تصاویر و گالری';
+        case 'testimonials':
+          return 'نظرات مشتریان';
+        case 'team':
+          return 'معرفی تیم';
+        case 'pricing':
+          return 'قیمت‌گذاری و پلن‌ها';
+        case 'faqs':
+          return 'سوالات متداول';
+        case 'blog_posts':
+          return 'مقالات و اخبار';
+        case 'call_to_actions':
+          return 'فراخوان عمل';
+        case 'content':
+          return 'محتوای متنی';
+        case 'forms':
+          return 'فرم‌های تماس و ثبت‌نام';
+        case 'accordion':
+          return 'بخش‌های قابل گسترش';
+        case 'tables':
+          return 'جداول اطلاعات';
+        case 'stats':
+          return 'آمار و ارقام';
+        case 'socials':
+          return 'شبکه‌های اجتماعی';
+        case 'logos':
+          return 'لوگوها و برندها';
+        case 'left_right_sections':
+          return 'بخش‌های چپ و راست';
+        case 'full_page':
+          return 'صفحه کامل';
+        default:
+          return 'بخش سایت';
+      }
+    };
+
+    return {
+      id,
+      name,
+      icon: getIcon(id),
+      description: getDescription(id)
+    };
+  });
 
   const currentPage = pages.find(p => p.id === currentPageId);
   const currentPageSections = currentPage?.sections || [];
@@ -137,18 +277,22 @@ const DynamicDesignCanvas = ({
   };
 
   // Add section to current page
-  const addSection = (sectionType: string) => {
+  const addSection = async (sectionType: string) => {
     if (!currentPage) return;
 
-    const layouts = getTemplatesByCategory(sectionType);
-    const defaultLayout = layouts[0];
+    // Load templates for this category if not already loaded
+    const templates = await loadImageTemplatesForCategory(sectionType);
+    const defaultTemplate = templates[0];
     
-    if (!defaultLayout) return;
+    if (!defaultTemplate) {
+      console.error(`No templates available for ${sectionType}`);
+      return;
+    }
 
     const newSection: PageSection = {
       id: `${sectionType}-${Date.now()}`,
       sectionType,
-      layoutId: defaultLayout.id,
+      layoutId: defaultTemplate.id,
       order: currentPageSections.length,
       customData: {}
     };
@@ -202,35 +346,69 @@ const DynamicDesignCanvas = ({
     onDesignChange({ pages: updatedPages, currentPageId });
   };
 
-  // Change section layout
-  const changeSectionLayout = (sectionId: string, newLayoutId: string) => {
+  // Change section layout using navigation arrows
+  const changeSectionLayout = async (sectionId: string, direction: 'left' | 'right') => {
     if (!currentPage) return;
 
-    const updatedSections = currentPageSections.map(s => 
-      s.id === sectionId ? { ...s, layoutId: newLayoutId } : s
-    );
-    
-    const updatedPage = { ...currentPage, sections: updatedSections };
-    const updatedPages = pages.map(p => p.id === currentPageId ? updatedPage : p);
-    
-    setPages(updatedPages);
-    onDesignChange({ pages: updatedPages, currentPageId });
+    const section = currentPageSections.find(s => s.id === sectionId);
+    if (!section) return;
+
+    const currentTemplate = imageTemplates[section.sectionType]?.find(t => t.id === section.layoutId);
+    if (!currentTemplate) return;
+
+    try {
+      const adjacentTemplate = await getAdjacentImage(currentTemplate.id, direction === 'left' ? 'prev' : 'next');
+      if (!adjacentTemplate) return;
+
+      const updatedSections = currentPageSections.map(s => 
+        s.id === sectionId ? { ...s, layoutId: adjacentTemplate.id } : s
+      );
+      
+      const updatedPage = { ...currentPage, sections: updatedSections };
+      const updatedPages = pages.map(p => p.id === currentPageId ? updatedPage : p);
+      
+      setPages(updatedPages);
+      onDesignChange({ pages: updatedPages, currentPageId });
+    } catch (error) {
+      console.error('Failed to change section layout:', error);
+    }
   };
 
-  // Render section component
+  // Render section component using image
   const renderSection = (section: PageSection) => {
-    const layouts = getTemplatesByCategory(section.sectionType);
-    const layout = layouts.find(l => l.id === section.layoutId) || layouts[0];
+    const templates = imageTemplates[section.sectionType] || [];
+    const template = templates.find(t => t.id === section.layoutId) || templates[0];
     
-    if (!layout) {
+    if (!template) {
+      // Try to load templates for this category
+      loadImageTemplatesForCategory(section.sectionType);
+      
       return (
         <div className="h-32 bg-gray-100 rounded-lg flex items-center justify-center text-gray-500">
-          قالب در دسترس نیست
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+            <p>در حال بارگذاری قالب...</p>
+          </div>
         </div>
       );
     }
 
-    const LayoutComponent = layout.component;
+    if (template.previewImage) {
+      return (
+        <img
+          src={template.previewImage}
+          alt={template.name}
+          className="w-full h-auto rounded-lg"
+          onError={(e) => {
+            console.error(`Failed to load image: ${template.previewImage}`);
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+      );
+    }
+
+    // Fallback to component if no image
+    const LayoutComponent = template.component;
     return <LayoutComponent className="w-full" />;
   };
 
@@ -470,8 +648,8 @@ const DynamicDesignCanvas = ({
                   ) : (
                     currentPageSections.map((section, index) => {
                       const sectionInfo = availableSections.find(s => s.id === section.sectionType);
-                      const layouts = getTemplatesByCategory(section.sectionType);
-                      const currentLayout = layouts.find(l => l.id === section.layoutId);
+                      const templates = imageTemplates[section.sectionType] || [];
+                      const currentTemplate = templates.find(t => t.id === section.layoutId);
                       
                       return (
                         <div
@@ -529,30 +707,31 @@ const DynamicDesignCanvas = ({
                             )}
                           </div>
 
-                          {/* Layout Selector */}
-                          {!isPreview && selectedSectionId === section.id && (
-                            <div className="absolute top-2 left-2 z-10">
-                              <div className="bg-white border rounded-lg p-2 shadow-lg">
-                                <Label className="text-xs mb-2 block">انتخاب قالب:</Label>
-                                <div className="flex gap-1">
-                                  {layouts.slice(0, 4).map((layout) => (
-                                    <Button
-                                      key={layout.id}
-                                      size="sm"
-                                      variant={section.layoutId === layout.id ? "default" : "outline"}
-                                      className="h-8 w-8 p-0"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        changeSectionLayout(section.id, layout.id);
-                                      }}
-                                      title={layout.name}
-                                    >
-                                      <Eye className="w-3 h-3" />
-                                    </Button>
-                                  ))}
-                                </div>
-                              </div>
-                            </div>
+                          {/* Navigation Arrows */}
+                          {!isPreview && (
+                            <>
+                              {/* Left Navigation Arrow */}
+                              <button
+                                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 hover:bg-white border border-gray-300 rounded-full p-2 shadow-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  changeSectionLayout(section.id, 'left');
+                                }}
+                              >
+                                <ChevronLeft className="w-4 h-4" />
+                              </button>
+                              
+                              {/* Right Navigation Arrow */}
+                              <button
+                                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 hover:bg-white border border-gray-300 rounded-full p-2 shadow-lg"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  changeSectionLayout(section.id, 'right');
+                                }}
+                              >
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                            </>
                           )}
 
                           {/* Section Content */}
@@ -563,7 +742,7 @@ const DynamicDesignCanvas = ({
                           {/* Section Info */}
                           <div className="absolute bottom-2 left-2 z-10">
                             <Badge variant="outline" className="text-xs">
-                              {currentLayout?.name || 'قالب پیش‌فرض'}
+                              {currentTemplate?.name || 'قالب پیش‌فرض'}
                             </Badge>
                           </div>
                         </div>

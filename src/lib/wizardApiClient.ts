@@ -1,7 +1,7 @@
 import { wizardErrorHandler, WizardErrorHandler } from './wizardErrorHandler';
 
 // API base configuration
-const API_BASE = 'https://nest.arzansite.com';
+const API_BASE = 'https://nest.arzansite.com/api';
 
 // Types for API requests and responses
 export interface SaveProgressDto {

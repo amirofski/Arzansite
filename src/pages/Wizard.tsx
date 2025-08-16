@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Helmet } from "react-helmet-async";
 import { siteConfig } from "@/lib/siteConfig";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ArrowRight, ArrowLeft, Check } from 'lucide-react';
+import { ArrowRight, ArrowLeft, Check, Save } from 'lucide-react';
 import StepOne from '@/components/wizard/StepOne';
 import StepTwo from '@/components/wizard/StepTwo';
 import StepThree from '@/components/wizard/StepThree';
@@ -13,6 +13,9 @@ import StepFive from '@/components/wizard/StepFive';
 import OrderSubmissionStep from '@/components/wizard/OrderSubmissionStep';
 import FinalStepButton from '@/components/wizard/FinalStepButton';
 import Layout from "@/components/ui/Layout";
+import { useToast } from '@/hooks/use-toast';
+import { wizardErrorHandler, WizardErrorHandler } from '@/lib/wizardErrorHandler';
+import { mockApiClient } from '@/lib/wizardApiClient';
 
 interface WizardData {
   siteType: 'personal' | 'business' | '';
@@ -90,6 +93,18 @@ interface WizardData {
     rushDelivery: boolean;
     totalPrice: number;
   };
+  // New additional services interface
+  additionalServices?: {
+    seoOptimization?: boolean;
+    socialMediaIntegration?: boolean;
+    analyticsSetup?: boolean;
+    backupService?: boolean;
+    maintenancePlan?: boolean;
+    rushDelivery?: boolean;
+  };
+  // New payment cycle interface
+  paymentCycle?: 'monthly' | 'annual';
+  autoRenewal?: boolean;
   userInfo: {
     name?: string;
     email?: string;
@@ -106,7 +121,12 @@ interface WizardData {
 }
 
 const Wizard = () => {
+  const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [sessionId, setSessionId] = useState<string>('');
+  
   const [wizardData, setWizardData] = useState<WizardData>({
     siteType: '',
     pageMode: '',
@@ -130,6 +150,125 @@ const Wizard = () => {
   const totalSteps = 6;
   const progress = (currentStep / totalSteps) * 100;
 
+  // Generate unique session ID for guest users
+  const generateSessionId = useCallback(() => {
+    return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  }, []);
+
+  // Save wizard progress to backend
+  const saveWizardProgress = useCallback(async (data: WizardData) => {
+    try {
+      setIsAutoSaving(true);
+      
+      // Use mock API client for now (replace with real API when backend is ready)
+      const response = await mockApiClient.saveWizardProgress({
+        sessionId,
+        ...data
+      });
+      
+      // Also save to localStorage as backup
+      localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify(data));
+      localStorage.setItem('wizard_session_id', sessionId);
+      
+      setHasUnsavedChanges(false);
+      
+      // Show success toast for auto-save
+      if (isAutoSaving) {
+        toast({
+          title: 'پیشرفت ذخیره شد',
+          description: 'اطلاعات شما به صورت خودکار ذخیره شد',
+          variant: 'default',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to save wizard progress:', error);
+      
+      // Use error handler for better error management
+      const wizardError = WizardErrorHandler.handle(error, 'saveWizardProgress');
+      
+      toast({
+        title: 'خطا در ذخیره‌سازی',
+        description: wizardError.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAutoSaving(false);
+    }
+  }, [sessionId, toast, isAutoSaving]);
+
+  // Determine current step based on progress
+  const determineCurrentStep = useCallback((progress: WizardData): number => {
+    if (!progress.siteType) return 1;
+    if (!progress.websiteFramework?.dynamicDesign?.pages || 
+        progress.websiteFramework.dynamicDesign.pages.length === 0) return 2;
+    if (!progress.branding?.primaryColor || !progress.branding?.fontFamily) return 3;
+    if (!progress.additionalServices) return 4;
+    if (!progress.userInfo?.domain) return 5;
+    return 6;
+  }, []);
+
+  // Recover wizard progress from backend
+  const recoverWizardProgress = useCallback(async (sessionId: string) => {
+    try {
+      // Use mock API client for now (replace with real API when backend is ready)
+      const progress = await mockApiClient.getWizardProgress(sessionId);
+      
+      // Map API response to WizardData format
+      const mappedProgress: WizardData = {
+        siteType: progress.siteType,
+        pageMode: '',
+        modules: [],
+        websiteFramework: progress.websiteFramework,
+        wireframe: undefined,
+        branding: progress.branding || {
+          primaryColor: '#8B5CF6',
+          fontFamily: 'vazir',
+          logo: ''
+        },
+        pricing: progress.pricing || {
+          additionalServices: [],
+          customizationLevel: [3],
+          rushDelivery: false,
+          totalPrice: 0
+        },
+        additionalServices: progress.additionalServices,
+        paymentCycle: undefined,
+        autoRenewal: undefined,
+        userInfo: progress.domains ? {
+          domain: progress.domains.primaryDomain || '',
+          domainExtension: undefined,
+          domainPrice: undefined,
+          additionalDomains: progress.domains.additionalDomains
+        } : {
+          domain: ''
+        }
+      };
+      
+      setWizardData(mappedProgress);
+      
+      // Determine current step based on progress
+      const recoveredStep = determineCurrentStep(mappedProgress);
+      setCurrentStep(recoveredStep);
+      
+      toast({
+        title: 'پیشرفت بازیابی شد',
+        description: 'اطلاعات قبلی شما بازیابی شد',
+        variant: 'default',
+      });
+    } catch (error) {
+      console.error('Failed to recover wizard progress:', error);
+      
+      // Use error handler for better error management
+      const wizardError = WizardErrorHandler.handle(error, 'recoverWizardProgress');
+      
+      toast({
+        title: 'خطا در بازیابی',
+        description: wizardError.message,
+        variant: 'destructive',
+      });
+    }
+  }, [toast, determineCurrentStep]);
+
   const steps = [
     { number: 1, title: 'نوع سایت', description: 'انتخاب نوع وب‌سایت' },
     { number: 2, title: 'طراحی', description: 'ساختار و طراحی سایت' },
@@ -141,26 +280,81 @@ const Wizard = () => {
 
   const updateWizardData = (stepData: Partial<WizardData>) => {
     setWizardData(prev => ({ ...prev, ...stepData }));
+    setHasUnsavedChanges(true);
   };
 
-  const nextStep = () => {
+  // Initialize session and recover progress on component mount
+  useEffect(() => {
+    const existingSessionId = localStorage.getItem('wizard_session_id');
+    if (existingSessionId) {
+      setSessionId(existingSessionId);
+      recoverWizardProgress(existingSessionId);
+    } else {
+      const newSessionId = generateSessionId();
+      setSessionId(newSessionId);
+    }
+  }, [generateSessionId, recoverWizardProgress]);
+
+  // Auto-save progress every 30 seconds
+  useEffect(() => {
+    if (!sessionId) return;
+
+    const autoSaveInterval = setInterval(() => {
+      if (hasUnsavedChanges) {
+        saveWizardProgress(wizardData);
+      }
+    }, 30000);
+
+    return () => clearInterval(autoSaveInterval);
+  }, [sessionId, hasUnsavedChanges, wizardData, saveWizardProgress]);
+
+  // Save progress when user leaves the page
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (hasUnsavedChanges) {
+        saveWizardProgress(wizardData);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges, wizardData, saveWizardProgress]);
+
+  const nextStep = async () => {
     if (currentStep < totalSteps) {
+      // Save progress before moving to next step
+      if (hasUnsavedChanges) {
+        await saveWizardProgress(wizardData);
+      }
       setCurrentStep(prev => prev + 1);
     }
   };
 
-  const prevStep = () => {
+  const prevStep = async () => {
     if (currentStep > 1) {
+      // Save progress before moving to previous step
+      if (hasUnsavedChanges) {
+        await saveWizardProgress(wizardData);
+      }
       setCurrentStep(prev => prev - 1);
     }
+  };
+
+  // Auto-advancement handler
+  const handleAutoAdvance = async () => {
+    // Save progress before auto-advancing
+    if (hasUnsavedChanges) {
+      await saveWizardProgress(wizardData);
+    }
+    nextStep();
   };
 
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <StepOne data={wizardData} updateData={updateWizardData} />;
+        return <StepOne data={wizardData} updateData={updateWizardData} onAutoAdvance={handleAutoAdvance} />;
       case 2:
-        return <StepTwo data={wizardData} updateData={updateWizardData} />;
+        return <StepTwo data={wizardData} updateData={updateWizardData} onAutoAdvance={handleAutoAdvance} />;
       case 3:
         return <StepThree data={wizardData} updateData={updateWizardData} />;
       case 4:
@@ -170,7 +364,7 @@ const Wizard = () => {
       case 6:
         return <OrderSubmissionStep data={wizardData} updateData={updateWizardData} />;
       default:
-        return <StepOne data={wizardData} updateData={updateWizardData} />;
+        return <StepOne data={wizardData} updateData={updateWizardData} onAutoAdvance={handleAutoAdvance} />;
     }
   };
 
@@ -215,7 +409,28 @@ const Wizard = () => {
             <Progress value={progress} className="h-2 mb-4" />
             <div className="flex justify-between text-sm text-muted-foreground">
               <span>قدم {currentStep} از {totalSteps}</span>
-              <span>{Math.round(progress)}% تکمیل شده</span>
+              <div className="flex items-center gap-4">
+                <span>{Math.round(progress)}% تکمیل شده</span>
+                {/* Auto-save indicator */}
+                <div className="flex items-center gap-2">
+                  {isAutoSaving ? (
+                    <div className="flex items-center gap-2 text-blue-600">
+                      <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-xs">در حال ذخیره...</span>
+                    </div>
+                  ) : hasUnsavedChanges ? (
+                    <div className="flex items-center gap-2 text-orange-600">
+                      <Save className="w-3 h-3" />
+                      <span className="text-xs">تغییرات ذخیره نشده</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-green-600">
+                      <Check className="w-3 h-3" />
+                      <span className="text-xs">ذخیره شده</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
           {/* Steps Indicator */}
@@ -277,22 +492,45 @@ const Wizard = () => {
               <ArrowRight className="w-4 h-4" />
               قدم قبلی
             </Button>
-            {currentStep < totalSteps ? (
+            
+            <div className="flex gap-3">
+              {/* Manual Save Button */}
               <Button
-                onClick={nextStep}
-                disabled={!isStepValid()}
-                className="btn-gradient flex items-center gap-2"
+                onClick={() => saveWizardProgress(wizardData)}
+                disabled={!hasUnsavedChanges || isAutoSaving}
+                variant="outline"
+                className="flex items-center gap-2"
               >
-                قدم بعدی
-                <ArrowLeft className="w-4 h-4" />
+                {isAutoSaving ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                    در حال ذخیره...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" />
+                    ذخیره پیشرفت
+                  </>
+                )}
               </Button>
-            ) : (
-              <FinalStepButton 
-                wizardData={wizardData} 
-                isStepValid={isStepValid()}
-                updateWizardData={updateWizardData}
-              />
-            )}
+              
+              {currentStep < totalSteps ? (
+                <Button
+                  onClick={nextStep}
+                  disabled={!isStepValid()}
+                  className="btn-gradient flex items-center gap-2"
+                >
+                  قدم بعدی
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
+              ) : (
+                <FinalStepButton 
+                  wizardData={wizardData} 
+                  isStepValid={isStepValid()}
+                  updateWizardData={updateWizardData}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>

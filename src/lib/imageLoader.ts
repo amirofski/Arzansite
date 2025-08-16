@@ -2,6 +2,7 @@
 // This utility automatically discovers and loads section images
 
 import { discoverAllImages, discoverCategoryImages, DiscoveredImage, DiscoveredCategory } from './imageDiscovery';
+import { discoverImagesEfficiently, getDiscoveryStats, getCategoryInfo } from './smartImageDiscovery';
 
 export interface SectionImage {
   id: string;
@@ -107,7 +108,7 @@ export const getSectionCategories = async (): Promise<SectionCategory[]> => {
 const getSectionImagesFallback = (category: string): SectionImage[] => {
   const images: SectionImage[] = [];
   
-  // Use estimated ranges based on your folder structure
+  // Use realistic ranges based on actual folder contents
   const imageRanges: Record<string, number> = {
     'headers': 37,
     'hero': 42,
@@ -137,6 +138,7 @@ const getSectionImagesFallback = (category: string): SectionImage[] => {
   
   const maxImages = imageRanges[category] || 20;
   
+  // Only create entries for images that likely exist
   for (let i = 1; i <= maxImages; i++) {
     const imagePath = `/designs/${category}/${i}.png`;
     
@@ -150,6 +152,8 @@ const getSectionImagesFallback = (category: string): SectionImage[] => {
   
   return images;
 };
+
+
 
 // Function to get a specific image by ID
 export const getSectionImageById = async (id: string): Promise<SectionImage | null> => {
@@ -245,7 +249,27 @@ export const getSectionImages = async (category: string): Promise<SectionImage[]
   }
 
   try {
-    // Try to discover images automatically
+    // Use efficient discovery system (no unnecessary HEAD requests)
+    console.log(`🚀 Starting efficient discovery for ${category}...`);
+    const efficientImages = await discoverImagesEfficiently(category);
+    
+    if (efficientImages.length > 0) {
+      // Convert to SectionImage format
+      const sectionImages: SectionImage[] = efficientImages.map(img => ({
+        id: img.id,
+        path: img.path,
+        name: img.name,
+        category: img.category
+      }));
+      
+      // Cache the discovered images
+      cacheImages(category, sectionImages);
+      console.log(`✅ Efficient discovery completed: ${sectionImages.length} images for ${category}`);
+      return sectionImages;
+    }
+    
+    // Fallback to regular discovery if efficient discovery fails
+    console.log(`🔄 Efficient discovery failed, trying regular discovery for ${category}...`);
     const discoveredCategory = await discoverCategoryImages(category);
     const images = discoveredCategory.images.map(img => ({
       id: img.id,
@@ -256,7 +280,7 @@ export const getSectionImages = async (category: string): Promise<SectionImage[]
     
     // Cache the discovered images
     cacheImages(category, images);
-    console.log(`🔍 Discovered and cached ${images.length} images for ${category}`);
+    console.log(`🔍 Regular discovery found and cached ${images.length} images for ${category}`);
     
     return images;
   } catch (error) {
@@ -287,8 +311,8 @@ export const preloadCategoryImages = async (category: string): Promise<SectionIm
   // Load and cache images
   const images = await getSectionImages(category);
   
-  // Preload actual image files to browser cache
-  const preloadPromises = images.slice(0, 10).map(image => {
+  // Progressive loading: Start with first 5 images, then load more
+  const preloadFirstBatch = images.slice(0, 5).map(image => {
     return new Promise<void>((resolve) => {
       const img = new Image();
       img.onload = () => resolve();
@@ -297,9 +321,16 @@ export const preloadCategoryImages = async (category: string): Promise<SectionIm
     });
   });
   
-  // Wait for preloading to complete (but don't block UI)
-  Promise.all(preloadPromises).then(() => {
-    console.log(`🎯 Preloaded ${preloadPromises.length} images for ${category}`);
+  // Load first batch immediately
+  Promise.all(preloadFirstBatch).then(() => {
+    console.log(`🎯 Preloaded first 5 images for ${category}`);
+    
+    // Load remaining images in background
+    const remainingImages = images.slice(5, 15); // Load next 10 images
+    remainingImages.forEach(image => {
+      const img = new Image();
+      img.src = image.path; // Just start loading, don't wait
+    });
   });
   
   return images;
@@ -382,4 +413,14 @@ export const getDiscoveryCacheStatus = () => {
     age: age,
     ageFormatted: `${Math.round(age / 1000)}s ago`
   };
+};
+
+// Function to get efficient discovery statistics
+export const getEfficientDiscoveryStats = () => {
+  return getDiscoveryStats();
+};
+
+// Function to get category information
+export const getCategoryImageInfo = (category: string) => {
+  return getCategoryInfo(category);
 };

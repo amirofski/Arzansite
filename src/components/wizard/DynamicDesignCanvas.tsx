@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { useTemplateLoader, SkeletonTemplate, getImageTemplatesByCategory } from './templates';
 import { getAdjacentImage, SECTION_NAMES } from '@/lib/imageLoader';
+import LazyImage from '@/components/ui/lazy-image';
 
 interface PageSection {
   id: string;
@@ -280,30 +281,43 @@ const DynamicDesignCanvas = ({
   const addSection = async (sectionType: string) => {
     if (!currentPage) return;
 
-    // Load templates for this category if not already loaded
-    const templates = await loadImageTemplatesForCategory(sectionType);
-    const defaultTemplate = templates[0];
-    
-    if (!defaultTemplate) {
-      console.error(`No templates available for ${sectionType}`);
-      return;
-    }
+    // Close modal immediately for better UX
+    setShowSectionSelector(false);
 
+    // Create section with placeholder template ID
     const newSection: PageSection = {
       id: `${sectionType}-${Date.now()}`,
       sectionType,
-      layoutId: defaultTemplate.id,
+      layoutId: `${sectionType}-1`, // Default template ID
       order: currentPageSections.length,
       customData: {}
     };
 
+    // Add section immediately
     const updatedSections = [...currentPageSections, newSection];
     const updatedPage = { ...currentPage, sections: updatedSections };
     const updatedPages = pages.map(p => p.id === currentPageId ? updatedPage : p);
     
     setPages(updatedPages);
     onDesignChange({ pages: updatedPages, currentPageId });
-    setShowSectionSelector(false);
+
+    // Load templates in background
+    loadImageTemplatesForCategory(sectionType).then((templates) => {
+      if (templates.length > 0) {
+        // Update section with first available template
+        const finalSections = updatedSections.map(s => 
+          s.id === newSection.id ? { ...s, layoutId: templates[0].id } : s
+        );
+        
+        const finalPage = { ...currentPage, sections: finalSections };
+        const finalPages = pages.map(p => p.id === currentPageId ? finalPage : p);
+        
+        setPages(finalPages);
+        onDesignChange({ pages: finalPages, currentPageId });
+      }
+    }).catch((error) => {
+      console.error(`Failed to load templates for ${sectionType}:`, error);
+    });
   };
 
   // Remove section
@@ -395,14 +409,13 @@ const DynamicDesignCanvas = ({
 
     if (template.previewImage) {
       return (
-        <img
+        <LazyImage
           src={template.previewImage}
           alt={template.name}
           className="w-full h-auto rounded-lg"
-          onError={(e) => {
-            console.error(`Failed to load image: ${template.previewImage}`);
-            e.currentTarget.style.display = 'none';
-          }}
+          fallback="/placeholder.svg"
+          onLoad={() => console.log(`✅ Image loaded: ${template.previewImage}`)}
+          onError={(error) => console.error(`❌ Failed to load image: ${template.previewImage}`, error)}
         />
       );
     }
@@ -712,7 +725,7 @@ const DynamicDesignCanvas = ({
                             <>
                               {/* Left Navigation Arrow */}
                               <button
-                                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 hover:bg-white border border-gray-300 rounded-full p-2 shadow-lg"
+                                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 group-hover:opacity-100 transition-opacity bg-white/90 hover:bg-white border border-gray-300 rounded-full p-2 shadow-lg"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   changeSectionLayout(section.id, 'left');
@@ -723,7 +736,7 @@ const DynamicDesignCanvas = ({
                               
                               {/* Right Navigation Arrow */}
                               <button
-                                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 hover:bg-white border border-gray-300 rounded-full p-2 shadow-lg"
+                                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 group-hover:opacity-100 transition-opacity bg-white/90 hover:bg-white border border-gray-300 rounded-full p-2 shadow-lg"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   changeSectionLayout(section.id, 'right');
@@ -742,7 +755,12 @@ const DynamicDesignCanvas = ({
                           {/* Section Info */}
                           <div className="absolute bottom-2 left-2 z-10">
                             <Badge variant="outline" className="text-xs">
-                              {currentTemplate?.name || 'قالب پیش‌فرض'}
+                              {currentTemplate?.name || (
+                                <div className="flex items-center gap-1">
+                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600"></div>
+                                  <span>در حال بارگذاری...</span>
+                                </div>
+                              )}
                             </Badge>
                           </div>
                         </div>
@@ -762,6 +780,9 @@ const DynamicDesignCanvas = ({
           <Card className="w-96 max-h-[80vh] overflow-hidden">
             <CardHeader>
               <CardTitle>انتخاب بخش جدید</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                بخش انتخاب شده بلافاصله اضافه می‌شود و تصاویر در پس‌زمینه بارگذاری می‌شوند
+              </p>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-64">
@@ -770,7 +791,7 @@ const DynamicDesignCanvas = ({
                     <Button
                       key={section.id}
                       variant="outline"
-                      className="w-full justify-start h-auto p-4"
+                      className="w-full justify-start h-auto p-4 hover:bg-blue-50 hover:border-blue-300 transition-colors"
                       onClick={() => addSection(section.id)}
                     >
                       <section.icon className="w-5 h-5 mr-3" />

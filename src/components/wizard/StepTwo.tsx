@@ -60,44 +60,33 @@ interface PageDesign {
 
 interface StepTwoProps {
   data: {
-    siteType: string;
     websiteFramework?: {
-      // Legacy support for old format
+      dynamicDesign?: {
+        pages: PageDesign[];
+        currentPageId: string;
+      };
       selectedLayouts?: Record<string, string>;
-      uploadedImages?: Record<string, string>;
       pageStructure?: 'single' | 'multi';
       customPages?: string[];
       canvasDimensions?: {
         width: number;
         height: number;
-      };
-      // New dynamic design format
-      dynamicDesign?: {
-        pages: PageDesign[];
-        currentPageId: string;
       };
     };
   };
   updateData: (data: Partial<{
     websiteFramework: {
-      selectedLayouts?: Record<string, string>;
-      uploadedImages?: Record<string, string>;
-      pageStructure?: 'single' | 'multi';
-      customPages?: string[];
-      canvasDimensions?: {
-        width: number;
-        height: number;
-      };
       dynamicDesign?: {
         pages: PageDesign[];
         currentPageId: string;
       };
     };
   }>) => void;
+  onAutoAdvance?: () => void;
 }
 
-const StepTwo = ({ data, updateData }: StepTwoProps) => {
-  const [currentPhase, setCurrentPhase] = useState<'structure' | 'design'>('structure');
+const StepTwo = ({ data, updateData, onAutoAdvance }: StepTwoProps) => {
+  const [currentPhase, setCurrentPhase] = useState<'design-method' | 'design'>('design-method');
   const [selectedDesignMethod, setSelectedDesignMethod] = useState<'template' | 'dynamic' | ''>('');
   
   // Initialize dynamic design from existing data or create new
@@ -121,7 +110,7 @@ const StepTwo = ({ data, updateData }: StepTwoProps) => {
           sections.push({
             id: `${sectionType}-${index}`,
             sectionType,
-            layoutId,
+            layoutId: layoutId as string,
             order: index,
             customData: {}
           });
@@ -142,7 +131,7 @@ const StepTwo = ({ data, updateData }: StepTwoProps) => {
             sections.push({
               id: `${sectionType}-${pageIndex}-${index}`,
               sectionType,
-              layoutId,
+              layoutId: layoutId as string,
               order: index,
               customData: {}
             });
@@ -168,7 +157,7 @@ const StepTwo = ({ data, updateData }: StepTwoProps) => {
       };
     }
     
-    // Default new design
+    // Default new design - start with single page
     return {
       pages: [{
         id: 'main',
@@ -194,147 +183,47 @@ const StepTwo = ({ data, updateData }: StepTwoProps) => {
     });
   };
 
-  // Handle page structure change
-  const handlePageStructureChange = (structure: 'single' | 'multi') => {
-    if (structure === 'single') {
-      // Convert to single page - keep only the first page
-      const singlePageDesign = {
-        pages: [dynamicDesign.pages[0]],
-        currentPageId: dynamicDesign.pages[0].id
-      };
-      handleDesignChange(singlePageDesign);
-    } else {
-      // Convert to multi-page - add a second page if only one exists
-      if (dynamicDesign.pages.length === 1) {
-        const multiPageDesign = {
-          pages: [
-            dynamicDesign.pages[0],
-            {
-              id: 'page-2',
-              name: 'صفحه دوم',
-              sections: [],
-              canvasDimensions: { width: 1200, height: 800 }
-            }
-          ],
-          currentPageId: dynamicDesign.pages[0].id
-        };
-        handleDesignChange(multiPageDesign);
-      }
-    }
-  };
-
   // Handle design method selection
   const handleDesignMethodSelect = (method: 'template' | 'dynamic') => {
     setSelectedDesignMethod(method);
-    setCurrentPhase('design');
+    
+    if (method === 'template') {
+      // For template selection, pre-populate with Full_page design and go to design phase
+      const templateDesign = {
+        pages: [{
+          id: 'main',
+          name: 'صفحه اصلی',
+          sections: [
+            {
+              id: 'full-page-hero',
+              sectionType: 'full_page',
+              layoutId: 'full-page-1',
+              order: 0,
+              customData: {
+                title: 'قالب آماده',
+                content: 'قالب آماده انتخاب شده',
+                imageIndex: 0, // Start with first Full_page image
+                totalImages: 36 // Total Full_page images available
+              }
+            }
+          ],
+          canvasDimensions: { width: 1200, height: 800 }
+        }],
+        currentPageId: 'main'
+      };
+      
+      handleDesignChange(templateDesign);
+      
+      // Go to design phase instead of auto-advancing
+      setCurrentPhase('design');
+    } else {
+      // For dynamic design, proceed to design canvas
+      setCurrentPhase('design');
+    }
   };
 
   // Calculate total sections across all pages
   const totalSections = dynamicDesign.pages.reduce((total, page) => total + page.sections.length, 0);
-
-  // Render page structure selection phase
-  const renderStructurePhase = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold mb-2">ساختار صفحات وب‌سایت</h2>
-        <p className="text-muted-foreground">
-          نوع ساختار صفحات وب‌سایت خود را انتخاب کنید
-        </p>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card
-          className={`cursor-pointer transition-all duration-300 hover:shadow-medium ${
-            dynamicDesign.pages.length === 1
-              ? 'ring-2 ring-primary bg-primary/5'
-              : 'hover:ring-1 hover:ring-primary/50'
-          }`}
-          onClick={() => handlePageStructureChange('single')}
-        >
-          <CardContent className="p-8 text-center">
-            <div className="mb-6">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                <FileText className="w-8 h-8 text-primary" />
-              </div>
-            </div>
-            <h3 className="text-xl font-bold mb-3">صفحه واحد</h3>
-            <p className="text-muted-foreground mb-6">
-              تمام محتوا در یک صفحه با هر تعداد بخش
-            </p>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2 text-primary font-medium">
-                <span className="w-2 h-2 bg-primary rounded-full"></span>
-                <span>قیمت پایه: 2,500,000 تومان</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="w-2 h-2 bg-muted rounded-full"></span>
-                <span>هر تعداد بخش رایگان</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="w-2 h-2 bg-muted rounded-full"></span>
-                <span>مناسب برای سایت‌های ساده</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card
-          className={`cursor-pointer transition-all duration-300 hover:shadow-medium ${
-            dynamicDesign.pages.length > 1
-              ? 'ring-2 ring-primary bg-primary/5'
-              : 'hover:ring-1 hover:ring-primary/50'
-          }`}
-          onClick={() => handlePageStructureChange('multi')}
-        >
-          <CardContent className="p-8 text-center">
-            <div className="mb-6">
-              <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto">
-                <FileText className="w-8 h-8 text-secondary" />
-                <FileText className="w-8 h-8 text-secondary -ml-2" />
-              </div>
-            </div>
-            <h3 className="text-xl font-bold mb-3">چند صفحه</h3>
-            <p className="text-muted-foreground mb-6">
-              محتوای جداگانه در صفحات مختلف
-            </p>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center gap-2 text-secondary font-medium">
-                <span className="w-2 h-2 bg-secondary rounded-full"></span>
-                <span>قیمت پایه: 2,500,000 تومان</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="w-2 h-2 bg-muted rounded-full"></span>
-                <span>500,000 تومان به ازای هر صفحه اضافی</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="w-2 h-2 bg-muted rounded-full"></span>
-                <span>250,000 تومان به ازای هر بخش بیش از 6</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {dynamicDesign.pages.length > 0 && (
-        <div className="text-center mt-8 p-4 bg-success/10 rounded-xl border border-success/20">
-          <p className="text-success font-medium">
-            ✓ ساختار انتخاب شد: {dynamicDesign.pages.length === 1 ? 'صفحه واحد' : `${dynamicDesign.pages.length} صفحه`}
-          </p>
-        </div>
-      )}
-
-      <div className="flex justify-center mt-8">
-        <Button
-          onClick={() => setCurrentPhase('design')}
-          disabled={dynamicDesign.pages.length === 0}
-          className="btn-gradient"
-        >
-          ادامه به انتخاب روش طراحی
-          <ChevronLeft className="w-4 h-4 mr-2" />
-        </Button>
-      </div>
-    </div>
-  );
 
   // Render design method selection phase
   const renderDesignMethodPhase = () => (
@@ -423,38 +312,13 @@ const StepTwo = ({ data, updateData }: StepTwoProps) => {
           <p className="text-success font-medium">
             ✓ روش طراحی انتخاب شد: {selectedDesignMethod === 'template' ? 'قالب آماده' : 'طراحی پویا'}
           </p>
+          {selectedDesignMethod === 'template' && (
+            <p className="text-sm text-success/80 mt-1">
+              قالب آماده با بخش Full_page اضافه شد. حالا می‌توانید طراحی را شخصی‌سازی کنید.
+            </p>
+          )}
         </div>
       )}
-
-      <div className="flex justify-between mt-8">
-        <Button
-          onClick={() => setCurrentPhase('structure')}
-          variant="outline"
-          className="flex items-center gap-2"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          بازگشت به ساختار صفحات
-        </Button>
-        
-        {selectedDesignMethod && (
-          <Button
-            onClick={() => {
-              // Continue to design phase
-              if (selectedDesignMethod === 'template') {
-                // Handle template selection
-                console.log('Template design selected');
-              } else {
-                // Handle dynamic design
-                console.log('Dynamic design selected');
-              }
-            }}
-            className="btn-gradient"
-          >
-            ادامه به طراحی
-            <ChevronRight className="w-4 h-4 mr-2" />
-          </Button>
-        )}
-      </div>
     </div>
   );
 
@@ -462,66 +326,18 @@ const StepTwo = ({ data, updateData }: StepTwoProps) => {
   const renderDesignPhase = () => (
     <div className="space-y-6">
       <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold mb-2">طراحی وب‌سایت</h2>
+        <h2 className="text-2xl font-bold mb-2">طراحی پویا</h2>
         <p className="text-muted-foreground">
-          {selectedDesignMethod === 'template' 
-            ? 'قالب مورد نظر خود را انتخاب کنید' 
-            : 'بخش‌های مورد نظر خود را به بوم طراحی اضافه کنید'
-          }
+          صفحات و بخش‌های وب‌سایت خود را طراحی کنید
         </p>
       </div>
 
-      {/* Loading State */}
-      {loading && (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <Loader2 className="w-8 h-8 mx-auto mb-4 animate-spin" />
-            <p>در حال بارگذاری قالب‌ها...</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Error State */}
-      {error && (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <p className="text-red-500">خطا در بارگذاری قالب‌ها: {error}</p>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Dynamic Design Canvas */}
-      {!loading && !error && selectedDesignMethod === 'dynamic' && (
-        <DynamicDesignCanvas
-          initialDesign={dynamicDesign}
-          onDesignChange={handleDesignChange}
-          isPreview={false}
-        />
-      )}
-
-      {/* Template Selection */}
-      {!loading && !error && selectedDesignMethod === 'template' && (
-        <div className="space-y-8">
-          {Object.entries(templates).map(([category, categoryTemplates]) => (
-            <div key={category}>
-              <h3 className="text-lg font-semibold mb-4 capitalize">{category}</h3>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {categoryTemplates.map((template) => (
-                  <Card key={template.id} className="cursor-pointer hover:shadow-medium transition-all">
-                    <CardContent className="p-4">
-                      <div className="aspect-video bg-muted rounded-lg mb-4 flex items-center justify-center">
-                        <template.component className="w-12 h-12 text-muted-foreground" />
-                      </div>
-                      <h3 className="font-semibold mb-2">{template.name}</h3>
-                      <p className="text-sm text-muted-foreground">{template.description}</p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <DynamicDesignCanvas
+        initialDesign={dynamicDesign}
+        onDesignChange={handleDesignChange}
+        isPreview={false}
+      />
 
       {/* Progress Summary */}
       <Card className="mt-8">
@@ -553,12 +369,21 @@ const StepTwo = ({ data, updateData }: StepTwoProps) => {
 
       <div className="flex justify-between mt-8">
         <Button
-          onClick={() => setCurrentPhase('design')}
+          onClick={() => setCurrentPhase('design-method')}
           variant="outline"
           className="flex items-center gap-2"
         >
           <ChevronLeft className="w-4 h-4" />
           بازگشت به انتخاب روش
+        </Button>
+        
+        <Button
+          onClick={() => onAutoAdvance && onAutoAdvance()}
+          disabled={totalSections === 0}
+          className="btn-gradient flex items-center gap-2"
+        >
+          ادامه به مرحله بعد
+          <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
     </div>
@@ -566,9 +391,8 @@ const StepTwo = ({ data, updateData }: StepTwoProps) => {
 
   return (
     <div className="space-y-6">
-      {currentPhase === 'structure' && renderStructurePhase()}
-      {currentPhase === 'design' && !selectedDesignMethod && renderDesignMethodPhase()}
-      {currentPhase === 'design' && selectedDesignMethod && renderDesignPhase()}
+      {currentPhase === 'design-method' && renderDesignMethodPhase()}
+      {currentPhase === 'design' && renderDesignPhase()}
     </div>
   );
 };

@@ -20,6 +20,8 @@ export interface PricingData {
       currentPageId: string;
     };
   };
+  // Legacy support for old structure
+  pages?: string[];
   branding?: {
     primaryColor?: string;
     fontFamily?: string;
@@ -34,6 +36,17 @@ export interface PricingData {
       available: boolean;
     }>;
   };
+  // New additional services interface
+  additionalServices?: {
+    seoOptimization?: boolean;
+    socialMediaIntegration?: boolean;
+    analyticsSetup?: boolean;
+    backupService?: boolean;
+    maintenancePlan?: boolean;
+    rushDelivery?: boolean;
+  };
+  // New payment cycle interface
+  paymentCycle?: 'monthly' | 'annual';
 }
 
 export interface PricingBreakdown {
@@ -42,23 +55,43 @@ export interface PricingBreakdown {
   sectionsCost: number;
   brandingCost: number;
   domainCost: number;
+  additionalServicesCost: number;
   totalPrice: number;
   totalSections: number;
   pagesCount: number;
+  monthlyPrice: number;
+  annualPrice: number;
+  annualDiscount: number;
 }
 
-// New simplified pricing configuration
+// Updated pricing configuration for new system
 export const PRICING_CONFIG = {
-  basePrice: 2500000, // 2,500,000 تومان base price for 1 page with any sections
-  additionalPageCost: 500000, // 500,000 تومان per additional page
-  additionalSectionCost: 250000, // 250,000 تومان per section beyond 6 total sections
-  maxFreeSections: 6, // Maximum free sections across all pages
+  // Base pricing for Full_page or single page with any sections
+  basePrice: 2500000, // 2,500,000 تومان
+  
+  // Multi-page pricing
+  additionalPageCost: 1000000, // 1,000,000 تومان per additional page
+  additionalSectionCost: 250000, // 250,000 تومان per section
+  
+  // Additional services pricing
+  additionalServices: {
+    seoOptimization: 500000, // 500,000 تومان
+    socialMediaIntegration: 300000, // 300,000 تومان
+    analyticsSetup: 200000, // 200,000 تومان
+    backupService: 150000, // 150,000 تومان
+    maintenancePlan: 400000, // 400,000 تومان
+    rushDelivery: 800000, // 800,000 تومان
+  },
+  
+  // Payment cycle discount
+  annualDiscountPercent: 10, // 10% discount for annual payment
+  
   branding: {
     logoIntegration: 200000, // 200,000 تومان for logo integration
   }
 };
 
-export const calculateDynamicDesignPrice = (data: any): { 
+export const calculateDynamicDesignPrice = (data: PricingData): { 
   pagesCost: number; 
   sectionsCost: number; 
   totalSections: number; 
@@ -70,7 +103,7 @@ export const calculateDynamicDesignPrice = (data: any): {
   
   if (pages.length > 0) {
     pagesCount = pages.length;
-    totalSections = pages.reduce((total: number, page: any) => total + page.sections.length, 0);
+    totalSections = pages.reduce((total: number, page) => total + page.sections.length, 0);
   } else {
     // Fallback for old structure
     pagesCount = data.pages?.length || 1;
@@ -78,27 +111,39 @@ export const calculateDynamicDesignPrice = (data: any): {
   }
 
   // New pricing rules:
-  // 1. Base price: 2,500,000 تومان for one page design with any sections
-  // 2. Multi-page: additional cost for extra pages (500,000 تومان per page)
-  // 3. More than 6 total sections: additional cost (250,000 تومان per section)
+  // 1. Single page OR Full_page: Base price only (2,500,000 تومان) - no additional charges
+  // 2. Multiple pages: No base price, charge 1,000,000 تومان per page + 250,000 تومان per section
 
   let pagesCost = 0;
-  if (pagesCount > 1) {
-    // Multi-page design: additional cost for extra pages
-    pagesCost = (pagesCount - 1) * PRICING_CONFIG.additionalPageCost;
-  }
-
-  // Additional cost for more than 6 total sections
   let sectionsCost = 0;
-  if (totalSections > PRICING_CONFIG.maxFreeSections) {
-    const extraSections = totalSections - PRICING_CONFIG.maxFreeSections;
-    sectionsCost = extraSections * PRICING_CONFIG.additionalSectionCost;
+  
+  if (pagesCount === 1) {
+    // Single page or Full_page: No additional page cost, no section cost
+    pagesCost = 0;
+    sectionsCost = 0;
+  } else {
+    // Multiple pages: No base price, charge for all pages and sections
+    pagesCost = pagesCount * PRICING_CONFIG.additionalPageCost; // Charge for ALL pages
+    sectionsCost = totalSections * PRICING_CONFIG.additionalSectionCost; // Charge for ALL sections
   }
   
   return { pagesCost, sectionsCost, totalSections, pagesCount };
 };
 
-export const calculateBrandingCost = (branding: any): number => {
+export const calculateAdditionalServicesCost = (services: PricingData['additionalServices']): number => {
+  let cost = 0;
+  
+  if (services?.seoOptimization) cost += PRICING_CONFIG.additionalServices.seoOptimization;
+  if (services?.socialMediaIntegration) cost += PRICING_CONFIG.additionalServices.socialMediaIntegration;
+  if (services?.analyticsSetup) cost += PRICING_CONFIG.additionalServices.analyticsSetup;
+  if (services?.backupService) cost += PRICING_CONFIG.additionalServices.backupService;
+  if (services?.maintenancePlan) cost += PRICING_CONFIG.additionalServices.maintenancePlan;
+  if (services?.rushDelivery) cost += PRICING_CONFIG.additionalServices.rushDelivery;
+  
+  return cost;
+};
+
+export const calculateBrandingCost = (branding: PricingData['branding']): number => {
   let cost = 0;
   
   if (branding?.logo) {
@@ -108,11 +153,11 @@ export const calculateBrandingCost = (branding: any): number => {
   return cost;
 };
 
-export const calculateDomainCost = (userInfo: any): number => {
+export const calculateDomainCost = (userInfo: PricingData['userInfo']): number => {
   let cost = 0;
   
   if (userInfo?.additionalDomains) {
-    cost = userInfo.additionalDomains.reduce((total: number, domain: any) => total + domain.price, 0);
+    cost = userInfo.additionalDomains.reduce((total: number, domain) => total + domain.price, 0);
   }
   
   return cost;
@@ -125,14 +170,21 @@ export const calculateTotalPrice = (data: PricingData): PricingBreakdown => {
   // Base price is always 2,500,000 تومان
   const basePrice = PRICING_CONFIG.basePrice;
   
+  // Calculate additional services cost
+  const additionalServicesCost = calculateAdditionalServicesCost(data.additionalServices);
+  
   // Calculate branding cost
   const brandingCost = calculateBrandingCost(data.branding);
   
   // Calculate domain cost
   const domainCost = calculateDomainCost(data.userInfo);
   
-  // Calculate total price
-  const totalPrice = basePrice + pagesCost + sectionsCost + brandingCost + domainCost;
+  // Calculate monthly total price
+  const monthlyPrice = basePrice + pagesCost + sectionsCost + brandingCost + domainCost + additionalServicesCost;
+  
+  // Calculate annual price with 10% discount
+  const annualDiscount = Math.round(monthlyPrice * (PRICING_CONFIG.annualDiscountPercent / 100));
+  const annualPrice = (monthlyPrice * 12) - annualDiscount;
   
   return {
     basePrice,
@@ -140,12 +192,20 @@ export const calculateTotalPrice = (data: PricingData): PricingBreakdown => {
     sectionsCost,
     brandingCost,
     domainCost,
-    totalPrice,
+    additionalServicesCost,
+    totalPrice: monthlyPrice, // Default to monthly
     totalSections,
-    pagesCount
+    pagesCount,
+    monthlyPrice,
+    annualPrice,
+    annualDiscount
   };
 };
 
 export const formatPrice = (price: number): string => {
   return new Intl.NumberFormat('fa-IR').format(price);
+};
+
+export const formatPriceWithUnit = (price: number): string => {
+  return `${formatPrice(price)} تومان`;
 };

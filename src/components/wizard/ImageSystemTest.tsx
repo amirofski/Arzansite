@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { discoverAllImages, getCategoryStats, DiscoveredCategory } from '@/lib/imageDiscovery';
-import { SECTION_NAMES, getSectionCategories, SectionCategory, getImageCacheStatus, clearAllImageCaches } from '@/lib/imageLoader';
+import { SECTION_NAMES, getSectionCategories, SectionCategory, getImageCacheStatus, clearAllImageCaches, getEfficientDiscoveryStats, getCategoryImageInfo } from '@/lib/imageLoader';
 import { getImageTemplatesByCategory, SkeletonTemplate } from './templates';
 
 const ImageSystemTest = () => {
@@ -13,6 +13,7 @@ const ImageSystemTest = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cacheStatus, setCacheStatus] = useState<Record<string, unknown>>({});
+  const [efficientStats, setEfficientStats] = useState<ReturnType<typeof getEfficientDiscoveryStats> | null>(null);
 
   const loadAllData = async () => {
     setLoading(true);
@@ -46,6 +47,9 @@ const ImageSystemTest = () => {
       
       // Update cache status
       setCacheStatus(getImageCacheStatus());
+      
+      // Load efficient discovery stats
+      setEfficientStats(getEfficientDiscoveryStats());
     } catch (err) {
       setError(err.message);
       console.error('Failed to load data:', err);
@@ -108,34 +112,81 @@ const ImageSystemTest = () => {
         </CardContent>
       </Card>
 
-      {/* Statistics */}
-      <Card>
-        <CardHeader>
-          <CardTitle>System Statistics</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{stats.totalCategories}</div>
-              <div className="text-sm text-gray-600">Total Categories</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{stats.validImages}</div>
-              <div className="text-sm text-gray-600">Valid Images</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">{stats.categoriesWithImages}</div>
-              <div className="text-sm text-gray-600">Categories with Images</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-orange-600">
-                {Math.round(stats.averageImagesPerCategory * 10) / 10}
-              </div>
-              <div className="text-sm text-gray-600">Avg Images/Category</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+             {/* Statistics */}
+       <Card>
+         <CardHeader>
+           <CardTitle>System Statistics</CardTitle>
+         </CardHeader>
+         <CardContent>
+           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+             <div className="text-center">
+               <div className="text-2xl font-bold text-blue-600">{stats.totalCategories}</div>
+               <div className="text-sm text-gray-600">Total Categories</div>
+             </div>
+             <div className="text-center">
+               <div className="text-2xl font-bold text-green-600">{stats.validImages}</div>
+               <div className="text-sm text-gray-600">Valid Images</div>
+             </div>
+             <div className="text-center">
+               <div className="text-2xl font-bold text-purple-600">{stats.categoriesWithImages}</div>
+               <div className="text-sm text-gray-600">Categories with Images</div>
+             </div>
+             <div className="text-center">
+               <div className="text-2xl font-bold text-orange-600">
+                 {Math.round(stats.averageImagesPerCategory * 10) / 10}
+               </div>
+               <div className="text-sm text-gray-600">Avg Images/Category</div>
+             </div>
+           </div>
+         </CardContent>
+       </Card>
+
+       {/* Efficient Discovery Stats */}
+       {efficientStats && (
+         <Card>
+           <CardHeader>
+             <CardTitle>🚀 Efficient Discovery System</CardTitle>
+             <p className="text-sm text-muted-foreground">
+               No unnecessary HEAD requests - uses known image ranges
+             </p>
+           </CardHeader>
+           <CardContent>
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+               <div className="text-center">
+                 <div className="text-2xl font-bold text-emerald-600">{efficientStats.totalCategories}</div>
+                 <div className="text-sm text-gray-600">Total Categories</div>
+               </div>
+               <div className="text-center">
+                 <div className="text-2xl font-bold text-teal-600">{efficientStats.totalImages}</div>
+                 <div className="text-sm text-gray-600">Total Images</div>
+               </div>
+               <div className="text-center">
+                 <div className="text-2xl font-bold text-cyan-600">{efficientStats.averageImagesPerCategory}</div>
+                 <div className="text-sm text-gray-600">Avg Images/Category</div>
+               </div>
+               <div className="text-center">
+                 <div className="text-2xl font-bold text-indigo-600">
+                   <span className="text-sm">~{Math.round(efficientStats.totalImages * 0.5)}MB</span>
+                 </div>
+                 <div className="text-sm text-gray-600">Estimated Size</div>
+               </div>
+             </div>
+             
+             {/* Category Breakdown */}
+             <div className="mt-6">
+               <h4 className="font-medium mb-3">Category Breakdown:</h4>
+               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                 {efficientStats.categories.map((cat: { category: string; count: number; path: string }) => (
+                   <div key={cat.category} className="p-2 border rounded text-sm">
+                     <div className="font-medium">{SECTION_NAMES[cat.category] || cat.category}</div>
+                     <div className="text-xs text-gray-600">{cat.count} images</div>
+                   </div>
+                 ))}
+               </div>
+             </div>
+           </CardContent>
+         </Card>
+       )}
 
       {/* Cache Status */}
       <Card>

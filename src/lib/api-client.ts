@@ -235,6 +235,14 @@ class ApiClient {
     const url = `${this.baseURL}${endpoint}`;
     const token = this.getToken();
 
+    console.log('API Client Request:', {
+      url,
+      method: options.method || 'GET',
+      hasToken: !!token,
+      baseURL: this.baseURL,
+      endpoint
+    });
+
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
@@ -246,7 +254,15 @@ class ApiClient {
     };
 
     try {
+      console.log('Making fetch request to:', url);
       const response = await fetch(url, config);
+      console.log('Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
       const contentType = response.headers.get('content-type') || '';
       const isJson = contentType.includes('application/json');
       let body;
@@ -304,6 +320,30 @@ class ApiClient {
       return (isJson ? (body as T) : (body as unknown as T));
     } catch (error) {
       console.error('API request failed:', error);
+      console.error('Request details:', {
+        url,
+        method: options.method || 'GET',
+        headers: config.headers,
+        credentials: config.credentials
+      });
+      
+      // Check if it's a network error
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        console.error('Network error detected. Possible causes:');
+        console.error('- CORS policy blocking the request');
+        console.error('- Network connectivity issues');
+        console.error('- SSL/TLS certificate problems');
+        console.error('- Environment variables not loaded properly');
+        
+        // Log environment info
+        console.error('Environment info:', {
+          VITE_API_URL: import.meta.env.VITE_API_URL,
+          MODE: import.meta.env.MODE,
+          PROD: import.meta.env.PROD,
+          DEV: import.meta.env.DEV
+        });
+      }
+      
       throw error;
     }
   }

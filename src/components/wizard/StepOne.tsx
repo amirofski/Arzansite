@@ -5,11 +5,19 @@ import { User, Building2 } from 'lucide-react';
 interface StepOneProps {
   data: any;
   updateData: (data: any) => void;
+  onAutoAdvance?: () => void; // New prop for auto-advancement
 }
 
-const StepOne = ({ data, updateData }: StepOneProps) => {
+const StepOne = ({ data, updateData, onAutoAdvance }: StepOneProps) => {
   const selectSiteType = (type: 'personal' | 'business') => {
     updateData({ siteType: type });
+    
+    // Auto-advance to next step after selection
+    if (onAutoAdvance) {
+      setTimeout(() => {
+        onAutoAdvance();
+      }, 500); // Small delay for better UX
+    }
   };
 
   return (
@@ -75,6 +83,9 @@ const StepOne = ({ data, updateData }: StepOneProps) => {
         <div className="text-center mt-8 p-4 bg-success/10 rounded-xl border border-success/20">
           <p className="text-success font-medium">
             ✓ نوع وب‌سایت انتخاب شد: {data.siteType === 'personal' ? 'شخصی' : 'تجاری'}
+          </p>
+          <p className="text-sm text-success/80 mt-1">
+            در حال انتقال به مرحله بعد...
           </p>
         </div>
       )}

@@ -9,10 +9,22 @@ export const useSiteMode = () => {
 
   const fetchSiteMode = async () => {
     try {
+      console.log('useSiteMode: Starting to fetch site mode...');
+      console.log('useSiteMode: Environment variables:', {
+        VITE_API_URL: import.meta.env.VITE_API_URL,
+        MODE: import.meta.env.MODE
+      });
+      
       const data: SiteConfig = await apiClient.getSiteConfig();
+      console.log('useSiteMode: Successfully fetched site config:', data);
       setMode(data.mode);
     } catch (error) {
-      console.error('Error fetching site mode:', error);
+      console.error('useSiteMode: Error fetching site mode:', error);
+      console.error('useSiteMode: Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
       setMode('normal'); // fallback to normal mode
     } finally {
       setLoading(false);

@@ -445,7 +445,7 @@ const AdminDashboard = () => {
           </Card>
 
           <Tabs defaultValue="orders" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-8">
+            <TabsList className="grid w-full grid-cols-9">
               <TabsTrigger value="orders">سفارشات</TabsTrigger>
               <TabsTrigger value="users">کاربران</TabsTrigger>
               <TabsTrigger value="emails">ایمیل‌ها</TabsTrigger>
@@ -453,6 +453,7 @@ const AdminDashboard = () => {
               <TabsTrigger value="invoices">فاکتورها</TabsTrigger>
               <TabsTrigger value="receipts">رسیدها</TabsTrigger>
               <TabsTrigger value="payments">پرداخت‌ها</TabsTrigger>
+              <TabsTrigger value="domains">دامنه‌ها</TabsTrigger>
               <TabsTrigger value="tools">ابزارها</TabsTrigger>
             </TabsList>
 
@@ -779,6 +780,135 @@ const AdminDashboard = () => {
                 <h2 className="text-2xl font-bold">لاگ پرداخت‌ها</h2>
               </div>
               <AdminPaymentLogs />
+            </TabsContent>
+
+            <TabsContent value="domains" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">مدیریت قیمت دامنه‌ها</h2>
+                <Button onClick={() => {}} variant="outline">
+                  <Plus className="w-4 h-4 ml-2" />
+                  افزودن دامنه جدید
+                </Button>
+              </div>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle>قیمت‌گذاری دامنه‌ها</CardTitle>
+                  <CardDescription>
+                    قیمت دامنه‌های مختلف را برای نمایش به کاربران تنظیم کنید
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {/* .ir Domain - Fixed Price */}
+                    <div className="p-4 border rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-semibold">دامنه .ir</h4>
+                          <p className="text-sm text-muted-foreground">قیمت ثابت برای دامنه‌های ایرانی</p>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-lg font-bold">رایگان</div>
+                          <div className="text-sm text-muted-foreground">شامل در سفارش</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Other Domain Extensions */}
+                    <div className="space-y-4">
+                      <h4 className="font-semibold">سایر پسوندهای دامنه</h4>
+                      
+                      {/* .com Domain */}
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                          <h5 className="font-medium">دامنه .com</h5>
+                          <p className="text-sm text-muted-foreground">پسوند بین‌المللی محبوب</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Input 
+                            type="number" 
+                            placeholder="قیمت به تومان"
+                            className="w-32"
+                            defaultValue="500000"
+                          />
+                          <Button size="sm" variant="outline">ذخیره</Button>
+                        </div>
+                      </div>
+
+                      {/* .net Domain */}
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                          <h5 className="font-medium">دامنه .net</h5>
+                          <p className="text-sm text-muted-foreground">پسوند شبکه و فناوری</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Input 
+                            type="number" 
+                            placeholder="قیمت به تومان"
+                            className="w-32"
+                            defaultValue="450000"
+                          />
+                          <Button size="sm" variant="outline">ذخیره</Button>
+                        </div>
+                      </div>
+
+                      {/* .org Domain */}
+                      <div className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                          <h5 className="font-medium">دامنه .org</h5>
+                          <p className="text-sm text-muted-foreground">پسوند سازمان‌ها و موسسات</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Input 
+                            type="number" 
+                            placeholder="قیمت به تومان"
+                            className="w-32"
+                            defaultValue="400000"
+                          />
+                          <Button size="sm" variant="outline">ذخیره</Button>
+                        </div>
+                      </div>
+
+                      {/* Custom Domain Extension */}
+                      <div className="p-4 border-2 border-dashed border-muted-foreground/25 rounded-lg">
+                        <div className="text-center">
+                          <Plus className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                          <h5 className="font-medium mb-2">افزودن پسوند جدید</h5>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            پسوند دامنه جدید و قیمت آن را اضافه کنید
+                          </p>
+                          <div className="flex gap-3 justify-center">
+                            <Input 
+                              type="text" 
+                              placeholder="مثال: .io"
+                              className="w-24"
+                            />
+                            <Input 
+                              type="number" 
+                              placeholder="قیمت"
+                              className="w-32"
+                            />
+                            <Button size="sm">افزودن</Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Domain Availability Check */}
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      <h4 className="font-semibold mb-3">بررسی در دسترس بودن دامنه</h4>
+                      <div className="flex gap-3">
+                        <Input 
+                          type="text" 
+                          placeholder="نام دامنه مورد نظر"
+                          className="flex-1"
+                        />
+                        <Button variant="outline">بررسی</Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="tools" className="space-y-6">

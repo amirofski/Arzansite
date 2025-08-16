@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useTemplateLoader, getImageTemplatesByCategory } from './templates';
 import { getAdjacentImage, SECTION_NAMES } from '@/lib/imageLoader';
+import LazyImage from '@/components/ui/lazy-image';
 
 interface PageSection {
   id: string;
@@ -197,14 +198,13 @@ const DesignPreview = ({
 
     if (template.previewImage) {
       return (
-        <img
+        <LazyImage
           src={template.previewImage}
           alt={template.name}
           className="w-full h-auto rounded-lg"
-          onError={(e) => {
-            console.error(`Failed to load image: ${template.previewImage}`);
-            e.currentTarget.style.display = 'none';
-          }}
+          fallback="/placeholder.svg"
+          onLoad={() => console.log(`✅ Preview image loaded: ${template.previewImage}`)}
+          onError={(error) => console.error(`❌ Failed to load preview image: ${template.previewImage}`, error)}
         />
       );
     }

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Upload, Palette, Type, Files } from 'lucide-react';
+import { Palette, Type, Files, Plus, X } from 'lucide-react';
 import FileUploadManager from './FileUploadManager';
 
 interface StepThreeProps {
@@ -12,15 +12,20 @@ interface StepThreeProps {
 }
 
 const StepThree = ({ data, updateData }: StepThreeProps) => {
-  const [logoPreview, setLogoPreview] = useState<string>(data.branding?.logo || '');
+  const [customColors, setCustomColors] = useState<string[]>(data.branding?.customColors || []);
+  const [newColor, setNewColor] = useState('#000000');
 
-  const colors = [
+  const predefinedColors = [
     { name: 'بنفش', value: '#8B5CF6', gradient: 'from-purple-500 to-purple-600' },
     { name: 'آبی', value: '#3B82F6', gradient: 'from-blue-500 to-blue-600' },
     { name: 'سبز', value: '#10B981', gradient: 'from-green-500 to-green-600' },
     { name: 'قرمز', value: '#EF4444', gradient: 'from-red-500 to-red-600' },
     { name: 'نارنجی', value: '#F59E0B', gradient: 'from-orange-500 to-orange-600' },
     { name: 'صورتی', value: '#EC4899', gradient: 'from-pink-500 to-pink-600' },
+    { name: 'زرد', value: '#EAB308', gradient: 'from-yellow-500 to-yellow-600' },
+    { name: 'سرمه‌ای', value: '#1E40AF', gradient: 'from-blue-700 to-blue-800' },
+    { name: 'سبز تیره', value: '#059669', gradient: 'from-green-600 to-green-700' },
+    { name: 'قرمز تیره', value: '#DC2626', gradient: 'from-red-600 to-red-700' },
   ];
 
   const fonts = [
@@ -28,9 +33,11 @@ const StepThree = ({ data, updateData }: StepThreeProps) => {
     { name: 'یکان', value: 'yekan', preview: 'نمونه متن با فونت یکان' },
     { name: 'نازنین', value: 'nazanin', preview: 'نمونه متن با فونت نازنین' },
     { name: 'تیترا', value: 'titra', preview: 'نمونه متن با فونت تیترا' },
+    { name: 'ایران سنس', value: 'iransans', preview: 'نمونه متن با فونت ایران سنس' },
+    { name: 'کامپوزیت', value: 'composite', preview: 'نمونه متن با فونت کامپوزیت' },
   ];
 
-  const updateBranding = (field: string, value: string) => {
+  const updateBranding = (field: string, value: any) => {
     updateData({
       branding: {
         ...data.branding,
@@ -39,17 +46,33 @@ const StepThree = ({ data, updateData }: StepThreeProps) => {
     });
   };
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64 = e.target?.result as string;
-        setLogoPreview(base64);
-        updateBranding('logo', base64);
-      };
-      reader.readAsDataURL(file);
+  const handlePrimaryColorChange = (color: string) => {
+    updateBranding('primaryColor', color);
+  };
+
+  const handleFontChange = (font: string) => {
+    updateBranding('fontFamily', font);
+  };
+
+  const addCustomColor = () => {
+    if (newColor && !customColors.includes(newColor)) {
+      const updatedColors = [...customColors, newColor];
+      setCustomColors(updatedColors);
+      updateBranding('customColors', updatedColors);
+      setNewColor('#000000');
     }
+  };
+
+  const removeCustomColor = (colorToRemove: string) => {
+    const updatedColors = customColors.filter(color => color !== colorToRemove);
+    setCustomColors(updatedColors);
+    updateBranding('customColors', updatedColors);
+  };
+
+  const handleCustomColorChange = (oldColor: string, newColor: string) => {
+    const updatedColors = customColors.map(color => color === oldColor ? newColor : color);
+    setCustomColors(updatedColors);
+    updateBranding('customColors', updatedColors);
   };
 
   return (
@@ -57,18 +80,39 @@ const StepThree = ({ data, updateData }: StepThreeProps) => {
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold mb-2">طراحی و برندینگ</h2>
         <p className="text-muted-foreground">
-          رنگ اصلی، فونت و لوگوی وب‌سایت خود را انتخاب کنید
+          رنگ‌ها و فونت وب‌سایت خود را انتخاب کنید
         </p>
       </div>
 
-      {/* Color Selection */}
+      {/* Primary Color Selection */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Palette className="w-5 h-5 text-primary" />
           <Label className="text-lg font-semibold">انتخاب رنگ اصلی</Label>
         </div>
-        <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-          {colors.map((color) => (
+        
+        {/* Custom Primary Color Picker */}
+        <div className="flex gap-3 items-center mb-4">
+          <div className="relative">
+            <Input
+              type="color"
+              value={data.branding?.primaryColor || '#8B5CF6'}
+              onChange={(e) => handlePrimaryColorChange(e.target.value)}
+              className="w-16 h-12 p-1 border-2 border-gray-200 rounded-lg cursor-pointer"
+            />
+          </div>
+          <Input
+            type="text"
+            value={data.branding?.primaryColor || '#8B5CF6'}
+            onChange={(e) => handlePrimaryColorChange(e.target.value)}
+            placeholder="#000000"
+            className="w-32"
+          />
+          <span className="text-sm text-muted-foreground">رنگ سفارشی اصلی</span>
+        </div>
+        
+        <div className="grid grid-cols-3 md:grid-cols-5 gap-4">
+          {predefinedColors.map((color) => (
             <Card
               key={color.value}
               className={`cursor-pointer transition-all duration-300 ${
@@ -76,7 +120,7 @@ const StepThree = ({ data, updateData }: StepThreeProps) => {
                   ? 'ring-2 ring-offset-2 ring-primary'
                   : 'hover:shadow-medium'
               }`}
-              onClick={() => updateBranding('primaryColor', color.value)}
+              onClick={() => handlePrimaryColorChange(color.value)}
             >
               <CardContent className="p-4 text-center">
                 <div 
@@ -89,13 +133,76 @@ const StepThree = ({ data, updateData }: StepThreeProps) => {
         </div>
       </div>
 
+      {/* Custom Color Palette */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+          <Palette className="w-5 h-5 text-primary" />
+          <Label className="text-lg font-semibold">پالت رنگ سفارشی</Label>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          رنگ‌های سفارشی خود را اضافه کنید تا در طراحی استفاده کنید
+        </p>
+        
+        {/* Add New Color */}
+        <div className="flex gap-3 items-center">
+          <div className="relative">
+            <Input
+              type="color"
+              value={newColor}
+              onChange={(e) => setNewColor(e.target.value)}
+              className="w-16 h-12 p-1 border-2 border-gray-200 rounded-lg cursor-pointer"
+            />
+          </div>
+          <Input
+            type="text"
+            value={newColor}
+            onChange={(e) => setNewColor(e.target.value)}
+            placeholder="#000000"
+            className="w-32"
+          />
+          <Button onClick={addCustomColor} size="sm">
+            <Plus className="w-4 h-4" />
+            اضافه کردن
+          </Button>
+        </div>
+
+        {/* Custom Colors Display */}
+        {customColors.length > 0 && (
+          <div className="grid grid-cols-4 md:grid-cols-8 gap-3">
+            {customColors.map((color, index) => (
+              <div key={index} className="relative group">
+                <div className="relative">
+                  <Input
+                    type="color"
+                    value={color}
+                    onChange={(e) => handleCustomColorChange(color, e.target.value)}
+                    className="w-12 h-12 p-1 border-2 border-gray-200 rounded-lg cursor-pointer"
+                  />
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="absolute -top-2 -right-2 w-6 h-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={() => removeCustomColor(color)}
+                  >
+                    <X className="w-3 h-3" />
+                  </Button>
+                </div>
+                <p className="text-xs text-center mt-1 text-muted-foreground">
+                  {color}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Font Selection */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Type className="w-5 h-5 text-primary" />
           <Label className="text-lg font-semibold">انتخاب فونت</Label>
         </div>
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {fonts.map((font) => (
             <Card
               key={font.value}
@@ -104,7 +211,7 @@ const StepThree = ({ data, updateData }: StepThreeProps) => {
                   ? 'ring-2 ring-primary bg-primary/5'
                   : 'hover:ring-1 hover:ring-primary/50 hover:shadow-medium'
               }`}
-              onClick={() => updateBranding('fontFamily', font.value)}
+              onClick={() => handleFontChange(font.value)}
             >
               <CardContent className="p-4">
                 <h3 className="font-semibold mb-2">{font.name}</h3>
@@ -117,60 +224,42 @@ const StepThree = ({ data, updateData }: StepThreeProps) => {
         </div>
       </div>
 
-      {/* Logo Upload */}
+      {/* Color Preview */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
-          <Upload className="w-5 h-5 text-primary" />
-          <Label className="text-lg font-semibold">آپلود لوگو (اختیاری)</Label>
+          <Palette className="w-5 h-5 text-primary" />
+          <Label className="text-lg font-semibold">پیش‌نمایش رنگ‌ها</Label>
         </div>
-        <Card className="border-dashed border-2 border-muted-foreground/25">
-          <CardContent className="p-8">
-            <div className="text-center">
-              {logoPreview ? (
-                <div className="space-y-4">
-                  <img 
-                    src={logoPreview} 
-                    alt="Logo Preview" 
-                    className="max-w-32 max-h-32 mx-auto rounded-lg shadow-md"
-                  />
-                  <p className="text-sm text-success">✓ لوگو آپلود شد</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setLogoPreview('');
-                      updateBranding('logo', '');
-                    }}
-                  >
-                    حذف لوگو
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto">
-                    <Upload className="w-8 h-8 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-medium mb-2">آپلود لوگو</p>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      فرمت‌های مجاز: JPG، PNG، SVG (حداکثر 2MB)
-                    </p>
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="hidden"
-                      id="logo-upload"
-                    />
-                    <Label htmlFor="logo-upload">
-                      <Button variant="outline" className="cursor-pointer" asChild>
-                        <span>انتخاب فایل</span>
-                      </Button>
-                    </Label>
-                  </div>
-                </div>
-              )}
+        <Card className="p-6">
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <span className="font-medium">رنگ اصلی:</span>
+              <div className="flex items-center gap-2">
+                <div 
+                  className="w-8 h-8 rounded-full border-2 border-gray-200"
+                  style={{ backgroundColor: data.branding?.primaryColor || '#8B5CF6' }}
+                />
+                <span className="text-sm font-mono">{data.branding?.primaryColor || '#8B5CF6'}</span>
+              </div>
             </div>
-          </CardContent>
+            
+            {customColors.length > 0 && (
+              <div>
+                <span className="font-medium block mb-2">رنگ‌های سفارشی:</span>
+                <div className="flex flex-wrap gap-2">
+                  {customColors.map((color, index) => (
+                    <div key={index} className="flex items-center gap-2">
+                      <div 
+                        className="w-6 h-6 rounded-full border border-gray-200"
+                        style={{ backgroundColor: color }}
+                      />
+                      <span className="text-xs font-mono">{color}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </Card>
       </div>
 
@@ -185,245 +274,6 @@ const StepThree = ({ data, updateData }: StepThreeProps) => {
         </p>
         <FileUploadManager data={data} updateData={updateData} />
       </div>
-
-      {/* Dynamic Design Preview */}
-      <Card className="bg-gradient-to-r from-primary/5 to-secondary/5">
-        <CardContent className="p-6">
-          <h3 className="text-lg font-semibold mb-4">پیش‌نمایش طراحی پویا</h3>
-          <div className="space-y-4">
-            {/* Page Structure Info */}
-            {data.websiteFramework?.dynamicDesign?.pages && (
-              <div className="text-sm text-muted-foreground mb-4">
-                <span className="font-medium">نوع سایت:</span> 
-                {data.websiteFramework.dynamicDesign.pages.length === 1 ? ' تک صفحه‌ای' : ' چند صفحه‌ای'}
-                <span className="mr-2">
-                  <span className="font-medium mr-1">صفحات:</span>
-                  {data.websiteFramework.dynamicDesign.pages.map(page => page.name).join('، ')}
-                </span>
-              </div>
-            )}
-            
-            {/* Dynamic Design Preview */}
-            {data.websiteFramework?.dynamicDesign?.pages ? (
-              <div className="space-y-6">
-                {data.websiteFramework.dynamicDesign.pages.map((page, pageIndex) => (
-                  <div key={page.id} className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-semibold text-lg">{page.name}</h4>
-                      <span className="text-sm text-muted-foreground">({page.sections.length} بخش)</span>
-                    </div>
-                    
-                    <div 
-                      className="w-full max-w-4xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden"
-                      style={{ fontFamily: data.branding?.fontFamily }}
-                    >
-                      {page.sections.length > 0 ? (
-                        <div className="space-y-0">
-                          {page.sections.map((section, sectionIndex) => (
-                            <div key={section.id} className="border-b border-gray-100 last:border-b-0">
-                              {/* Header Section */}
-                              {section.sectionType === 'header' && (
-                                <div 
-                                  className="w-full h-20 bg-gray-100 border-b-2 flex items-center justify-between px-6"
-                                  style={{ borderColor: data.branding?.primaryColor }}
-                                >
-                                  <div className="flex items-center gap-4">
-                                    {logoPreview && (
-                                      <img src={logoPreview} alt="Logo" className="w-10 h-10 rounded" />
-                                    )}
-                                    <div className="w-32 h-6 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
-                                  </div>
-                                  <div className="flex gap-4">
-                                    <div className="w-16 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
-                                    <div className="w-16 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
-                                    <div className="w-16 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Hero Section */}
-                              {section.sectionType === 'hero' && (
-                                <div className="w-full h-64 bg-gradient-to-r from-gray-50 to-gray-100 flex items-center justify-center relative">
-                                  <div className="text-center space-y-4">
-                                    <div 
-                                      className="w-64 h-8 bg-gray-200 rounded mx-auto"
-                                      style={{ backgroundColor: data.branding?.primaryColor + '20' }}
-                                    ></div>
-                                    <div className="w-96 h-4 bg-gray-200 rounded mx-auto" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                    <div className="flex gap-4 justify-center">
-                                      <div 
-                                        className="w-24 h-10 rounded"
-                                        style={{ backgroundColor: data.branding?.primaryColor }}
-                                      ></div>
-                                      <div className="w-24 h-10 bg-gray-200 rounded border"></div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* About Section */}
-                              {section.sectionType === 'about' && (
-                                <div className="w-full py-12 px-6 bg-white">
-                                  <div className="max-w-4xl mx-auto">
-                                    <div 
-                                      className="w-48 h-6 bg-gray-200 rounded mb-6 mx-auto"
-                                      style={{ backgroundColor: data.branding?.primaryColor + '20' }}
-                                    ></div>
-                                    <div className="grid md:grid-cols-2 gap-8 items-center">
-                                      <div className="space-y-4">
-                                        <div className="w-full h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                        <div className="w-3/4 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                        <div className="w-1/2 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                      </div>
-                                      <div className="w-full h-48 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Services Section */}
-                              {section.sectionType === 'services' && (
-                                <div className="w-full py-12 px-6 bg-gray-50">
-                                  <div className="max-w-4xl mx-auto">
-                                    <div 
-                                      className="w-48 h-6 bg-gray-200 rounded mb-6 mx-auto"
-                                      style={{ backgroundColor: data.branding?.primaryColor + '20' }}
-                                    ></div>
-                                    <div className="grid md:grid-cols-3 gap-6">
-                                      {[1, 2, 3].map((i) => (
-                                        <div key={i} className="bg-white p-6 rounded-lg shadow-sm">
-                                          <div className="w-12 h-12 bg-gray-200 rounded mb-4" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
-                                          <div className="w-24 h-4 bg-gray-200 rounded mb-2" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
-                                          <div className="w-full h-3 bg-gray-200 rounded mb-1" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                          <div className="w-2/3 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Contact Section */}
-                              {section.sectionType === 'contact' && (
-                                <div className="w-full py-12 px-6 bg-white">
-                                  <div className="max-w-4xl mx-auto">
-                                    <div 
-                                      className="w-48 h-6 bg-gray-200 rounded mb-6 mx-auto"
-                                      style={{ backgroundColor: data.branding?.primaryColor + '20' }}
-                                    ></div>
-                                    <div className="grid md:grid-cols-2 gap-8">
-                                      <div className="space-y-4">
-                                        <div className="w-full h-10 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                        <div className="w-full h-10 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                        <div className="w-full h-32 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                        <div 
-                                          className="w-24 h-10 rounded"
-                                          style={{ backgroundColor: data.branding?.primaryColor }}
-                                        ></div>
-                                      </div>
-                                      <div className="w-full h-64 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Newsletter Section */}
-                              {section.sectionType === 'newsletter' && (
-                                <div className="w-full py-12 px-6 bg-gray-50">
-                                  <div className="max-w-2xl mx-auto text-center">
-                                    <div 
-                                      className="w-48 h-6 bg-gray-200 rounded mb-4 mx-auto"
-                                      style={{ backgroundColor: data.branding?.primaryColor + '20' }}
-                                    ></div>
-                                    <div className="w-96 h-4 bg-gray-200 rounded mb-6 mx-auto" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                    <div className="flex gap-4 justify-center">
-                                      <div className="w-64 h-10 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                      <div 
-                                        className="w-24 h-10 rounded"
-                                        style={{ backgroundColor: data.branding?.primaryColor }}
-                                      ></div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Footer Section */}
-                              {section.sectionType === 'footer' && (
-                                <div 
-                                  className="w-full py-8 px-6 bg-gray-800"
-                                  style={{ backgroundColor: data.branding?.primaryColor + '10' }}
-                                >
-                                  <div className="max-w-4xl mx-auto">
-                                    <div className="grid md:grid-cols-4 gap-6">
-                                      <div className="space-y-3">
-                                        <div className="w-32 h-6 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
-                                        <div className="w-24 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
-                                        <div className="w-20 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
-                                      </div>
-                                      {[1, 2, 3].map((i) => (
-                                        <div key={i} className="space-y-3">
-                                          <div className="w-20 h-4 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '20' }}></div>
-                                          <div className="w-16 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                          <div className="w-16 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                          <div className="w-16 h-3 bg-gray-200 rounded" style={{ backgroundColor: data.branding?.primaryColor + '10' }}></div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="w-full h-32 bg-gray-50 flex items-center justify-center">
-                          <p className="text-muted-foreground">این صفحه هنوز بخشی ندارد</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="w-full h-32 bg-gray-50 flex items-center justify-center rounded-lg">
-                <p className="text-muted-foreground">طراحی پویا انتخاب نشده است</p>
-              </div>
-            )}
-
-            {/* Branding Applied Info */}
-            <div className="mt-6 p-4 bg-primary/5 rounded-lg">
-              <h4 className="font-semibold mb-2">برندینگ اعمال شده:</h4>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <span className="font-medium">رنگ اصلی:</span>
-                  <div className="flex items-center gap-2 mt-1">
-                    <div 
-                      className="w-4 h-4 rounded border"
-                      style={{ backgroundColor: data.branding?.primaryColor }}
-                    ></div>
-                    <span>{data.branding?.primaryColor}</span>
-                  </div>
-                </div>
-                <div>
-                  <span className="font-medium">فونت:</span>
-                  <span className="block mt-1">{fonts.find(f => f.value === data.branding?.fontFamily)?.name || data.branding?.fontFamily}</span>
-                </div>
-                <div>
-                  <span className="font-medium">لوگو:</span>
-                  <span className="block mt-1">{logoPreview ? 'آپلود شده' : 'آپلود نشده'}</span>
-                </div>
-                <div>
-                  <span className="font-medium">بخش‌های انتخاب شده:</span>
-                  <span className="block mt-1">
-                    {data.websiteFramework?.dynamicDesign?.pages ? 
-                      data.websiteFramework.dynamicDesign.pages.reduce((total, page) => total + page.sections.length, 0) : 0} بخش
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

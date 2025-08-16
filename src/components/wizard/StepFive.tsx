@@ -297,33 +297,16 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
       </div>
 
       <div className="grid md:grid-cols-1 max-w-2xl mx-auto gap-6">
-        {/* User Authentication Status */}
-        <Card className="card-modern">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="w-5 h-5 text-primary" />
-              وضعیت کاربر
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {user ? (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-4 bg-success/10 rounded-lg border border-success/20">
-                  <div className="w-10 h-10 bg-success/20 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-success" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-success">کاربر وارد شده</h4>
-                    <p className="text-sm text-muted-foreground">
-                      {user.email}
-                    </p>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  اطلاعات شما از حساب کاربری استفاده می‌شود و طراحی در پایگاه داده ذخیره خواهد شد.
-                </p>
-              </div>
-            ) : (
+        {/* User Authentication Status - Only show for non-logged in users */}
+        {!user && (
+          <Card className="card-modern">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="w-5 h-5 text-primary" />
+                وضعیت کاربر
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
               <div className="space-y-4">
                 <div className="flex items-center gap-3 p-4 bg-warning/10 rounded-lg border border-warning/20">
                   <div className="w-10 h-10 bg-warning/20 rounded-full flex items-center justify-center">
@@ -383,9 +366,9 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                   برای ذخیره دائمی طراحی و دسترسی از هر دستگاه، لطفاً ثبت‌نام کنید.
                 </p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Domain Selection */}
         <Card className="card-modern">

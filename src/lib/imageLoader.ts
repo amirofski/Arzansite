@@ -54,7 +54,7 @@ const DISCOVERY_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 export const getSectionCategories = async (): Promise<SectionCategory[]> => {
   // Check cache first
   const now = Date.now();
-  if (discoveredCategoriesCache && (now - lastDiscoveryTime) < CACHE_DURATION) {
+  if (discoveredCategoriesCache && (now - lastDiscoveryTime) < DISCOVERY_CACHE_DURATION) {
     return discoveredCategoriesCache.map(cat => ({
       id: cat.id,
       name: cat.name,
@@ -192,6 +192,33 @@ export const getAdjacentImage = async (currentId: string, direction: 'next' | 'p
 const CACHE_PREFIX = 'section_images_';
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
 
+// Function to clear all cached images (useful for debugging or when image counts change)
+export const clearImageCache = (): void => {
+  try {
+    const keys = Object.keys(localStorage);
+    keys.forEach(key => {
+      if (key.startsWith(CACHE_PREFIX)) {
+        localStorage.removeItem(key);
+        console.log(`🗑️ Cleared cache: ${key}`);
+      }
+    });
+    console.log('✅ All image caches cleared');
+  } catch (error) {
+    console.warn('Failed to clear image cache:', error);
+  }
+};
+
+// Function to clear cache for a specific category
+export const clearCategoryCache = (category: string): void => {
+  try {
+    const cacheKey = `${CACHE_PREFIX}${category}`;
+    localStorage.removeItem(cacheKey);
+    console.log(`🗑️ Cleared cache for ${category}`);
+  } catch (error) {
+    console.warn(`Failed to clear cache for ${category}:`, error);
+  }
+};
+
 // Function to get cached images for a category
 const getCachedImages = (category: string): SectionImage[] | null => {
   try {
@@ -205,6 +232,41 @@ const getCachedImages = (category: string): SectionImage[] | null => {
     
     // Check if cache is still valid
     if (now - timestamp > CACHE_DURATION) {
+      localStorage.removeItem(cacheKey);
+      return null;
+    }
+
+    // Validate cached data - if it has more images than expected, clear the cache
+    const knownImageRanges: Record<string, number> = {
+      'headers': 37,
+      'hero': 42,
+      'about': 25,
+      'services': 30,
+      'contact': 20,
+      'newsletter': 15,
+      'footer': 25,
+      'features': 35,
+      'gallery': 20,
+      'testimonials': 15,
+      'team': 20,
+      'pricing': 25,
+      'faqs': 15,
+      'blog_posts': 20,
+      'call_to_actions': 20,
+      'content': 30,
+      'forms': 15,
+      'accordion': 15,
+      'tables': 10,
+      'stats': 15,
+      'socials': 10,
+      'logos': 20,
+      'left_right_sections': 15,
+      'full_page': 10
+    };
+
+    const expectedMax = knownImageRanges[category] || 20;
+    if (images.length > expectedMax + 5) { // Allow some buffer
+      console.log(`⚠️ Cached image count (${images.length}) exceeds expected max (${expectedMax}) for ${category}, clearing cache`);
       localStorage.removeItem(cacheKey);
       return null;
     }
@@ -334,17 +396,6 @@ export const preloadCategoryImages = async (category: string): Promise<SectionIm
   });
   
   return images;
-};
-
-// Function to clear cache for a specific category
-export const clearCategoryCache = (category: string): void => {
-  try {
-    const cacheKey = `${CACHE_PREFIX}${category}`;
-    localStorage.removeItem(cacheKey);
-    console.log(`🗑️ Cleared cache for ${category}`);
-  } catch (error) {
-    console.warn('Failed to clear cache:', error);
-  }
 };
 
 // Function to clear all image caches

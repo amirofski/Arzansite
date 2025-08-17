@@ -28,6 +28,7 @@ interface AuthContextType {
   verifyEmailWithUserId: (token: string, userId: string) => Promise<{ message: string }>;
   getCurrentUser: () => Promise<void>;
   clearError: () => void;
+  handleAuthError: (error: Error) => boolean;
   // OAuth methods
   startOAuth: (provider: string) => Promise<OAuthResponse>;
   handleOAuthCallback: (provider: string, code: string, state?: string) => Promise<{ user: UserProfile; redirect?: { url: string; message: string } }>;
@@ -45,13 +46,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userRole, setUserRole] = useState<{ role: UserRole } | null>(null);
   const [roleLoading, setRoleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+  const [lastAuthCheck, setLastAuthCheck] = useState(0);
 
   const clearError = () => setError(null);
 
+  // Debounce authentication checks to prevent rapid successive calls
+  const debouncedAuthCheck = (callback: () => void, delay: number = 1000) => {
+    const now = Date.now();
+    if (now - lastAuthCheck < delay) {
+      return;
+    }
+    setLastAuthCheck(now);
+    callback();
+  };
+
   const loadUser = async () => {
+    if (isCheckingAuth) {
+      console.log('useAuth: loadUser called while already checking auth, skipping...');
+      return; // Prevent multiple simultaneous auth checks
+    }
+    
+    setIsCheckingAuth(true);
     setLoading(true);
     try {
+      console.log('useAuth: loadUser - fetching current user...');
       const me: UserProfile | null = await appwriteAuthService.getCurrentUser();
+      console.log('useAuth: loadUser - result:', me ? 'User found' : 'No user');
+      
       if (me) {
         setUser(me);
         setUserRole({ role: me.role });
@@ -61,29 +83,67 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUserRole(null);
       }
     } catch (err) {
+      console.error('Load user error:', err);
       setUser(null);
       setUserRole(null);
       setError(err instanceof Error ? err.message : 'Failed to load user');
     } finally {
       setLoading(false);
+      setIsCheckingAuth(false);
     }
   };
 
   useEffect(() => {
+    let isMounted = true;
+    
+    console.log('useAuth: useEffect triggered - checking authentication...');
+    
     const checkAuth = async () => {
+      if (isCheckingAuth || !isMounted) {
+        console.log('useAuth: checkAuth - already checking or not mounted, skipping...');
+        return; // Prevent multiple simultaneous auth checks
+      }
+      
       try {
+        setIsCheckingAuth(true);
+        console.log('useAuth: checkAuth - calling isAuthenticated...');
         const isAuth = await appwriteAuthService.isAuthenticated();
+        console.log('useAuth: checkAuth - result:', isAuth);
+        
+        if (!isMounted) return; // Check if component is still mounted
+        
         if (isAuth) {
+          console.log('useAuth: checkAuth - user authenticated, loading user...');
           await loadUser();
         } else {
+          console.log('useAuth: checkAuth - user not authenticated, clearing state...');
+          // Clear user data if not authenticated
+          setUser(null);
+          setUserRole(null);
           setLoading(false);
         }
       } catch (error) {
+        if (!isMounted) return; // Check if component is still mounted
+        
+        console.error('Auth check error:', error);
+        setUser(null);
+        setUserRole(null);
         setLoading(false);
+      } finally {
+        if (isMounted) {
+          setIsCheckingAuth(false);
+        }
       }
     };
     
-    checkAuth();
+    // Use debounced auth check
+    debouncedAuthCheck(checkAuth);
+    
+    // Cleanup function
+    return () => {
+      console.log('useAuth: useEffect cleanup - unmounting...');
+      isMounted = false;
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -124,10 +184,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUserRole({ role: response.user.role });
       
       // Ensure profile exists by calling the profile endpoint
+      // This will also update the user data if needed
       await ensureProfileExists(response.user);
       
-      // Load user data to get the latest information
-      await loadUser();
+      // No need to call loadUser() again since we already have the user data
+      // and ensureProfileExists handles profile creation/verification
       
       return { 
         user: response.user,
@@ -180,45 +241,72 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const signOut = async () => {
-    setError(null);
     try {
+      setError(null);
       await appwriteAuthService.signOut();
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      tokenManager.clearTokens();
       setUser(null);
       setUserRole(null);
+      // Clear any stored tokens
+      tokenManager.clearTokens();
+    } catch (err) {
+      console.error('Sign out error:', err);
+      // Even if sign out fails, clear local state
+      setUser(null);
+      setUserRole(null);
+      tokenManager.clearTokens();
     }
   };
 
   const refreshToken = async () => {
     try {
+      setError(null);
       await appwriteAuthService.refreshUserToken();
-    } catch (error) {
-      console.error('Token refresh error:', error);
-      // If refresh fails, clear tokens and redirect to login
-      tokenManager.clearTokens();
-      setUser(null);
-      setUserRole(null);
+      // Reload user data after token refresh
+      await loadUser();
+    } catch (err) {
+      console.error('Token refresh error:', err);
+      // If refresh fails, sign out the user
+      await signOut();
+      throw err;
     }
   };
 
   const refreshUserRole = async () => {
-    if (!user) return;
-    setRoleLoading(true);
     try {
-      const me: UserProfile | null = await appwriteAuthService.getCurrentUser();
-      if (me) {
-        const role = me.role;
-        setUserRole({ role });
-        setUser((prev) => (prev ? { ...prev, role } : prev));
-      }
-    } catch {
-      // ignore
+      setRoleLoading(true);
+      await loadUser(); // This will also refresh the user role
+    } catch (err) {
+      console.error('Role refresh error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to refresh user role');
     } finally {
       setRoleLoading(false);
     }
+  };
+
+  // Handle authentication errors gracefully
+  const handleAuthError = (error: Error) => {
+    console.error('Authentication error:', error);
+    
+    // Check if it's an authentication-related error
+    if (error.message.includes('Unauthorized') || 
+        error.message.includes('Authentication failed') ||
+        error.message.includes('please log in again')) {
+      
+      // Clear user data and tokens
+      setUser(null);
+      setUserRole(null);
+      tokenManager.clearTokens();
+      
+      // Set error message
+      setError('Your session has expired. Please log in again.');
+      
+      // Don't redirect immediately, let the user see the error
+      return false;
+    }
+    
+    // For other errors, just set the error message
+    setError(error.message);
+    return true;
   };
 
   const forgotPassword = async (email: string) => {
@@ -404,6 +492,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     verifyEmailWithUserId,
     getCurrentUser,
     clearError,
+    handleAuthError,
     // OAuth methods
     startOAuth,
     handleOAuthCallback,

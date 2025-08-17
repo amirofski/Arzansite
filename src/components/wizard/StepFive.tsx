@@ -87,6 +87,149 @@ const DOMAIN_EXTENSIONS = [
   { value: '.cc', label: '.cc', price: 580000, description: 'کوتاه و منحصربه‌فرد' },
 ];
 
+// Reusable info card component
+const InfoCard = ({ 
+  icon: Icon, 
+  title, 
+  description, 
+  bgColor, 
+  iconColor,
+  className = ""
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  bgColor: string;
+  iconColor: string;
+  className?: string;
+}) => (
+  <div className={`flex items-start gap-3 ${className}`}>
+    <div className={`w-8 h-8 ${bgColor} rounded-full flex items-center justify-center flex-shrink-0`}>
+      <Icon className={`w-4 h-4 ${iconColor}`} />
+    </div>
+    <div className="min-w-0 flex-1">
+      <h4 className={`font-medium ${iconColor} mb-1 text-sm sm:text-base`}>{title}</h4>
+      <p className="text-xs sm:text-sm text-muted-foreground leading-tight">{description}</p>
+    </div>
+  </div>
+);
+
+// Reusable domain input component
+const DomainInput = ({
+  value,
+  onChange,
+  placeholder,
+  extension,
+  isChecking,
+  domainCheck,
+  onCheck,
+  validationError,
+  className = ""
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  extension: string;
+  isChecking: boolean;
+  domainCheck: DomainAvailability | null;
+  onCheck: () => void;
+  validationError?: string;
+  className?: string;
+}) => (
+  <div className={`space-y-3 ${className}`}>
+    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+      <div className="flex-1 relative">
+        <Input
+          type="text"
+          placeholder={placeholder}
+          value={value}
+          onChange={(e) => onChange(e.target.value.toLowerCase())}
+          className={`input-modern ${
+            value && validationError
+              ? 'border-destructive focus:ring-destructive'
+              : domainCheck?.available === false
+              ? 'border-destructive focus:ring-destructive'
+              : domainCheck?.available === true
+              ? 'border-success focus:ring-success'
+              : ''
+          }`}
+        />
+        {isChecking && (
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+          </div>
+        )}
+        {!isChecking && domainCheck && (
+          <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+            {domainCheck.available ? (
+              <Check className="w-4 h-4 text-success" />
+            ) : (
+              <X className="w-4 h-4 text-destructive" />
+            )}
+          </div>
+        )}
+      </div>
+      <span className="text-muted-foreground whitespace-nowrap text-sm sm:text-base">{extension}</span>
+      {value && !validationError && (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onCheck}
+          disabled={isChecking}
+          className="whitespace-nowrap text-xs sm:text-sm"
+        >
+          {isChecking ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin ml-1" />
+              بررسی...
+            </>
+          ) : (
+            'بررسی دامنه'
+          )}
+        </Button>
+      )}
+    </div>
+    
+    {validationError && (
+      <p className="text-xs sm:text-sm text-destructive leading-tight">
+        {validationError}
+      </p>
+    )}
+  </div>
+);
+
+// Reusable domain status component
+const DomainStatus = ({ domainCheck }: { domainCheck: DomainAvailability | null }) => {
+  if (!domainCheck) return null;
+  
+  return (
+    <div className={`text-sm p-3 rounded-lg ${
+      domainCheck.available 
+        ? 'bg-success/10 text-success border border-success/20' 
+        : 'bg-destructive/10 text-destructive border border-destructive/20'
+    }`}>
+      <div className="flex items-center gap-2 mb-2">
+        {domainCheck.available ? (
+          <Check className="w-4 h-4" />
+        ) : (
+          <X className="w-4 h-4" />
+        )}
+        <span className="font-medium text-xs sm:text-sm">{domainCheck.message}</span>
+      </div>
+      <div className="flex items-center gap-2 text-xs sm:text-sm">
+        <Check className="w-4 h-4" />
+        <span>دامنه .ir برای یک سال رایگان است</span>
+      </div>
+      {domainCheck.checkedAt && (
+        <div className="text-xs mt-1 opacity-75">
+          بررسی شده در: {new Date(domainCheck.checkedAt).toLocaleString('fa-IR')}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const StepFive = ({ data, updateData }: StepFiveProps) => {
   const [domainCheck, setDomainCheck] = useState<DomainAvailability | null>(null);
   const [isChecking, setIsChecking] = useState(false);
@@ -151,7 +294,7 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
         method: 'POST',
         body: JSON.stringify({ domain, extension }),
       });
-      setDomainCheck(result as any);
+      setDomainCheck(result as DomainAvailability);
     } catch (error) {
       console.error('Domain check failed:', error);
       toast({
@@ -188,11 +331,6 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
     return new Intl.NumberFormat('fa-IR').format(numPrice) + ' تومان';
   };
 
-  const isValidEmail = (email: string) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
-  };
-
   // Save design to local storage for guest users
   const saveDesignToLocalStorage = () => {
     if (!user && data.websiteFramework?.dynamicDesign) {
@@ -223,10 +361,10 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
     // Check domain availability
     setIsChecking(true);
     try {
-      const result: any = await (apiClient as any).request('/domains/check', {
+      const result = await (apiClient as any).request('/domains/check', {
         method: 'POST',
         body: JSON.stringify({ domain: additionalDomain, extension: additionalExtension }),
-      });
+      }) as DomainAvailability;
 
       if (result?.available) {
         const extension = DOMAIN_EXTENSIONS.find(ext => ext.value === additionalExtension);
@@ -288,84 +426,86 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold mb-2">انتخاب دامنه</h2>
-        <p className="text-muted-foreground">
+    <div className="space-y-6 sm:space-y-8">
+      {/* Header */}
+      <div className="text-center mb-6 sm:mb-8">
+        <h2 className="text-xl sm:text-2xl font-bold mb-2">انتخاب دامنه</h2>
+        <p className="text-sm sm:text-base text-muted-foreground">
           دامنه وب‌سایت خود را انتخاب کنید
         </p>
       </div>
 
-      <div className="grid md:grid-cols-1 max-w-2xl mx-auto gap-6">
+      <div className="grid grid-cols-1 max-w-2xl mx-auto gap-4 sm:gap-6">
         {/* User Authentication Status - Only show for non-logged in users */}
         {!user && (
           <Card className="card-modern">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                 <User className="w-5 h-5 text-primary" />
                 وضعیت کاربر
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-4 bg-warning/10 rounded-lg border border-warning/20">
-                  <div className="w-10 h-10 bg-warning/20 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-warning" />
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-warning">کاربر مهمان</h4>
-                    <p className="text-sm text-muted-foreground">
-                      طراحی شما در مرورگر ذخیره می‌شود
-                    </p>
-                  </div>
+            <CardContent className="space-y-4 sm:space-y-6">
+              <div className="flex items-center gap-3 p-4 bg-warning/10 rounded-lg border border-warning/20">
+                <div className="w-10 h-10 bg-warning/20 rounded-full flex items-center justify-center flex-shrink-0">
+                  <User className="w-5 h-5 text-warning" />
                 </div>
-                
-                <div className="flex gap-3">
-                  <Button 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => {
-                      try {
-                        // Prefer client-side navigation if available
-                        (window as any).__APP_NAVIGATE__?.('/auth?redirect=wizard');
-                      } catch {}
-                      if (!((window as any).__APP_NAVIGATE__)) {
-                        window.location.href = '/auth?redirect=wizard';
-                      }
-                    }}
-                  >
-                    <LogIn className="w-4 h-4 ml-2" />
-                    ورود
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    className="flex-1"
-                    onClick={() => {
-                      try {
-                        (window as any).__APP_NAVIGATE__?.('/auth?redirect=wizard&mode=signup');
-                      } catch {}
-                      if (!((window as any).__APP_NAVIGATE__)) {
-                        window.location.href = '/auth?redirect=wizard&mode=signup';
-                      }
-                    }}
-                  >
-                    <UserPlus className="w-4 h-4 ml-2" />
-                    ثبت‌نام
-                  </Button>
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-medium text-warning text-sm sm:text-base">کاربر مهمان</h4>
+                  <p className="text-xs sm:text-sm text-muted-foreground leading-tight">
+                    طراحی شما در مرورگر ذخیره می‌شود
+                  </p>
                 </div>
-                
-                <Button 
-                  variant="secondary" 
-                  onClick={saveDesignToLocalStorage}
-                  className="w-full"
-                >
-                  ذخیره طراحی در مرورگر
-                </Button>
-                
-                <p className="text-sm text-muted-foreground">
-                  برای ذخیره دائمی طراحی و دسترسی از هر دستگاه، لطفاً ثبت‌نام کنید.
-                </p>
               </div>
+              
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => {
+                    try {
+                      (window as any).__APP_NAVIGATE__?.('/auth?redirect=wizard');
+                    } catch {
+                      // Fallback to window.location if navigation fails
+                    }
+                    if (!((window as any).__APP_NAVIGATE__)) {
+                      window.location.href = '/auth?redirect=wizard';
+                    }
+                  }}
+                >
+                  <LogIn className="w-4 h-4 ml-2" />
+                  ورود
+                </Button>
+                <Button 
+                  variant="outline" 
+                  className="flex-1"
+                  onClick={() => {
+                    try {
+                      (window as any).__APP_NAVIGATE__?.('/auth?redirect=wizard&mode=signup');
+                    } catch {
+                      // Fallback to window.location if navigation fails
+                    }
+                    if (!((window as any).__APP_NAVIGATE__)) {
+                      window.location.href = '/auth?redirect=wizard&mode=signup';
+                    }
+                  }}
+                >
+                  <UserPlus className="w-4 h-4 ml-2" />
+                  ثبت‌نام
+                </Button>
+              </div>
+              
+              <Button 
+                variant="secondary" 
+                onClick={saveDesignToLocalStorage}
+                className="w-full"
+              >
+                ذخیره طراحی در مرورگر
+              </Button>
+              
+              <p className="text-xs sm:text-sm text-muted-foreground text-center">
+                برای ذخیره دائمی طراحی و دسترسی از هر دستگاه، لطفاً ثبت‌نام کنید.
+              </p>
             </CardContent>
           </Card>
         )}
@@ -373,107 +513,34 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
         {/* Domain Selection */}
         <Card className="card-modern">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Globe className="w-5 h-5 text-primary" />
               انتخاب دامنه
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4 sm:space-y-6">
             {/* Primary Domain (.ir) */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">
+            <div className="space-y-3">
+              <Label className="text-sm sm:text-base font-medium">
                 دامنه اصلی (.ir) *
               </Label>
               
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 relative">
-                    <Input
-                      type="text"
-                      placeholder="mywebsite"
-                      value={data.userInfo?.domain || ''}
-                      onChange={(e) => updateUserInfo('domain', e.target.value.toLowerCase())}
-                      className={`input-modern ${
-                        data.userInfo?.domain && !validateDomain(data.userInfo.domain)
-                          ? 'border-destructive focus:ring-destructive'
-                          : domainCheck?.available === false
-                          ? 'border-destructive focus:ring-destructive'
-                          : domainCheck?.available === true
-                          ? 'border-success focus:ring-success'
-                          : ''
-                      }`}
-                    />
-                    {isChecking && (
-                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                      </div>
-                    )}
-                    {!isChecking && domainCheck && (
-                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                        {domainCheck.available ? (
-                          <Check className="w-4 h-4 text-success" />
-                        ) : (
-                          <X className="w-4 h-4 text-destructive" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <span className="text-muted-foreground whitespace-nowrap">.ir</span>
-                  {data.userInfo?.domain && validateDomain(data.userInfo.domain) && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => checkDomainAvailability(data.userInfo.domain, '.ir')}
-                      disabled={isChecking}
-                      className="whitespace-nowrap"
-                    >
-                      {isChecking ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin ml-1" />
-                          بررسی...
-                        </>
-                      ) : (
-                        'بررسی دامنه'
-                      )}
-                    </Button>
-                  )}
-                </div>
-              </div>
+              <DomainInput
+                value={data.userInfo?.domain || ''}
+                onChange={(value) => updateUserInfo('domain', value)}
+                placeholder="mywebsite"
+                extension=".ir"
+                isChecking={isChecking}
+                domainCheck={domainCheck}
+                onCheck={() => checkDomainAvailability(data.userInfo?.domain, '.ir')}
+                validationError={data.userInfo?.domain && !validateDomain(data.userInfo.domain) 
+                  ? "نام دامنه باید شامل حروف انگلیسی، اعداد و خط تیره باشد و حداقل 2 کاراکتر داشته باشد" 
+                  : undefined}
+              />
               
-              {data.userInfo?.domain && !validateDomain(data.userInfo.domain) && (
-                <p className="text-sm text-destructive">
-                  نام دامنه باید شامل حروف انگلیسی، اعداد و خط تیره باشد و حداقل 2 کاراکتر داشته باشد
-                </p>
-              )}
+              <DomainStatus domainCheck={domainCheck} />
               
-              {domainCheck && (
-                <div className={`text-sm p-3 rounded-lg ${
-                  domainCheck.available 
-                    ? 'bg-success/10 text-success border border-success/20' 
-                    : 'bg-destructive/10 text-destructive border border-destructive/20'
-                }`}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {domainCheck.available ? (
-                      <Check className="w-4 h-4" />
-                    ) : (
-                      <X className="w-4 h-4" />
-                    )}
-                    <span className="font-medium">{domainCheck.message}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Check className="w-4 h-4" />
-                    <span>دامنه .ir برای یک سال رایگان است</span>
-                  </div>
-                  {domainCheck.checkedAt && (
-                    <div className="text-xs mt-1 opacity-75">
-                      بررسی شده در: {new Date(domainCheck.checkedAt).toLocaleString('fa-IR')}
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs sm:text-sm text-muted-foreground leading-tight">
                 دامنه اصلی شما: <strong>
                   {data.userInfo?.domain || 'mywebsite'}.ir
                 </strong>
@@ -484,9 +551,9 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
             </div>
 
             {/* Additional Domains */}
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">
+                <Label className="text-sm sm:text-base font-medium">
                   دامنه‌های اضافی (اختیاری)
                 </Label>
                 <Badge variant="secondary" className="text-xs">
@@ -496,7 +563,7 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
               
               {/* Add Additional Domain */}
               <div className="space-y-3">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                   <div className="flex-1 relative">
                     <Input
                       type="text"
@@ -514,14 +581,14 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                     value={additionalExtension} 
                     onValueChange={setAdditionalExtension}
                   >
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="w-full sm:w-32">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       {DOMAIN_EXTENSIONS.filter(ext => ext.value !== '.ir').map((ext) => (
                         <SelectItem key={ext.value} value={ext.value}>
                           <div className="flex items-center justify-between w-full">
-                            <span>{ext.label}</span>
+                            <span className="text-xs sm:text-sm">{ext.label}</span>
                             <span className="text-xs text-muted-foreground">
                               {ext.price === 0 ? 'رایگان' : formatPrice(ext.price)}
                             </span>
@@ -536,7 +603,7 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                     size="sm"
                     onClick={addAdditionalDomain}
                     disabled={isChecking || !additionalDomain || !validateDomain(additionalDomain)}
-                    className="whitespace-nowrap"
+                    className="w-full sm:w-auto whitespace-nowrap text-xs sm:text-sm"
                   >
                     <Plus className="w-4 h-4 ml-1" />
                     اضافه کردن
@@ -549,12 +616,12 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                 <div className="space-y-2">
                   {data.userInfo.additionalDomains.map((domain, index) => (
                     <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <Check className="w-4 h-4 text-success" />
-                        <span className="font-medium">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <Check className="w-4 h-4 text-success flex-shrink-0" />
+                        <span className="font-medium text-sm sm:text-base truncate">
                           {domain.domain}{domain.extension}
                         </span>
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className="text-xs flex-shrink-0">
                           {domain.price === 0 ? 'رایگان' : formatPrice(domain.price)}
                         </Badge>
                       </div>
@@ -563,7 +630,7 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                         variant="ghost"
                         size="sm"
                         onClick={() => removeAdditionalDomain(index)}
-                        className="text-destructive hover:text-destructive"
+                        className="text-destructive hover:text-destructive flex-shrink-0"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -573,9 +640,9 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
               )}
             </div>
 
-            <div className="bg-info/10 border border-info/20 rounded-lg p-4">
-              <h4 className="font-medium text-info mb-2">💡 نکات مهم دامنه:</h4>
-              <ul className="text-sm space-y-1 text-info">
+            <div className="bg-info/10 border border-info/20 rounded-lg p-3 sm:p-4">
+              <h4 className="font-medium text-info mb-2 text-sm sm:text-base">💡 نکات مهم دامنه:</h4>
+              <ul className="text-xs sm:text-sm space-y-1 text-info leading-tight">
                 <li>• دامنه .ir برای یک سال رایگان ارائه می‌شود</li>
                 <li>• دامنه‌های بین‌المللی (.com, .net, etc) با هزینه اضافه</li>
                 <li>• امکان تغییر دامنه تا 24 ساعت بعد از سفارش</li>
@@ -589,35 +656,27 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
         {/* Security & Privacy */}
         <Card className="bg-gradient-to-r from-success/5 to-primary/5">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
               <Shield className="w-5 h-5 text-success" />
               امنیت و حریم خصوصی
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-success/10 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Shield className="w-4 h-4 text-success" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-success mb-1">اطلاعات محفوظ</h4>
-                  <p className="text-sm text-muted-foreground">
-                    تمام اطلاعات شما با رمزنگاری محافظت می‌شود
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center flex-shrink-0">
-                  <Clock className="w-4 h-4 text-primary" />
-                </div>
-                <div>
-                  <h4 className="font-medium text-primary mb-1">پردازش سریع</h4>
-                  <p className="text-sm text-muted-foreground">
-                    وب‌سایت شما ظرف 24-48 ساعت آماده می‌شود
-                  </p>
-                </div>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <InfoCard
+                icon={Shield}
+                title="اطلاعات محفوظ"
+                description="تمام اطلاعات شما با رمزنگاری محافظت می‌شود"
+                bgColor="bg-success/10"
+                iconColor="text-success"
+              />
+              <InfoCard
+                icon={Clock}
+                title="پردازش سریع"
+                description="وب‌سایت شما ظرف 24-48 ساعت آماده می‌شود"
+                bgColor="bg-primary/10"
+                iconColor="text-primary"
+              />
             </div>
           </CardContent>
         </Card>
@@ -626,10 +685,10 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
       {/* Form Validation Summary */}
       {data.userInfo?.domain && (
         <div className="text-center p-4 bg-success/10 rounded-xl border border-success/20 max-w-2xl mx-auto">
-          <p className="text-success font-medium mb-2">
+          <p className="text-success font-medium mb-2 text-sm sm:text-base">
             ✓ دامنه اصلی انتخاب شده است
           </p>
-          <div className="text-sm text-muted-foreground space-y-1">
+          <div className="text-xs sm:text-sm text-muted-foreground space-y-1 leading-tight">
             <div>
               دامنه اصلی: <span className="font-medium text-primary">{data.userInfo.domain}.ir</span>
               <span className="text-success"> (رایگان)</span>

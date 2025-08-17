@@ -21,11 +21,13 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useSiteMode } from "@/hooks/useSiteMode";
 import SiteModeDisplay from "@/components/ui/SiteModeDisplay";
+import React from "react";
 
 const queryClient = new QueryClient();
 
-const AppContent = () => {
-  const { mode, loading } = useSiteMode();
+// Wrapper component that ensures auth context is available
+const SiteModeWrapper = React.memo(() => {
+  const { mode, loading, error } = useSiteMode();
   const navigate = useNavigate();
 
   // Expose a minimal global navigate helper for non-routed modules
@@ -38,6 +40,12 @@ const AppContent = () => {
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
+  }
+
+  // Show error state if there's an error
+  if (error) {
+    console.warn('Site mode error:', error);
+    // Continue with normal mode even if there's an error
   }
 
   // Show full-page mode displays for maintenance and unavailable modes
@@ -77,20 +85,20 @@ const AppContent = () => {
       </Routes>
     </>
   );
-};
+});
 
 const App = () => (
   <HelmetProvider>
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppContent />
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <SiteModeWrapper />
+          </TooltipProvider>
+        </AuthProvider>
+      </BrowserRouter>
     </QueryClientProvider>
   </HelmetProvider>
 );

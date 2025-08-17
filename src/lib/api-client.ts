@@ -284,28 +284,30 @@ class ApiClient {
           if (refreshToken && !this.isRefreshing) {
             this.isRefreshing = true;
             try {
+              console.log('Attempting token refresh...');
               const refreshed = await this.refreshToken(refreshToken);
               tokenManager.setTokens({
                 access_token: refreshed.access_token,
                 refresh_token: refreshed.refresh_token,
               });
+              console.log('Token refresh successful, retrying request...');
               // Retry original request once with new token
               return this.request<T>(endpoint, options, false);
             } catch (refreshError) {
+              console.error('Token refresh failed:', refreshError);
               this.clearToken();
-              // Fall through to redirect
+              // Don't redirect immediately, let the calling component handle it
+              throw new Error('Authentication failed - please log in again');
             } finally {
               this.isRefreshing = false;
             }
           } else {
+            console.log('No refresh token or already refreshing, clearing tokens');
             this.clearToken();
           }
 
-          // Redirect to login after ensuring tokens are cleared
-          if (typeof window !== 'undefined') {
-            window.location.href = '/auth';
-          }
-          throw new Error('Unauthorized');
+          // Don't redirect immediately, throw error instead
+          throw new Error('Unauthorized - please log in again');
         }
 
         const message = typeof body === 'string' ? body : body?.message || `HTTP ${response.status}`;

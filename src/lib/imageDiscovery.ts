@@ -43,8 +43,39 @@ export const discoverCategoryImages = async (category: string): Promise<Discover
   let totalImages = 0;
   let validImages = 0;
 
-  // Try to find images with numbers 1-100
-  for (let i = 1; i <= 100; i++) {
+  // Use known image ranges instead of hardcoded 1-100
+  const knownImageRanges: Record<string, number> = {
+    'headers': 37,
+    'hero': 42,
+    'about': 25,
+    'services': 30,
+    'contact': 20,
+    'newsletter': 15,
+    'footer': 25,
+    'features': 35,
+    'gallery': 20,
+    'testimonials': 15,
+    'team': 20,
+    'pricing': 25,
+    'faqs': 15,
+    'blog_posts': 20,
+    'call_to_actions': 20,
+    'content': 30,
+    'forms': 15,
+    'accordion': 15,
+    'tables': 10,
+    'stats': 15,
+    'socials': 10,
+    'logos': 20,
+    'left_right_sections': 15,
+    'full_page': 10
+  };
+
+  const maxImages = knownImageRanges[category] || 20;
+  console.log(`🔍 Discovering images for ${category} (max: ${maxImages})`);
+
+  // Try to find images with numbers 1 to maxImages
+  for (let i = 1; i <= maxImages; i++) {
     const imagePath = `/designs/${category}/${i}.png`;
     const exists = await validateImageExists(imagePath);
     
@@ -63,11 +94,14 @@ export const discoverCategoryImages = async (category: string): Promise<Discover
     
     totalImages++;
     
-    // Stop if we haven't found any images in the last 10 attempts
-    if (i > 20 && validImages === 0) {
+    // Stop if we haven't found any images in the last 5 attempts
+    if (i > 15 && validImages === 0) {
+      console.log(`⚠️ No images found for ${category} after ${i} attempts, stopping discovery`);
       break;
     }
   }
+
+  console.log(`✅ Discovery completed for ${category}: ${validImages} valid images out of ${totalImages} checked`);
 
   return {
     id: category,

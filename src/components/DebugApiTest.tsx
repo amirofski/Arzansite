@@ -4,10 +4,34 @@ import { apiClient } from '@/lib/api-client';
 export const DebugApiTest: React.FC = () => {
   const [testResults, setTestResults] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [authStatus, setAuthStatus] = useState<string>('Checking...');
 
   const addResult = (message: string) => {
     setTestResults(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
   };
+
+  // Check authentication status on component mount
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        const tokenManager = (await import('@/lib/tokenManager')).tokenManager;
+        const isAuth = tokenManager.isAuthenticated();
+        const token = tokenManager.getAccessToken();
+        
+        if (isAuth && token) {
+          setAuthStatus(`✅ Authenticated (Token: ${token.substring(0, 20)}...)`);
+        } else if (token) {
+          setAuthStatus(`⚠️ Token exists but expired`);
+        } else {
+          setAuthStatus('❌ Not authenticated');
+        }
+      } catch (error) {
+        setAuthStatus(`❌ Error: ${error}`);
+      }
+    };
+    
+    checkAuthStatus();
+  }, []);
 
   const testApiConnectivity = async () => {
     setLoading(true);
@@ -173,6 +197,26 @@ export const DebugApiTest: React.FC = () => {
         addResult(`✗ Fetch API test failed: ${error}`);
       }
 
+      // Test 11: Test authentication flow
+      addResult('Test 11: Testing authentication flow...');
+      try {
+        // Test token manager
+        const tokenManager = (await import('@/lib/tokenManager')).tokenManager;
+        const isAuth = tokenManager.isAuthenticated();
+        addResult(`✓ Token manager check: ${isAuth}`);
+        
+        // Test auth context
+        const { useAuth } = await import('@/hooks/useAuth');
+        addResult(`✓ Auth hook imported successfully`);
+        
+        // Test appwrite auth service
+        const { appwriteAuthService } = await import('@/lib/appwriteAuth');
+        addResult(`✓ Appwrite auth service imported successfully`);
+        
+      } catch (error) {
+        addResult(`✗ Authentication flow test failed: ${error}`);
+      }
+
     } catch (error) {
       addResult(`✗ Overall test failed: ${error}`);
     } finally {
@@ -184,6 +228,12 @@ export const DebugApiTest: React.FC = () => {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <h2 className="text-2xl font-bold mb-4">API Connectivity Debug Test</h2>
+      
+      {/* Authentication Status Display */}
+      <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
+        <h3 className="font-semibold text-blue-800 mb-2">Current Authentication Status:</h3>
+        <div className="text-sm font-mono text-blue-700">{authStatus}</div>
+      </div>
       
       <button
         onClick={testApiConnectivity}

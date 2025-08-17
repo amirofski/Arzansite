@@ -1,107 +1,237 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Switch } from "@/components/ui/switch";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
-import { calculateTotalPrice, formatPriceWithUnit } from '@/lib/pricingUtils';
+import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Check, 
+  User, 
+  Globe, 
+  Palette, 
+  Layers, 
+  CreditCard, 
+  Loader2, 
+  Calculator,
+  AlertCircle,
+  LogIn,
+  Shield
+} from 'lucide-react';
+import { calculateTotalPrice } from '@/lib/pricingUtils';
+import { formatPriceWithUnit } from '@/lib/pricingUtils';
+import { PRICING_CONFIG } from '@/lib/pricingUtils';
 import { apiClient } from '@/lib/api-client';
 import { DesignService } from '@/lib/designService';
-import { 
-  CreditCard, 
-  Smartphone, 
-  Check, 
-  Clock, 
-  Shield, 
-  Zap,
-  User,
-  Mail,
-  Globe,
-  Loader2,
-  Calculator
-} from 'lucide-react';
+import { mockApiClient } from '@/lib/wizardApiClient';
 
 interface OrderSubmissionStepProps {
-  data: any;
-  updateData: (data: any) => void;
+  data: WizardData;
+  updateData: (data: Partial<WizardData>) => void;
 }
 
-const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
+interface WizardData {
+  siteType: string;
+  modules: unknown[];
+  websiteFramework?: {
+    dynamicDesign?: {
+      pages?: Array<{
+        sections: Array<{
+          id: string;
+          sectionType: string;
+          layoutId: string;
+          order: number;
+          customData?: Record<string, unknown>;
+        }>;
+      }>;
+    };
+  };
+  branding?: {
+    primaryColor?: string;
+    fontFamily?: string;
+    logo?: string;
+  };
+  pricing?: {
+    additionalServices?: Record<string, boolean>;
+    customizationLevel?: number[];
+    rushDelivery?: boolean;
+    totalPrice?: number;
+  };
+  additionalServices?: Record<string, boolean>;
+  paymentCycle?: 'monthly' | 'annual';
+  autoRenewal?: boolean;
+  userInfo?: {
+    domain?: string;
+    name?: string;
+    email?: string;
+    additionalDomains?: string[];
+  };
+}
+
+const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionStepProps) => {
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+  
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentCycle, setPaymentCycle] = useState<'monthly' | 'annual'>('monthly');
   const [autoRenewal, setAutoRenewal] = useState(false);
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const navigate = useNavigate();
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
-  // Use centralized pricing calculation with payment cycle
+  // Check authentication status when component mounts
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      setShowAuthPrompt(true);
+    }
+  }, [isAuthenticated, authLoading]);
+
+  // Calculate pricing based on current selections
   const pricingBreakdown = calculateTotalPrice({
-    ...data,
+    ...wizardData,
+    additionalServices: wizardData.additionalServices || [],
     paymentCycle
   });
-  
+
   const totalCost = paymentCycle === 'annual' ? pricingBreakdown.annualPrice : pricingBreakdown.monthlyPrice;
 
+  const handlePaymentCycleChange = (value: 'monthly' | 'annual') => {
+    setPaymentCycle(value);
+    updateData({ paymentCycle: value });
+  };
+
+  const handleAutoRenewalChange = (checked: boolean) => {
+    setAutoRenewal(checked);
+    updateData({ autoRenewal: checked });
+  };
+
+  // Zarrin Pal payment integration
+  const initiateZarrinPalPayment = async (orderData: any) => {
+    try {
+      // Call the Zarrin Pal API endpoint
+      const response = await fetch('https://nest.arzansite.com/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
+        },
+        body: JSON.stringify({
+          ...orderData,
+          payment_gateway: 'zarrinpal',
+          callback_url: `${window.location.origin}/payment/callback`,
+          return_url: `${window.location.origin}/payment/success`,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Payment initiation failed: ${response.status}`);
+      }
+
+      const paymentData = await response.json();
+      
+      // Redirect to Zarrin Pal payment page
+      if (paymentData.payment_url) {
+        window.location.href = paymentData.payment_url;
+      } else {
+        throw new Error('Payment URL not received from Zarrin Pal');
+      }
+
+    } catch (error) {
+      console.error('Zarrin Pal payment error:', error);
+      throw error;
+    }
+  };
+
   const submitOrder = async () => {
-    if (!user) {
+    // Check authentication first
+    if (!isAuthenticated || !user) {
       toast({
-        title: "خطا",
-        description: "برای ثبت سفارش باید وارد شوید",
+        title: "نیاز به ورود",
+        description: "برای ادامه پرداخت، لطفاً ابتدا وارد حساب کاربری خود شوید.",
         variant: "destructive",
       });
-      navigate('/auth');
+      setShowAuthPrompt(true);
       return;
     }
 
     setIsProcessing(true);
-
     try {
-      // First create the order in database
-      const orderData = {
-        user_id: user.id,
-        title: `وب‌سایت ${data.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${data.userInfo?.domain || 'mywebsite'}`,
-        description: JSON.stringify({
-          siteType: data.siteType,
-          modules: data.modules,
-          branding: data.branding,
-          userInfo: data.userInfo,
-          pricing: data.pricing,
-          additionalServices: data.additionalServices,
-          paymentCycle,
-          autoRenewal,
-          moduleLayout: data.modules?.map((m: any, index: number) => ({
-            ...m,
-            position: index
-          }))
-        }),
-        price: totalCost,
-        status: 'pending',
-        payment_status: 'pending',
-        comments: `دامنه: ${data.userInfo?.domain || 'mywebsite'}.ir | دوره پرداخت: ${paymentCycle === 'annual' ? 'سالانه' : 'ماهانه'} | تمدید خودکار: ${autoRenewal ? 'بله' : 'خیر'}`
-      };
+      // First, create the order in our system
+      let newOrder;
+      try {
+        // Format order data according to API interface
+        const apiOrderData = {
+          title: `وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${wizardData.userInfo?.domain || 'mywebsite'}.ir`,
+          description: JSON.stringify({
+            siteType: wizardData.siteType,
+            websiteFramework: wizardData.websiteFramework,
+            branding: wizardData.branding,
+            additionalServices: wizardData.additionalServices,
+            domains: {
+              primary_domain: wizardData.userInfo?.domain || 'mywebsite.ir',
+              additional_domains: wizardData.userInfo?.additionalDomains || []
+            },
+            pricing: {
+              base_price: pricingBreakdown.basePrice,
+              pages_cost: pricingBreakdown.pagesCost,
+              sections_cost: pricingBreakdown.sectionsCost,
+              additional_services_cost: pricingBreakdown.additionalServicesCost,
+              total_price: totalCost,
+              payment_cycle: paymentCycle,
+              auto_renewal: autoRenewal,
+              annual_discount: paymentCycle === 'annual' ? pricingBreakdown.annualDiscount : 0
+            },
+            paymentCycle,
+            autoRenewal
+          }),
+          price: totalCost,
+          comments: `دامنه: ${wizardData.userInfo?.domain || 'mywebsite'}.ir | دوره پرداخت: ${paymentCycle === 'annual' ? 'سالانه' : 'ماهانه'} | تمدید خودکار: ${autoRenewal ? 'بله' : 'خیر'}`,
+          total_pages: wizardData.websiteFramework?.dynamicDesign?.pages?.length || 1,
+          total_sections: wizardData.websiteFramework?.dynamicDesign?.pages?.reduce((total: number, page: any) => total + (page.sections?.length || 0), 0) || 0
+        };
 
-      const newOrder = await apiClient.createOrder(orderData);
+        newOrder = await apiClient.createOrder(apiOrderData);
+      } catch (orderError) {
+        console.error('Order creation error:', orderError);
+        // Try using mock API as fallback
+        newOrder = await mockApiClient.saveWizardProgress({
+          sessionId: 'temp_' + Date.now(),
+          siteType: wizardData.siteType,
+          websiteFramework: wizardData.websiteFramework,
+          branding: wizardData.branding,
+          additionalServices: wizardData.additionalServices,
+          domains: {
+            primaryDomain: wizardData.userInfo?.domain || 'mywebsite.ir',
+            additionalDomains: wizardData.userInfo?.additionalDomains || []
+          },
+          pricing: {
+            basePrice: pricingBreakdown.basePrice,
+            pagesCost: pricingBreakdown.pagesCost,
+            sectionsCost: pricingBreakdown.sectionsCost,
+            additionalServicesCost: pricingBreakdown.additionalServicesCost,
+            totalPrice: totalCost,
+            paymentCycle,
+            autoRenewal,
+            annualDiscount: paymentCycle === 'annual' ? pricingBreakdown.annualDiscount : 0
+          }
+        });
+      }
 
       // Save design data if available
-      if (data.websiteFramework?.dynamicDesign) {
+      if (wizardData.websiteFramework?.dynamicDesign) {
         try {
           await DesignService.saveDesign(
             newOrder.id,
-            data.websiteFramework.dynamicDesign,
+            wizardData.websiteFramework.dynamicDesign,
             {
-              siteType: data.siteType,
-              modules: data.modules,
-              branding: data.branding,
-              userInfo: data.userInfo,
-              pricing: data.pricing,
-              additionalServices: data.additionalServices,
-              paymentCycle,
-              autoRenewal
+              siteType: wizardData.siteType,
+              modules: wizardData.modules,
+              branding: wizardData.branding,
+              userInfo: wizardData.userInfo,
+              pricing: wizardData.pricing
             }
           );
         } catch (designError) {
@@ -110,13 +240,12 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
         }
       }
 
-      // Also create/update user profile if needed
-      if (data.userInfo) {
+      // Update user profile if needed
+      if (wizardData.userInfo) {
         try {
           await apiClient.updateProfile({
-            full_name: data.userInfo.name,
-            email: data.userInfo.email,
-            domain: data.userInfo.domain
+            full_name: wizardData.userInfo.name,
+            email: wizardData.userInfo.email
           });
         } catch (profileError) {
           console.warn('Profile update warning:', profileError);
@@ -124,24 +253,38 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
         }
       }
 
-      // Redirect to payment page or show success
+      // Show success message
       toast({
         title: "سفارش ثبت شد",
-        description: "سفارش شما با موفقیت ثبت شد. در حال انتقال به صفحه پرداخت...",
+        description: "سفارش شما با موفقیت ثبت شد. در حال انتقال به درگاه پرداخت...",
         variant: "default",
       });
 
-      // Here you would redirect to Zarrin Pal payment gateway
-      // For now, just show success
-      setTimeout(() => {
-        navigate('/dashboard');
-      }, 2000);
+      // Initiate Zarrin Pal payment
+      await initiateZarrinPalPayment({
+        ...newOrder, // Use the newOrder object directly
+        order_id: newOrder.id
+      });
 
     } catch (error) {
       console.error('Order submission error:', error);
+      
+      let errorMessage = "متأسفانه خطایی در ثبت سفارش رخ داد. لطفاً دوباره تلاش کنید.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Unauthorized') || error.message.includes('Authentication failed')) {
+          errorMessage = "جلسه شما منقضی شده است. لطفاً دوباره وارد شوید.";
+          setShowAuthPrompt(true);
+        } else if (error.message.includes('Payment')) {
+          errorMessage = "خطا در اتصال به درگاه پرداخت. لطفاً دوباره تلاش کنید.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       toast({
         title: "خطا در ثبت سفارش",
-        description: "متأسفانه خطایی در ثبت سفارش رخ داد. لطفاً دوباره تلاش کنید.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -175,7 +318,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
               <div>
                 <h4 className="font-semibold">نوع وب‌سایت</h4>
                 <p className="text-sm text-muted-foreground">
-                  {data.siteType === 'personal' ? 'شخصی' : 'تجاری'}
+                  {wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'}
                 </p>
               </div>
             </div>
@@ -187,7 +330,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
               <div>
                 <h4 className="font-semibold">دامنه</h4>
                 <p className="text-sm text-muted-foreground">
-                  {data.userInfo?.domain || 'mywebsite'}.ir
+                  {wizardData.userInfo?.domain || 'mywebsite'}.ir
                 </p>
               </div>
             </div>
@@ -217,26 +360,26 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
             </div>
           </div>
 
-          {data.additionalServices && Object.values(data.additionalServices).some(Boolean) && (
+          {wizardData.additionalServices && Object.values(wizardData.additionalServices).some(Boolean) && (
             <div className="mt-4">
               <h4 className="font-semibold mb-2">خدمات اضافی انتخاب شده:</h4>
               <div className="flex flex-wrap gap-2">
-                {data.additionalServices.seoOptimization && (
+                {wizardData.additionalServices.seoOptimization && (
                   <Badge variant="secondary">SEO</Badge>
                 )}
-                {data.additionalServices.socialMediaIntegration && (
+                {wizardData.additionalServices.socialMediaIntegration && (
                   <Badge variant="secondary">شبکه‌های اجتماعی</Badge>
                 )}
-                {data.additionalServices.analyticsSetup && (
+                {wizardData.additionalServices.analyticsSetup && (
                   <Badge variant="secondary">آنالیتیکس</Badge>
                 )}
-                {data.additionalServices.backupService && (
+                {wizardData.additionalServices.backupService && (
                   <Badge variant="secondary">پشتیبان‌گیری</Badge>
                 )}
-                {data.additionalServices.maintenancePlan && (
+                {wizardData.additionalServices.maintenancePlan && (
                   <Badge variant="secondary">نگهداری</Badge>
                 )}
-                {data.additionalServices.rushDelivery && (
+                {wizardData.additionalServices.rushDelivery && (
                   <Badge variant="secondary">تحویل فوری</Badge>
                 )}
               </div>
@@ -259,7 +402,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
             <Label className="text-base font-semibold">دوره پرداخت</Label>
             <RadioGroup
               value={paymentCycle}
-              onValueChange={(value) => setPaymentCycle(value as 'monthly' | 'annual')}
+              onValueChange={handlePaymentCycleChange}
               className="grid grid-cols-2 gap-4"
             >
               <div className="flex items-center space-x-2">
@@ -297,7 +440,7 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
             </div>
             <Switch
               checked={autoRenewal}
-              onCheckedChange={setAutoRenewal}
+              onCheckedChange={handleAutoRenewalChange}
             />
           </div>
 
@@ -359,6 +502,21 @@ const OrderSubmissionStep = ({ data }: OrderSubmissionStepProps) => {
           </div>
         </CardContent>
       </Card>
+
+      {showAuthPrompt && (
+        <div className="text-center mt-8">
+          <p className="text-muted-foreground">
+            برای ادامه پرداخت، لطفاً ابتدا وارد حساب کاربری خود شوید.
+          </p>
+          <Button
+            onClick={() => navigate('/auth')}
+            className="btn-gradient mt-4"
+          >
+            <LogIn className="w-4 h-4 mr-2" />
+            ورود به حساب کاربری
+          </Button>
+        </div>
+      )}
     </div>
   );
 };

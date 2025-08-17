@@ -227,15 +227,15 @@ const StepTwo = ({ data, updateData, onAutoAdvance }: StepTwoProps) => {
 
   // Render design method selection phase
   const renderDesignMethodPhase = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold mb-2">روش طراحی وب‌سایت</h2>
-        <p className="text-muted-foreground">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="text-center mb-6 sm:mb-8">
+        <h2 className="text-xl sm:text-2xl font-bold mb-2">روش طراحی وب‌سایت</h2>
+        <p className="text-sm sm:text-base text-muted-foreground">
           روش طراحی وب‌سایت خود را انتخاب کنید
         </p>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         <Card
           className={`cursor-pointer transition-all duration-300 hover:shadow-medium ${
             selectedDesignMethod === 'template'
@@ -244,27 +244,27 @@ const StepTwo = ({ data, updateData, onAutoAdvance }: StepTwoProps) => {
           }`}
           onClick={() => handleDesignMethodSelect('template')}
         >
-          <CardContent className="p-8 text-center">
-            <div className="mb-6">
-              <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
-                <Grid3X3 className="w-8 h-8 text-primary" />
+          <CardContent className="p-4 sm:p-6 lg:p-8 text-center">
+            <div className="mb-4 sm:mb-6">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                <Grid3X3 className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
               </div>
             </div>
-            <h3 className="text-xl font-bold mb-3">قالب آماده</h3>
-            <p className="text-muted-foreground mb-6">
+            <h3 className="text-lg sm:text-xl font-bold mb-2 sm:mb-3">قالب آماده</h3>
+            <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6 leading-tight">
               انتخاب از قالب‌های آماده و شخصی‌سازی آن‌ها
             </p>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-2 text-xs sm:text-sm">
               <div className="flex items-center gap-2 text-primary font-medium">
-                <span className="w-2 h-2 bg-primary rounded-full"></span>
+                <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0"></span>
                 <span>قالب‌های آماده و بهینه</span>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="w-2 h-2 bg-muted rounded-full"></span>
+                <span className="w-2 h-2 bg-muted rounded-full flex-shrink-0"></span>
                 <span>شخصی‌سازی آسان</span>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="w-2 h-2 bg-muted rounded-full"></span>
+                <span className="w-2 h-2 bg-muted rounded-full flex-shrink-0"></span>
                 <span>سرعت بالا در طراحی</span>
               </div>
             </div>
@@ -279,27 +279,27 @@ const StepTwo = ({ data, updateData, onAutoAdvance }: StepTwoProps) => {
           }`}
           onClick={() => handleDesignMethodSelect('dynamic')}
         >
-          <CardContent className="p-8 text-center">
-            <div className="mb-6">
-              <div className="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto">
-                <PenTool className="w-8 h-8 text-secondary" />
+          <CardContent className="p-4 sm:p-6 lg:p-8 text-center">
+            <div className="mb-4 sm:mb-6">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 bg-secondary/10 rounded-full flex items-center justify-center mx-auto">
+                <PenTool className="w-6 h-6 sm:w-8 sm:h-8 text-secondary" />
               </div>
             </div>
-            <h3 className="text-xl font-bold mb-3">طراحی پویا</h3>
-            <p className="text-muted-foreground mb-6">
+            <h3 className="text-lg sm:text-xl font-bold mb-2 sm:mb-3">طراحی پویا</h3>
+            <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6 leading-tight">
               طراحی کاملاً سفارشی با ابزارهای پیشرفته
             </p>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-2 text-xs sm:text-sm">
               <div className="flex items-center gap-2 text-secondary font-medium">
-                <span className="w-2 h-2 bg-secondary rounded-full"></span>
+                <span className="w-2 h-2 bg-secondary rounded-full flex-shrink-0"></span>
                 <span>طراحی کاملاً سفارشی</span>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="w-2 h-2 bg-muted rounded-full"></span>
+                <span className="w-2 h-2 bg-muted rounded-full flex-shrink-0"></span>
                 <span>کنترل کامل بر طراحی</span>
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
-                <span className="w-2 h-2 bg-muted rounded-full"></span>
+                <span className="w-2 h-2 bg-muted rounded-full flex-shrink-0"></span>
                 <span>ابزارهای پیشرفته طراحی</span>
               </div>
             </div>
@@ -308,12 +308,12 @@ const StepTwo = ({ data, updateData, onAutoAdvance }: StepTwoProps) => {
       </div>
 
       {selectedDesignMethod && (
-        <div className="text-center mt-8 p-4 bg-success/10 rounded-xl border border-success/20">
-          <p className="text-success font-medium">
+        <div className="text-center mt-6 sm:mt-8 p-3 sm:p-4 bg-success/10 rounded-xl border border-success/20">
+          <p className="text-success font-medium text-sm sm:text-base">
             ✓ روش طراحی انتخاب شد: {selectedDesignMethod === 'template' ? 'قالب آماده' : 'طراحی پویا'}
           </p>
           {selectedDesignMethod === 'template' && (
-            <p className="text-sm text-success/80 mt-1">
+            <p className="text-xs sm:text-sm text-success/80 mt-1 leading-tight">
               قالب آماده با بخش Full_page اضافه شد. حالا می‌توانید طراحی را شخصی‌سازی کنید.
             </p>
           )}
@@ -324,27 +324,29 @@ const StepTwo = ({ data, updateData, onAutoAdvance }: StepTwoProps) => {
 
   // Render design canvas phase
   const renderDesignPhase = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold mb-2">طراحی پویا</h2>
-        <p className="text-muted-foreground">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="text-center mb-6 sm:mb-8">
+        <h2 className="text-xl sm:text-2xl font-bold mb-2">طراحی پویا</h2>
+        <p className="text-sm sm:text-base text-muted-foreground">
           صفحات و بخش‌های وب‌سایت خود را طراحی کنید
         </p>
       </div>
 
       {/* Dynamic Design Canvas */}
-      <DynamicDesignCanvas
-        initialDesign={dynamicDesign}
-        onDesignChange={handleDesignChange}
-        isPreview={false}
-      />
+      <div className="w-full overflow-x-auto">
+        <DynamicDesignCanvas
+          initialDesign={dynamicDesign}
+          onDesignChange={handleDesignChange}
+          isPreview={false}
+        />
+      </div>
 
       {/* Progress Summary */}
-      <Card className="mt-8">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold mb-2">پیشرفت طراحی</h3>
+      <Card className="mt-6 sm:mt-8">
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-0">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold mb-2 text-sm sm:text-base">پیشرفت طراحی</h3>
               <div className="flex gap-2 flex-wrap">
                 {dynamicDesign.pages.map((page) => (
                   <Badge
@@ -357,32 +359,34 @@ const StepTwo = ({ data, updateData, onAutoAdvance }: StepTwoProps) => {
                 ))}
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-primary">
+            <div className="text-center sm:text-right flex-shrink-0">
+              <div className="text-xl sm:text-2xl font-bold text-primary">
                 {totalSections}
               </div>
-              <div className="text-sm text-muted-foreground">بخش کل</div>
+              <div className="text-xs sm:text-sm text-muted-foreground">بخش کل</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex justify-between mt-8">
+      <div className="flex flex-col sm:flex-row justify-between gap-3 sm:gap-0 mt-6 sm:mt-8">
         <Button
           onClick={() => setCurrentPhase('design-method')}
           variant="outline"
-          className="flex items-center gap-2"
+          className="flex items-center justify-center gap-2 order-2 sm:order-1"
         >
           <ChevronLeft className="w-4 h-4" />
-          بازگشت به انتخاب روش
+          <span className="hidden sm:inline">بازگشت به انتخاب روش</span>
+          <span className="sm:hidden">بازگشت</span>
         </Button>
         
         <Button
           onClick={() => onAutoAdvance && onAutoAdvance()}
           disabled={totalSections === 0}
-          className="btn-gradient flex items-center gap-2"
+          className="btn-gradient flex items-center justify-center gap-2 order-1 sm:order-2"
         >
-          ادامه به مرحله بعد
+          <span className="hidden sm:inline">ادامه به مرحله بعد</span>
+          <span className="sm:hidden">ادامه</span>
           <ChevronRight className="w-4 h-4" />
         </Button>
       </div>
@@ -390,7 +394,7 @@ const StepTwo = ({ data, updateData, onAutoAdvance }: StepTwoProps) => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {currentPhase === 'design-method' && renderDesignMethodPhase()}
       {currentPhase === 'design' && renderDesignPhase()}
     </div>

@@ -407,26 +407,29 @@ const Wizard = () => {
           {/* Progress */}
           <div className="mb-8">
             <Progress value={progress} className="h-2 mb-4" />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>قدم {currentStep} از {totalSteps}</span>
-              <div className="flex items-center gap-4">
-                <span>{Math.round(progress)}% تکمیل شده</span>
+            <div className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-0 text-sm text-muted-foreground">
+              <span className="text-center sm:text-right">قدم {currentStep} از {totalSteps}</span>
+              <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4">
+                <span className="text-center sm:text-left">{Math.round(progress)}% تکمیل شده</span>
                 {/* Auto-save indicator */}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
                   {isAutoSaving ? (
                     <div className="flex items-center gap-2 text-blue-600">
                       <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                      <span className="text-xs">در حال ذخیره...</span>
+                      <span className="text-xs hidden sm:inline">در حال ذخیره...</span>
+                      <span className="text-xs sm:hidden">ذخیره...</span>
                     </div>
                   ) : hasUnsavedChanges ? (
                     <div className="flex items-center gap-2 text-orange-600">
                       <Save className="w-3 h-3" />
-                      <span className="text-xs">تغییرات ذخیره نشده</span>
+                      <span className="text-xs hidden sm:inline">تغییرات ذخیره نشده</span>
+                      <span className="text-xs sm:hidden">تغییرات</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-green-600">
                       <Check className="w-3 h-3" />
-                      <span className="text-xs">ذخیره شده</span>
+                      <span className="text-xs hidden sm:inline">ذخیره شده</span>
+                      <span className="text-xs sm:hidden">ذخیره</span>
                     </div>
                   )}
                 </div>
@@ -435,17 +438,17 @@ const Wizard = () => {
           </div>
           {/* Steps Indicator */}
           <div className="flex justify-center mb-8">
-            <div className="flex items-center space-x-4 space-x-reverse sm:contents ">
+            <div className="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4 sm:space-x-reverse">
               {steps.map((step, index) => (
                 <div key={step.number} className="flex items-center">
                   <div className="flex flex-col items-center">
                     <div
-                      className={`step-indicator ${
+                      className={`step-indicator w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium border-2 transition-all duration-200 ${
                         currentStep === step.number
-                          ? 'active'
+                          ? 'bg-primary text-primary-foreground border-primary shadow-lg scale-110'
                           : currentStep > step.number
-                          ? 'completed'
-                          : 'inactive'
+                          ? 'bg-green-500 text-white border-green-500'
+                          : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
                       }`}
                     >
                       {currentStep > step.number ? (
@@ -454,15 +457,15 @@ const Wizard = () => {
                         step.number
                       )}
                     </div>
-                    <div className="text-center mt-2">
-                      <div className="text-xs font-medium">{step.title}</div>
-                      <div className="text-xs text-muted-foreground hidden sm:block">
+                    <div className="text-center mt-2 max-w-[120px] sm:max-w-none">
+                      <div className="text-xs sm:text-sm font-medium leading-tight">{step.title}</div>
+                      <div className="text-xs text-muted-foreground mt-1 hidden sm:block leading-tight">
                         {step.description}
                       </div>
                     </div>
                   </div>
                   {index < steps.length - 1 && (
-                    <div className="w-8 h-px bg-border mx-4" />
+                    <div className="hidden sm:block w-8 h-px bg-border mx-4" />
                   )}
                 </div>
               ))}
@@ -471,8 +474,10 @@ const Wizard = () => {
           {/* Step Content */}
           <Card className="card-modern mb-8">
             <CardHeader>
-              <CardTitle className="text-xl">
-                {steps[currentStep - 1].title} - {steps[currentStep - 1].description}
+              <CardTitle className="text-lg sm:text-xl text-center sm:text-right">
+                <span className="block sm:inline">{steps[currentStep - 1].title}</span>
+                <span className="hidden sm:inline"> - </span>
+                <span className="block sm:inline text-muted-foreground">{steps[currentStep - 1].description}</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -482,34 +487,37 @@ const Wizard = () => {
             </CardContent>
           </Card>
           {/* Navigation */}
-          <div className="flex justify-between">
+          <div className="flex flex-col sm:flex-row justify-between gap-4 sm:gap-0">
             <Button
               onClick={prevStep}
               disabled={currentStep === 1}
               variant="outline"
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 order-2 sm:order-1"
             >
               <ArrowRight className="w-4 h-4" />
-              قدم قبلی
+              <span className="hidden sm:inline">قدم قبلی</span>
+              <span className="sm:hidden">قبلی</span>
             </Button>
             
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3 order-1 sm:order-2">
               {/* Manual Save Button */}
               <Button
                 onClick={() => saveWizardProgress(wizardData)}
                 disabled={!hasUnsavedChanges || isAutoSaving}
                 variant="outline"
-                className="flex items-center gap-2"
+                className="flex items-center justify-center gap-2"
               >
                 {isAutoSaving ? (
                   <>
                     <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                    در حال ذخیره...
+                    <span className="hidden sm:inline">در حال ذخیره...</span>
+                    <span className="sm:hidden">ذخیره...</span>
                   </>
                 ) : (
                   <>
                     <Save className="w-4 h-4" />
-                    ذخیره پیشرفت
+                    <span className="hidden sm:inline">ذخیره پیشرفت</span>
+                    <span className="sm:hidden">ذخیره</span>
                   </>
                 )}
               </Button>
@@ -520,7 +528,8 @@ const Wizard = () => {
                   disabled={!isStepValid()}
                   className="btn-gradient flex items-center gap-2"
                 >
-                  قدم بعدی
+                  <span className="hidden sm:inline">قدم بعدی</span>
+                  <span className="sm:hidden">بعدی</span>
                   <ArrowLeft className="w-4 h-4" />
                 </Button>
               ) : (

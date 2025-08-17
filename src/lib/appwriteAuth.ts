@@ -549,8 +549,68 @@ class AppwriteAuthService {
   }
 
   // Check if user is authenticated
-  isAuthenticated(): boolean {
-    return this.accessToken !== null;
+  async isAuthenticated(): Promise<boolean> {
+    try {
+      // Check if we have a token
+      if (!this.accessToken) {
+        return false;
+      }
+
+      // Check if token is expired
+      if (this.isTokenExpired()) {
+        console.log('Token is expired, attempting refresh...');
+        try {
+          await this.refreshAccessToken();
+          return true;
+        } catch (refreshError) {
+          console.log('Token refresh failed, clearing tokens');
+          this.clearTokens();
+          return false;
+        }
+      }
+
+      // Validate token by making a test request
+      try {
+        const response = await this.makeRequest('/auth/me');
+        if (response.ok) {
+          return true;
+        } else {
+          console.log('Token validation failed, clearing tokens');
+          this.clearTokens();
+          return false;
+        }
+      } catch (error) {
+        console.log('Token validation error, clearing tokens:', error);
+        this.clearTokens();
+        return false;
+      }
+    } catch (error) {
+      console.error('Authentication check error:', error);
+      this.clearTokens();
+      return false;
+    }
+  }
+
+  // Check if token is expired
+  private isTokenExpired(): boolean {
+    try {
+      if (!this.accessToken) return true;
+      
+      const tokenParts = this.accessToken.split('.');
+      if (tokenParts.length !== 3) return true;
+      
+      const payload = JSON.parse(atob(tokenParts[1]));
+      const exp = payload.exp;
+      
+      if (!exp) return true;
+      
+      // Consider token expired 5 minutes before actual expiration
+      const now = Math.floor(Date.now() / 1000);
+      return now >= (exp - 300);
+    } catch (error) {
+      console.error('Token expiration check error:', error);
+      return true;
+    }
   }
 
   // Get current access token

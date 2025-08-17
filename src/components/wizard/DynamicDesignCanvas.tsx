@@ -34,6 +34,7 @@ import {
 import { useTemplateLoader, SkeletonTemplate, getImageTemplatesByCategory } from './templates';
 import { getAdjacentImage, SECTION_NAMES } from '@/lib/imageLoader';
 import LazyImage from '@/components/ui/lazy-image';
+import CacheClearButton from '@/components/ui/cache-clear-button';
 
 interface PageSection {
   id: string;
@@ -474,12 +475,20 @@ const DynamicDesignCanvas = ({
               <FileText className="w-5 h-5" />
               صفحات سایت
             </CardTitle>
-            {!isPreview && (
-              <Button onClick={addNewPage}>
-                <Plus className="w-4 h-4 mr-2" />
-                افزودن صفحه جدید
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* General Cache Clear Button */}
+              <CacheClearButton 
+                variant="outline" 
+                size="sm"
+                className="text-xs"
+              />
+              {!isPreview && (
+                <Button onClick={addNewPage}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  افزودن صفحه جدید
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -564,12 +573,21 @@ const DynamicDesignCanvas = ({
                 {currentPageSections.length} بخش • ارتفاع فعلی: {Math.max(calculatePageHeight(currentPageSections), 400)}px
               </p>
             </div>
-            {!isPreview && (
-              <Button onClick={() => setShowSectionSelector(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                افزودن بخش
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Cache Clear Button for debugging image loading issues */}
+              <CacheClearButton 
+                category="headers" 
+                variant="outline" 
+                size="sm"
+                className="text-xs"
+              />
+              {!isPreview && (
+                <Button onClick={() => setShowSectionSelector(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  افزودن بخش جدید
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>

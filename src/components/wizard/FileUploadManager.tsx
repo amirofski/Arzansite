@@ -45,11 +45,20 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
   const loadUploadedFiles = async () => {
     if (!user) return;
     try {
-      // Assuming backend exposes uploads list endpoint
-      const files = await apiClient.request('/uploads', { method: 'GET' } as any);
-      setUploadedFiles(files || []);
-    } catch {
+      const response = await apiClient.request('/uploads', { method: 'GET' });
+      
+      if (response && response.success && response.data) {
+        setUploadedFiles(response.data);
+      } else if (Array.isArray(response)) {
+        // Fallback for direct array response
+        setUploadedFiles(response);
+      } else {
+        setUploadedFiles([]);
+      }
+    } catch (error) {
+      console.error('Error loading files:', error);
       toast.error('خطا در بارگذاری فایل‌ها');
+      setUploadedFiles([]);
     }
   };
 
@@ -91,6 +100,14 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
       return;
     }
 
+    console.log('FileUploadManager: Starting file upload:', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      category: selectedCategory,
+      description: fileDescription
+    });
+
     setUploading(true);
 
     try {
@@ -100,16 +117,32 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
       form.append('category', selectedCategory);
       if (fileDescription) form.append('description', fileDescription);
 
-      await apiClient.request('/uploads', { method: 'POST', body: form } as any);
+      console.log('FileUploadManager: FormData contents:', {
+        file: file.name,
+        category: selectedCategory,
+        description: fileDescription,
+        formDataEntries: Array.from(form.entries())
+      });
 
-      toast.success('فایل با موفقیت آپلود شد');
-      setFileDescription('');
-      await loadUploadedFiles();
+      const response = await apiClient.request('/uploads', { method: 'POST', body: form });
 
-      // Reset file input
-      event.target.value = '';
+      console.log('FileUploadManager: Upload response:', response);
+
+      if (response && response.success) {
+        toast.success('فایل با موفقیت آپلود شد');
+        setFileDescription('');
+        await loadUploadedFiles();
+        event.target.value = '';
+      } else {
+        throw new Error(response?.error || 'خطا در آپلود فایل');
+      }
     } catch (error) {
-      console.error('Error uploading file:', error);
+      console.error('FileUploadManager: Error uploading file:', error);
+      console.error('FileUploadManager: Error details:', {
+        error,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       toast.error('خطا در آپلود فایل');
     } finally {
       setUploading(false);
@@ -118,10 +151,14 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const handleDeleteFile = async (fileId: string, _filePath: string) => {
     try {
-      await apiClient.request(`/uploads/${fileId}`, { method: 'DELETE' } as any);
+      const response = await apiClient.request(`/uploads/${fileId}`, { method: 'DELETE' });
 
-      toast.success('فایل حذف شد');
-      await loadUploadedFiles();
+      if (response && response.success) {
+        toast.success('فایل حذف شد');
+        await loadUploadedFiles();
+      } else {
+        throw new Error(response?.error || 'خطا در حذف فایل');
+      }
     } catch (error) {
       console.error('Error deleting file:', error);
       toast.error('خطا در حذف فایل');
@@ -154,6 +191,13 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
       }
     }
 
+    console.log('FileUploadManager: Starting bulk upload:', {
+      fileCount: files.length,
+      files: fileArray.map(f => ({ name: f.name, size: f.size, type: f.type })),
+      category: selectedCategory,
+      description: fileDescription
+    });
+
     setUploading(true);
     const form = new FormData();
     
@@ -165,21 +209,35 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     form.append('category', selectedCategory);
     if (fileDescription) form.append('description', fileDescription);
 
+    console.log('FileUploadManager: Bulk FormData contents:', {
+      fileCount: fileArray.length,
+      category: selectedCategory,
+      description: fileDescription,
+      formDataEntries: Array.from(form.entries())
+    });
+
     try {
       const response = await apiClient.request('/uploads/bulk', { 
         method: 'POST', 
         body: form 
       });
 
-      if (response.success) {
+      console.log('FileUploadManager: Bulk upload response:', response);
+
+      if (response && response.success) {
         toast.success(`${files.length} فایل با موفقیت آپلود شد`);
         setFileDescription('');
         await loadUploadedFiles();
       } else {
-        throw new Error(response.error || 'خطا در آپلود فایل‌ها');
+        throw new Error(response?.error || 'خطا در آپلود فایل‌ها');
       }
     } catch (error) {
-      console.error('Error uploading files:', error);
+      console.error('FileUploadManager: Error uploading files:', error);
+      console.error('FileUploadManager: Bulk upload error details:', {
+        error,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       toast.error('خطا در آپلود فایل‌ها');
     } finally {
       setUploading(false);
@@ -203,9 +261,18 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const getSignedUrl = async (filePath: string) => {
     try {
-      const res = await apiClient.request(`/uploads/signed-url?path=${encodeURIComponent(filePath)}`);
-      return (res as any)?.url || null;
-    } catch {
+      const response = await apiClient.request(`/uploads/signed-url?path=${encodeURIComponent(filePath)}`);
+      
+      if (response && response.success && response.data?.url) {
+        return response.data.url;
+      } else if (response && response.url) {
+        // Fallback for direct url response
+        return response.url;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error getting signed URL:', error);
       toast.error('خطا در دریافت لینک فایل');
       return null;
     }

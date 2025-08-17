@@ -252,15 +252,27 @@ class ApiClient {
       endpoint
     });
 
-    const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        ...(options.headers || {}),
-      },
-      credentials: 'include', // Always include cookies for httpOnly token storage
-      ...options,
-    };
+          // Prepare headers - don't set Content-Type for FormData
+      const headers: Record<string, string> = {};
+      
+      // Add authorization header if token exists
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      // Only set Content-Type for non-FormData requests
+      if (!(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+      }
+
+      const config: RequestInit = {
+        headers: {
+          ...headers,
+          ...(options.headers || {}),
+        },
+        credentials: 'include', // Always include cookies for httpOnly token storage
+        ...options,
+      };
 
     try {
       console.log('Making fetch request to:', url);

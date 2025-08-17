@@ -16,6 +16,7 @@ import Layout from "@/components/ui/Layout";
 import { useToast } from '@/hooks/use-toast';
 import { wizardErrorHandler, WizardErrorHandler } from '@/lib/wizardErrorHandler';
 import { mockApiClient } from '@/lib/wizardApiClient';
+import AuthenticationStatus from '@/components/AuthenticationStatus';
 
 interface WizardData {
   siteType: 'personal' | 'business' | '';
@@ -88,19 +89,10 @@ interface WizardData {
     logo: string;
   };
   pricing: {
-    additionalServices: string[];
+    additionalServices: Record<string, boolean>;
     customizationLevel: number[];
     rushDelivery: boolean;
     totalPrice: number;
-  };
-  // New additional services interface
-  additionalServices?: {
-    seoOptimization?: boolean;
-    socialMediaIntegration?: boolean;
-    analyticsSetup?: boolean;
-    backupService?: boolean;
-    maintenancePlan?: boolean;
-    rushDelivery?: boolean;
   };
   // New payment cycle interface
   paymentCycle?: 'monthly' | 'annual';
@@ -137,7 +129,7 @@ const Wizard = () => {
       logo: ''
     },
     pricing: {
-      additionalServices: [],
+      additionalServices: {},
       customizationLevel: [3],
       rushDelivery: false,
       totalPrice: 0
@@ -202,8 +194,8 @@ const Wizard = () => {
     if (!progress.websiteFramework?.dynamicDesign?.pages || 
         progress.websiteFramework.dynamicDesign.pages.length === 0) return 2;
     if (!progress.branding?.primaryColor || !progress.branding?.fontFamily) return 3;
-    if (!progress.additionalServices) return 4;
-    if (!progress.userInfo?.domain) return 5;
+    if (!progress.userInfo?.domain) return 4;
+    if (!progress.pricing?.totalPrice || progress.pricing.totalPrice <= 0) return 5;
     return 6;
   }, []);
 
@@ -226,12 +218,11 @@ const Wizard = () => {
           logo: ''
         },
         pricing: progress.pricing || {
-          additionalServices: [],
+          additionalServices: {},
           customizationLevel: [3],
           rushDelivery: false,
           totalPrice: 0
         },
-        additionalServices: progress.additionalServices,
         paymentCycle: undefined,
         autoRenewal: undefined,
         userInfo: progress.domains ? {
@@ -404,6 +395,11 @@ const Wizard = () => {
       </Helmet>
       <div className="min-h-screen bg-background mt-20 pt-16">
         <div className="container mx-auto px-4">
+          {/* Authentication Status - Debug Panel */}
+          <div className="mb-6">
+            <AuthenticationStatus />
+          </div>
+          
           {/* Progress */}
           <div className="mb-8">
             <Progress value={progress} className="h-2 mb-4" />

@@ -34,8 +34,18 @@ interface OrderSubmissionStepProps {
 }
 
 interface WizardData {
-  siteType: string;
-  modules: unknown[];
+  siteType: 'personal' | 'business' | '';
+  modules: Array<{
+    id: string;
+    name: string;
+    nameEn: string;
+    complexity: number;
+    customizations: {
+      layout: string;
+      colors: string;
+      animations: string;
+    };
+  }>;
   websiteFramework?: {
     dynamicDesign?: {
       pages?: Array<{
@@ -60,14 +70,18 @@ interface WizardData {
     rushDelivery?: boolean;
     totalPrice?: number;
   };
-  additionalServices?: Record<string, boolean>;
   paymentCycle?: 'monthly' | 'annual';
   autoRenewal?: boolean;
   userInfo?: {
     domain?: string;
     name?: string;
     email?: string;
-    additionalDomains?: string[];
+    additionalDomains?: Array<{
+      domain: string;
+      extension: string;
+      price: number;
+      available: boolean;
+    }>;
   };
 }
 

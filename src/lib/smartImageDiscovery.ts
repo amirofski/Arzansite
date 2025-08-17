@@ -145,3 +145,4 @@ export const getCategoryInfo = (category: string) => {
     estimatedSize: `${Math.round(count * 0.5)}MB` // Rough estimate
   };
 };
+

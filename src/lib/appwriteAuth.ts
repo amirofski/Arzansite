@@ -1,3 +1,5 @@
+import { tokenManager } from './tokenManager';
+
 // Appwrite authentication service that integrates with your backend API
 // This service handles the frontend authentication flow and communicates with your backend
 
@@ -70,7 +72,14 @@ class AppwriteAuthService {
   private setTokens(accessToken: string, refreshToken: string) {
     this.accessToken = accessToken;
     this.refreshToken = refreshToken;
-    // Store in localStorage for persistence
+    
+    // Sync with TokenManager for consistency
+    tokenManager.setTokens({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    
+    // Also store in localStorage for backward compatibility
     localStorage.setItem('access_token', accessToken);
     localStorage.setItem('refresh_token', refreshToken);
   }
@@ -79,17 +88,42 @@ class AppwriteAuthService {
   private clearTokens() {
     this.accessToken = null;
     this.refreshToken = null;
+    
+    // Sync with TokenManager
+    tokenManager.clearTokens();
+    
+    // Also clear localStorage for backward compatibility
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
   }
 
   // Get stored tokens on initialization
   private loadStoredTokens() {
+    // First try TokenManager
+    const accessToken = tokenManager.getAccessToken();
+    const refreshToken = tokenManager.getRefreshToken();
+    
+    if (accessToken && refreshToken) {
+      this.accessToken = accessToken;
+      this.refreshToken = refreshToken;
+      console.log('AppwriteAuthService: Tokens loaded from TokenManager');
+      return;
+    }
+    
+    // Fallback to localStorage for backward compatibility
     const storedAccessToken = localStorage.getItem('access_token');
     const storedRefreshToken = localStorage.getItem('refresh_token');
     if (storedAccessToken && storedRefreshToken) {
       this.accessToken = storedAccessToken;
       this.refreshToken = storedRefreshToken;
+      
+      // Sync with TokenManager
+      tokenManager.setTokens({
+        access_token: storedAccessToken,
+        refresh_token: storedRefreshToken,
+      });
+      
+      console.log('AppwriteAuthService: Tokens loaded from localStorage and synced to TokenManager');
     }
   }
 

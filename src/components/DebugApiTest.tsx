@@ -1,269 +1,304 @@
 import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/hooks/useAuth';
+import { tokenManager } from '@/lib/tokenManager';
 import { apiClient } from '@/lib/api-client';
 
-export const DebugApiTest: React.FC = () => {
-  const [testResults, setTestResults] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [authStatus, setAuthStatus] = useState<string>('Checking...');
+interface TestResult {
+  id: number;
+  test: string;
+  result: unknown;
+  status: 'success' | 'error' | 'info';
+  timestamp: string;
+}
 
-  const addResult = (message: string) => {
-    setTestResults(prev => [...prev, `${new Date().toLocaleTimeString()}: ${message}`]);
+const DebugApiTest = () => {
+  const { user, isAuthenticated, loading } = useAuth();
+  const [testResults, setTestResults] = useState<TestResult[]>([]);
+  const [isTesting, setIsTesting] = useState(false);
+
+  const addTestResult = (test: string, result: unknown, status: 'success' | 'error' | 'info') => {
+    setTestResults(prev => [...prev, {
+      id: Date.now(),
+      test,
+      result,
+      status,
+      timestamp: new Date().toISOString()
+    }]);
   };
 
-  // Check authentication status on component mount
-  useEffect(() => {
-    const checkAuthStatus = async () => {
-      try {
-        const tokenManager = (await import('@/lib/tokenManager')).tokenManager;
-        const isAuth = tokenManager.isAuthenticated();
-        const token = tokenManager.getAccessToken();
-        
-        if (isAuth && token) {
-          setAuthStatus(`✅ Authenticated (Token: ${token.substring(0, 20)}...)`);
-        } else if (token) {
-          setAuthStatus(`⚠️ Token exists but expired`);
-        } else {
-          setAuthStatus('❌ Not authenticated');
-        }
-      } catch (error) {
-        setAuthStatus(`❌ Error: ${error}`);
-      }
-    };
-    
-    checkAuthStatus();
-  }, []);
-
-  const testApiConnectivity = async () => {
-    setLoading(true);
+  const clearResults = () => {
     setTestResults([]);
-    
+  };
+
+  const testTokenManager = () => {
+    addTestResult('TokenManager Status', {
+      isAuthenticated: tokenManager.isAuthenticated(),
+      hasAccessToken: !!tokenManager.getAccessToken(),
+      hasRefreshToken: !!tokenManager.getRefreshToken(),
+      tokenExpiration: tokenManager.getTokenExpiration(),
+      userInfo: tokenManager.getUserInfo()
+    }, 'info');
+  };
+
+  const testApiClient = () => {
+    addTestResult('API Client Status', {
+      hasToken: !!apiClient.getToken(),
+      baseURL: 'https://nest.arzansite.com/api',
+      tokenLength: apiClient.getToken()?.length || 0
+    }, 'info');
+  };
+
+  const testAuthentication = () => {
+    addTestResult('Authentication State', {
+      user: user ? {
+        id: user.id,
+        email: user.email,
+        role: user.role
+      } : null,
+      isAuthenticated,
+      loading
+    }, 'info');
+  };
+
+  const testLocalStorage = () => {
     try {
-      addResult('Starting API connectivity test...');
+      const accessToken = localStorage.getItem('access_token');
+      const refreshToken = localStorage.getItem('refresh_token');
+      const expiresAt = localStorage.getItem('token_expires_at');
       
-      // Test 1: Basic fetch to health endpoint
-      addResult('Test 1: Testing basic fetch to health endpoint...');
-      try {
-        const response = await fetch('https://nest.arzansite.com/api/health');
-        addResult(`✓ Health endpoint: ${response.status} ${response.statusText}`);
-        const data = await response.json();
-        addResult(`✓ Health data: ${JSON.stringify(data).substring(0, 100)}...`);
-      } catch (error) {
-        addResult(`✗ Health endpoint failed: ${error}`);
-      }
-
-      // Test 2: Test with apiClient
-      addResult('Test 2: Testing apiClient.getSiteConfig...');
-      try {
-        const siteConfig = await apiClient.getSiteConfig();
-        addResult(`✓ Site config: ${JSON.stringify(siteConfig).substring(0, 100)}...`);
-      } catch (error) {
-        addResult(`✗ Site config failed: ${error}`);
-        if (error instanceof Error) {
-          addResult(`  Error name: ${error.name}`);
-          addResult(`  Error message: ${error.message}`);
-          addResult(`  Error stack: ${error.stack?.substring(0, 200)}...`);
-        }
-      }
-
-      // Test 3: Test with credentials
-      addResult('Test 3: Testing fetch with credentials...');
-      try {
-        const response = await fetch('https://nest.arzansite.com/api/site-config/current', {
-          method: 'GET',
-          credentials: 'include',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-        addResult(`✓ Credentials test: ${response.status} ${response.statusText}`);
-      } catch (error) {
-        addResult(`✗ Credentials test failed: ${error}`);
-      }
-
-      // Test 4: Check environment variables
-      addResult('Test 4: Checking environment variables...');
-      addResult(`VITE_API_URL: ${import.meta.env.VITE_API_URL || 'NOT SET'}`);
-      addResult(`MODE: ${import.meta.env.MODE}`);
-      addResult(`PROD: ${import.meta.env.PROD}`);
-      addResult(`DEV: ${import.meta.env.DEV}`);
-
-      // Test 5: Test CORS preflight
-      addResult('Test 5: Testing CORS preflight...');
-      try {
-        const response = await fetch('https://nest.arzansite.com/api/site-config/current', {
-          method: 'OPTIONS',
-          credentials: 'include',
-        });
-        addResult(`✓ CORS preflight: ${response.status} ${response.statusText}`);
-        addResult(`CORS headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()))}`);
-      } catch (error) {
-        addResult(`✗ CORS preflight failed: ${error}`);
-      }
-
-      // Test 6: Test different fetch configurations
-      addResult('Test 6: Testing different fetch configurations...');
-      
-      // Test 6a: No credentials
-      try {
-        const response = await fetch('https://nest.arzansite.com/api/site-config/current', {
-          method: 'GET',
-          credentials: 'omit',
-        });
-        addResult(`✓ No credentials: ${response.status} ${response.statusText}`);
-      } catch (error) {
-        addResult(`✗ No credentials failed: ${error}`);
-      }
-
-      // Test 6b: Same origin
-      try {
-        const response = await fetch('https://nest.arzansite.com/api/site-config/current', {
-          method: 'GET',
-          credentials: 'same-origin',
-        });
-        addResult(`✓ Same origin: ${response.status} ${response.statusText}`);
-      } catch (error) {
-        addResult(`✗ Same origin failed: ${error}`);
-      }
-
-      // Test 7: Test with different headers
-      addResult('Test 7: Testing with different headers...');
-      try {
-        const response = await fetch('https://nest.arzansite.com/api/site-config/current', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'User-Agent': 'ArzanSite-Debug/1.0'
-          },
-        });
-        addResult(`✓ Custom headers: ${response.status} ${response.statusText}`);
-      } catch (error) {
-        addResult(`✗ Custom headers failed: ${error}`);
-      }
-
-      // Test 8: Test network connectivity
-      addResult('Test 8: Testing network connectivity...');
-      try {
-        const startTime = Date.now();
-        const response = await fetch('https://nest.arzansite.com/api/health');
-        const endTime = Date.now();
-        const responseTime = endTime - startTime;
-        addResult(`✓ Network response time: ${responseTime}ms`);
-        addResult(`✓ Network status: ${response.status} ${response.statusText}`);
-      } catch (error) {
-        addResult(`✗ Network test failed: ${error}`);
-      }
-
-      // Test 9: Test CORS specifically
-      addResult('Test 9: Testing CORS policy...');
-      try {
-        // Test if the issue is with credentials
-        const response1 = await fetch('https://nest.arzansite.com/api/site-config/current', {
-          method: 'GET',
-          credentials: 'omit',
-          mode: 'cors'
-        });
-        addResult(`✓ CORS with omit credentials: ${response1.status} ${response1.statusText}`);
-        
-        // Test with include credentials
-        const response2 = await fetch('https://nest.arzansite.com/api/site-config/current', {
-          method: 'GET',
-          credentials: 'include',
-          mode: 'cors'
-        });
-        addResult(`✓ CORS with include credentials: ${response2.status} ${response2.statusText}`);
-        
-      } catch (error) {
-        addResult(`✗ CORS test failed: ${error}`);
-        if (error instanceof Error) {
-          addResult(`  CORS Error details: ${error.message}`);
-        }
-      }
-
-      // Test 10: Test browser fetch API support
-      addResult('Test 10: Testing browser fetch API support...');
-      try {
-        if (typeof fetch !== 'undefined') {
-          addResult(`✓ Fetch API is available`);
-          addResult(`✓ Fetch API type: ${typeof fetch}`);
-        } else {
-          addResult(`✗ Fetch API is not available`);
-        }
-        
-        // Test if fetch works with a simple request
-        const testResponse = await fetch('https://httpbin.org/get');
-        addResult(`✓ External fetch test: ${testResponse.status} ${testResponse.statusText}`);
-        
-      } catch (error) {
-        addResult(`✗ Fetch API test failed: ${error}`);
-      }
-
-      // Test 11: Test authentication flow
-      addResult('Test 11: Testing authentication flow...');
-      try {
-        // Test token manager
-        const tokenManager = (await import('@/lib/tokenManager')).tokenManager;
-        const isAuth = tokenManager.isAuthenticated();
-        addResult(`✓ Token manager check: ${isAuth}`);
-        
-        // Test auth context
-        const { useAuth } = await import('@/hooks/useAuth');
-        addResult(`✓ Auth hook imported successfully`);
-        
-        // Test appwrite auth service
-        const { appwriteAuthService } = await import('@/lib/appwriteAuth');
-        addResult(`✓ Appwrite auth service imported successfully`);
-        
-      } catch (error) {
-        addResult(`✗ Authentication flow test failed: ${error}`);
-      }
-
+      addTestResult('LocalStorage Status', {
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        hasExpiresAt: !!expiresAt,
+        accessTokenLength: accessToken?.length || 0,
+        refreshTokenLength: refreshToken?.length || 0
+      }, 'info');
     } catch (error) {
-      addResult(`✗ Overall test failed: ${error}`);
-    } finally {
-      setLoading(false);
-      addResult('API connectivity test completed.');
+      addTestResult('LocalStorage Error', error, 'error');
     }
   };
 
+  const testTokenRestoration = async () => {
+    try {
+      setIsTesting(true);
+      
+      // Clear tokens from memory
+      tokenManager.clearTokens();
+      addTestResult('Tokens Cleared', 'All tokens cleared from memory', 'info');
+      
+      // Wait a moment
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Force restoration from localStorage
+      tokenManager.forceRefreshFromStorage();
+      addTestResult('Token Restoration', {
+        isAuthenticated: tokenManager.isAuthenticated(),
+        hasAccessToken: !!tokenManager.getAccessToken(),
+        hasRefreshToken: !!tokenManager.getRefreshToken()
+      }, 'info');
+      
+    } catch (error) {
+      addTestResult('Token Restoration Error', error, 'error');
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const testApiEndpoint = async (endpoint: string) => {
+    try {
+      setIsTesting(true);
+      addTestResult(`Testing ${endpoint}`, 'Making request...', 'info');
+      
+      // Use a simple fetch instead of the private API method
+      const response = await fetch(`https://nest.arzansite.com/api${endpoint}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiClient.getToken() ? { Authorization: `Bearer ${apiClient.getToken()}` } : {})
+        },
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        addTestResult(`API Test: ${endpoint}`, {
+          success: true,
+          status: response.status,
+          data: data
+        }, 'success');
+      } else {
+        addTestResult(`API Test: ${endpoint}`, {
+          success: false,
+          status: response.status,
+          statusText: response.statusText
+        }, 'error');
+      }
+      
+    } catch (error) {
+      addTestResult(`API Test: ${endpoint}`, {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        type: error instanceof Error ? error.constructor.name : typeof error
+      }, 'error');
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const runAllTests = async () => {
+    clearResults();
+    
+    // Run all diagnostic tests
+    testTokenManager();
+    testApiClient();
+    testAuthentication();
+    testLocalStorage();
+    
+    // Test token restoration
+    await testTokenRestoration();
+    
+    // Test API endpoints
+    await testApiEndpoint('/profiles/me');
+  };
+
+  useEffect(() => {
+    // Run initial tests when component mounts
+    testTokenManager();
+    testApiClient();
+    testAuthentication();
+    testLocalStorage();
+  }, [user, isAuthenticated, loading]);
+
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4">API Connectivity Debug Test</h2>
-      
-      {/* Authentication Status Display */}
-      <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded">
-        <h3 className="font-semibold text-blue-800 mb-2">Current Authentication Status:</h3>
-        <div className="text-sm font-mono text-blue-700">{authStatus}</div>
-      </div>
-      
-      <button
-        onClick={testApiConnectivity}
-        disabled={loading}
-        className="mb-4 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-      >
-        {loading ? 'Testing...' : 'Run API Test'}
-      </button>
+    <div className="container mx-auto p-6 space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            🔍 Authentication Debug Panel
+            <Badge variant={isAuthenticated ? 'default' : 'destructive'}>
+              {isAuthenticated ? 'Authenticated' : 'Not Authenticated'}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Button 
+              onClick={runAllTests} 
+              disabled={isTesting}
+              className="w-full"
+            >
+              {isTesting ? 'Running Tests...' : 'Run All Tests'}
+            </Button>
+            
+            <Button 
+              onClick={testTokenRestoration} 
+              disabled={isTesting}
+              variant="outline"
+              className="w-full"
+            >
+              Test Token Restoration
+            </Button>
+            
+            <Button 
+              onClick={clearResults} 
+              variant="outline"
+              className="w-full"
+            >
+              Clear Results
+            </Button>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Button 
+              onClick={() => testApiEndpoint('/profiles/me')} 
+              disabled={isTesting}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              Test /profiles/me
+            </Button>
+            
+            <Button 
+              onClick={() => testApiEndpoint('/orders')} 
+              disabled={isTesting}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              Test /orders
+            </Button>
+            
+            <Button 
+              onClick={() => testApiEndpoint('/wallets/me')} 
+              disabled={isTesting}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              Test /wallets/me
+            </Button>
+            
+            <Button 
+              onClick={() => testApiEndpoint('/auth/me')} 
+              disabled={isTesting}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              Test /auth/me
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="bg-gray-100 p-4 rounded-lg">
-        <h3 className="font-semibold mb-2">Test Results:</h3>
-        <div className="space-y-1 text-sm font-mono">
-          {testResults.map((result, index) => (
-            <div key={index} className={result.startsWith('✗') ? 'text-red-600' : 'text-gray-800'}>
-              {result}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded">
-        <h3 className="font-semibold text-yellow-800">Common Issues:</h3>
-        <ul className="mt-2 text-sm text-yellow-700 space-y-1">
-          <li>• CORS policy blocking requests</li>
-          <li>• Network connectivity issues</li>
-          <li>• SSL/TLS certificate problems</li>
-          <li>• Environment variables not loaded</li>
-          <li>• Browser security policies</li>
-        </ul>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Test Results</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {testResults.map((result) => (
+              <div
+                key={result.id}
+                className={`p-4 rounded-lg border ${
+                  result.status === 'success' ? 'border-green-200 bg-green-50' :
+                  result.status === 'error' ? 'border-red-200 bg-red-50' :
+                  'border-blue-200 bg-blue-50'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium">{result.test}</h4>
+                  <Badge variant={
+                    result.status === 'success' ? 'default' :
+                    result.status === 'error' ? 'destructive' :
+                    'secondary'
+                  }>
+                    {result.status}
+                  </Badge>
+                </div>
+                <pre className="text-sm overflow-x-auto">
+                  {JSON.stringify(result.result, null, 2)}
+                </pre>
+                <div className="text-xs text-muted-foreground mt-2">
+                  {new Date(result.timestamp).toLocaleTimeString()}
+                </div>
+              </div>
+            ))}
+            
+            {testResults.length === 0 && (
+              <div className="text-center text-muted-foreground py-8">
+                No test results yet. Click "Run All Tests" to start debugging.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
+
+export default DebugApiTest;

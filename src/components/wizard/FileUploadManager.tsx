@@ -57,13 +57,37 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     loadUploadedFiles();
   }, [user]);
 
+  const validateFile = (file: File): string | null => {
+    if (file.size > 10 * 1024 * 1024) {
+      return 'حجم فایل نباید بیشتر از 10 مگابایت باشد';
+    }
+    
+    const allowedTypes = [
+      'application/pdf',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/gif',
+      'image/svg+xml'
+    ];
+    
+    if (!allowedTypes.includes(file.type)) {
+      return 'فرمت فایل پشتیبانی نمی‌شود';
+    }
+    
+    return null;
+  };
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    // Check file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('حجم فایل نباید بیشتر از 10 مگابایت باشد');
+    // Validate file
+    const validationError = validateFile(file);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
@@ -101,6 +125,64 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     } catch (error) {
       console.error('Error deleting file:', error);
       toast.error('خطا در حذف فایل');
+    }
+  };
+
+  // Get specific file by ID
+  const getFileById = async (fileId: string) => {
+    try {
+      const response = await apiClient.request(`/uploads/${fileId}`);
+      return response;
+    } catch (error) {
+      console.error('Error fetching file:', error);
+      toast.error('خطا در دریافت اطلاعات فایل');
+      return null;
+    }
+  };
+
+  // Upload multiple files
+  const handleBulkUpload = async (files: FileList) => {
+    if (!user) return;
+
+    // Validate all files first
+    const fileArray = Array.from(files);
+    for (const file of fileArray) {
+      const validationError = validateFile(file);
+      if (validationError) {
+        toast.error(`${file.name}: ${validationError}`);
+        return;
+      }
+    }
+
+    setUploading(true);
+    const form = new FormData();
+    
+    // Add all files to form data
+    fileArray.forEach((file, index) => {
+      form.append('files', file);
+    });
+    
+    form.append('category', selectedCategory);
+    if (fileDescription) form.append('description', fileDescription);
+
+    try {
+      const response = await apiClient.request('/uploads/bulk', { 
+        method: 'POST', 
+        body: form 
+      });
+
+      if (response.success) {
+        toast.success(`${files.length} فایل با موفقیت آپلود شد`);
+        setFileDescription('');
+        await loadUploadedFiles();
+      } else {
+        throw new Error(response.error || 'خطا در آپلود فایل‌ها');
+      }
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      toast.error('خطا در آپلود فایل‌ها');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -199,29 +281,58 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
             </div>
 
             {/* File Input */}
-            <div className="text-center">
-              <Input
-                type="file"
-                onChange={handleFileUpload}
-                disabled={uploading}
-                className="hidden"
-                id="file-upload"
-                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.svg"
-              />
-              <Label htmlFor="file-upload">
-                <Button 
-                  variant="outline" 
-                  className="cursor-pointer" 
+            <div className="text-center space-y-4">
+              {/* Single File Upload */}
+              <div>
+                <Input
+                  type="file"
+                  onChange={handleFileUpload}
                   disabled={uploading}
-                  asChild
-                >
-                  <span>
-                    {uploading ? 'در حال آپلود...' : 'انتخاب فایل'}
-                  </span>
-                </Button>
-              </Label>
-              <p className="text-xs text-muted-foreground mt-2">
-                فرمت‌های مجاز: PDF, Word, تصاویر
+                  className="hidden"
+                  id="file-upload"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.svg"
+                />
+                <Label htmlFor="file-upload">
+                  <Button 
+                    variant="outline" 
+                    className="cursor-pointer" 
+                    disabled={uploading}
+                    asChild
+                  >
+                    <span>
+                      {uploading ? 'در حال آپلود...' : 'انتخاب فایل'}
+                    </span>
+                  </Button>
+                </Label>
+              </div>
+
+              {/* Bulk File Upload */}
+              <div>
+                <Input
+                  type="file"
+                  multiple
+                  onChange={(e) => e.target.files && handleBulkUpload(e.target.files)}
+                  disabled={uploading}
+                  className="hidden"
+                  id="bulk-file-upload"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.svg"
+                />
+                <Label htmlFor="bulk-file-upload">
+                  <Button 
+                    variant="secondary" 
+                    className="cursor-pointer" 
+                    disabled={uploading}
+                    asChild
+                  >
+                    <span>
+                      {uploading ? 'در حال آپلود...' : 'انتخاب چندین فایل'}
+                    </span>
+                  </Button>
+                </Label>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                فرمت‌های مجاز: PDF, Word, تصاویر (حداکثر 10MB برای هر فایل)
               </p>
             </div>
           </div>
@@ -263,13 +374,23 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleDownload(file.file_path, file.file_name)}
+                          title="دانلود فایل"
                         >
                           <Download className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => getFileById(file.id)}
+                          title="مشاهده جزئیات"
+                        >
+                          <FileIcon className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleDeleteFile(file.id, file.file_path)}
+                          title="حذف فایل"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>

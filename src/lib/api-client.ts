@@ -233,12 +233,21 @@ class ApiClient {
 
   private async request<T>(endpoint: string, options: RequestInit = {}, retryOn401 = true): Promise<T> {
     const url = `${this.baseURL}${endpoint}`;
-    const token = this.getToken();
+    let token = this.getToken();
+
+    // If no token in memory, try to restore from localStorage
+    if (!token) {
+      console.log('API Client: No token in memory, attempting to restore from localStorage...');
+      tokenManager.forceRefreshFromStorage();
+      token = this.getToken();
+    }
 
     console.log('API Client Request:', {
       url,
       method: options.method || 'GET',
       hasToken: !!token,
+      tokenLength: token?.length || 0,
+      tokenPrefix: token ? token.substring(0, 20) + '...' : 'none',
       baseURL: this.baseURL,
       endpoint
     });
@@ -328,24 +337,6 @@ class ApiClient {
         headers: config.headers,
         credentials: config.credentials
       });
-      
-      // Check if it's a network error
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        console.error('Network error detected. Possible causes:');
-        console.error('- CORS policy blocking the request');
-        console.error('- Network connectivity issues');
-        console.error('- SSL/TLS certificate problems');
-        console.error('- Environment variables not loaded properly');
-        
-        // Log environment info
-        console.error('Environment info:', {
-          VITE_API_URL: import.meta.env.VITE_API_URL,
-          MODE: import.meta.env.MODE,
-          PROD: import.meta.env.PROD,
-          DEV: import.meta.env.DEV
-        });
-      }
-      
       throw error;
     }
   }

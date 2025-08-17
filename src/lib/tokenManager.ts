@@ -1,5 +1,5 @@
 // Secure Token Management Service for ArzanSite Authentication
-// Uses httpOnly cookies and ephemeral memory to prevent XSS attacks
+// Uses localStorage persistence with ephemeral memory for security and performance
 
 export interface TokenData {
   access_token: string;
@@ -25,14 +25,17 @@ class TokenManager {
   private static instance: TokenManager;
   private refreshPromise: Promise<TokenData> | null = null;
   
-  // Ephemeral memory storage for tokens (cleared on page reload)
+  // Ephemeral memory storage for tokens (for performance)
   private ephemeralTokens: {
     access_token?: string;
     refresh_token?: string;
     expires_at?: number;
   } = {};
 
-  private constructor() {}
+  private constructor() {
+    // Initialize tokens from localStorage on construction
+    this.initializeFromStorage();
+  }
 
   static getInstance(): TokenManager {
     if (!TokenManager.instance) {
@@ -41,10 +44,42 @@ class TokenManager {
     return TokenManager.instance;
   }
 
-  // Store tokens securely - only non-sensitive data in ephemeral memory
+  // Initialize tokens from localStorage on startup
+  private initializeFromStorage(): void {
+    try {
+      if (typeof window !== 'undefined') {
+        const accessToken = localStorage.getItem('access_token');
+        const refreshToken = localStorage.getItem('refresh_token');
+        const expiresAt = localStorage.getItem('token_expires_at');
+        
+        if (accessToken && refreshToken) {
+          this.ephemeralTokens.access_token = accessToken;
+          this.ephemeralTokens.refresh_token = refreshToken;
+          
+          if (expiresAt) {
+            this.ephemeralTokens.expires_at = parseInt(expiresAt, 10);
+          } else {
+            // Try to decode expiration from stored token
+            const decoded = decodeJwtExpirationMs(accessToken);
+            if (decoded) {
+              this.ephemeralTokens.expires_at = decoded;
+              localStorage.setItem('token_expires_at', decoded.toString());
+            }
+          }
+          
+          console.log('TokenManager: Tokens restored from localStorage');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to initialize tokens from storage:', error);
+      this.clearTokens();
+    }
+  }
+
+  // Store tokens securely - both ephemeral memory and localStorage
   setTokens(tokens: TokenData): void {
     try {
-      // Store tokens in ephemeral memory only (cleared on page reload)
+      // Store tokens in ephemeral memory for immediate access
       this.ephemeralTokens.access_token = tokens.access_token;
       this.ephemeralTokens.refresh_token = tokens.refresh_token;
       
@@ -58,30 +93,73 @@ class TokenManager {
       }
       this.ephemeralTokens.expires_at = expiresAtMs;
       
+      // Persist tokens in localStorage for page reloads
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('access_token', tokens.access_token);
+        if (tokens.refresh_token) {
+          localStorage.setItem('refresh_token', tokens.refresh_token);
+        }
+        if (expiresAtMs) {
+          localStorage.setItem('token_expires_at', expiresAtMs.toString());
+        }
+      }
+      
       // Store non-sensitive user info in sessionStorage for UI purposes only
-      // This should not contain any tokens or secrets
       if (tokens.user_info) {
         sessionStorage.setItem('user_info', JSON.stringify(tokens.user_info));
       }
+      
+      console.log('TokenManager: Tokens stored successfully');
     } catch (error) {
       console.error('Failed to store tokens:', error);
     }
   }
 
-  // Get access token from ephemeral memory
+  // Get access token from ephemeral memory or localStorage
   getAccessToken(): string | null {
     try {
-      return this.ephemeralTokens.access_token || null;
+      let token = this.ephemeralTokens.access_token;
+      
+      // If not in ephemeral memory, try localStorage
+      if (!token && typeof window !== 'undefined') {
+        token = localStorage.getItem('access_token');
+        if (token) {
+          // Restore token to ephemeral memory
+          this.ephemeralTokens.access_token = token;
+          console.log('TokenManager: Access token restored from localStorage');
+        }
+      }
+      
+      // Check if token is expired
+      if (token && this.isTokenExpired()) {
+        console.log('TokenManager: Token expired, clearing tokens');
+        this.clearTokens();
+        return null;
+      }
+      
+      return token;
     } catch (error) {
       console.error('Failed to get access token:', error);
       return null;
     }
   }
 
-  // Get refresh token from ephemeral memory
+  // Get refresh token from ephemeral memory or localStorage
   getRefreshToken(): string | null {
     try {
-      return this.ephemeralTokens.refresh_token || null;
+      let token = this.ephemeralTokens.refresh_token;
+      
+      // If not in ephemeral memory, try localStorage
+      if (!token && typeof window !== 'undefined') {
+        token = localStorage.getItem('refresh_token');
+        if (token) {
+          // Restore token to ephemeral memory
+          this.ephemeralTokens.refresh_token = token;
+          console.log('TokenManager: Refresh token restored from localStorage');
+        }
+      }
+      
+      return token;
     } catch (error) {
       console.error('Failed to get refresh token:', error);
       return null;
@@ -104,12 +182,22 @@ class TokenManager {
     }
   }
 
-  // Clear all tokens from ephemeral memory
+  // Clear all tokens from both ephemeral memory and localStorage
   clearTokens(): void {
     try {
       this.ephemeralTokens = {};
+      
+      // Clear localStorage tokens
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('token_expires_at');
+      }
+      
       // Clear any non-sensitive UI data
       sessionStorage.removeItem('user_info');
+      
+      console.log('TokenManager: All tokens cleared');
     } catch (error) {
       console.error('Failed to clear tokens:', error);
     }
@@ -177,6 +265,12 @@ class TokenManager {
       console.error('Failed to get user info:', error);
       return null;
     }
+  }
+
+  // Force refresh from localStorage (useful for debugging)
+  forceRefreshFromStorage(): void {
+    console.log('TokenManager: Force refreshing tokens from storage');
+    this.initializeFromStorage();
   }
 }
 

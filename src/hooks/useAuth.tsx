@@ -106,21 +106,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       try {
         setIsCheckingAuth(true);
-        console.log('useAuth: checkAuth - calling isAuthenticated...');
-        const isAuth = await appwriteAuthService.isAuthenticated();
-        console.log('useAuth: checkAuth - result:', isAuth);
+        
+        // First, check if we have stored tokens
+        const hasStoredTokens = tokenManager.isAuthenticated();
+        console.log('useAuth: checkAuth - has stored tokens:', hasStoredTokens);
         
         if (!isMounted) return; // Check if component is still mounted
         
-        if (isAuth) {
-          console.log('useAuth: checkAuth - user authenticated, loading user...');
+        if (hasStoredTokens) {
+          console.log('useAuth: checkAuth - stored tokens found, loading user...');
           await loadUser();
         } else {
-          console.log('useAuth: checkAuth - user not authenticated, clearing state...');
-          // Clear user data if not authenticated
-          setUser(null);
-          setUserRole(null);
-          setLoading(false);
+          console.log('useAuth: checkAuth - no stored tokens, checking with backend...');
+          // Try to validate tokens with backend
+          const isAuth = await appwriteAuthService.isAuthenticated();
+          console.log('useAuth: checkAuth - backend auth result:', isAuth);
+          
+          if (!isMounted) return;
+          
+          if (isAuth) {
+            console.log('useAuth: checkAuth - backend confirmed auth, loading user...');
+            await loadUser();
+          } else {
+            console.log('useAuth: checkAuth - user not authenticated, clearing state...');
+            // Clear user data if not authenticated
+            setUser(null);
+            setUserRole(null);
+            setLoading(false);
+          }
         }
       } catch (error) {
         if (!isMounted) return; // Check if component is still mounted

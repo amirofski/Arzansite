@@ -1,6 +1,18 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { appwriteAuthService, UserProfile, AuthResponse, SignupResponse, OAuthResponse, OAuthUser } from '@/lib/appwriteAuth';
-import { tokenManager } from '@/lib/tokenManager';
+import { sessionApiService } from '@/lib/sessionApiService';
+import { sessionAuthService } from '@/lib/sessionAuthService';
+type UserProfile = {
+  id: string;
+  email: string;
+  role: 'user' | 'admin';
+  first_name?: string;
+  last_name?: string;
+  phone?: string;
+  created_at?: string;
+  updated_at?: string;
+};
+type OAuthResponse = { redirectUrl: string; state?: string };
+type OAuthUser = { id: string; email: string; name?: string; avatar?: string; provider: string };
 
 type UserRole = 'user' | 'admin';
 
@@ -71,16 +83,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setLoading(true);
     try {
       console.log('useAuth: loadUser - fetching current user...');
-      const me: UserProfile | null = await appwriteAuthService.getCurrentUser();
-      console.log('useAuth: loadUser - result:', me ? 'User found' : 'No user');
       
-      if (me) {
-        setUser(me);
-        setUserRole({ role: me.role });
-        setError(null);
+      // First check if we have a valid session
+      const isSessionValid = await sessionAuthService.validateSession();
+      
+      if (isSessionValid) {
+        const me: UserProfile | null = sessionAuthService.getCurrentUser();
+        console.log('useAuth: loadUser - result:', me ? 'User found' : 'No user');
+        
+        if (me) {
+          setUser(me);
+          setUserRole({ role: me.role });
+          setError(null);
+        } else {
+          setUser(null);
+          setUserRole(null);
+        }
       } else {
+        console.log('useAuth: Session invalid, clearing user data');
         setUser(null);
         setUserRole(null);
+        sessionAuthService.clearAuthData();
       }
     } catch (err) {
       console.error('Load user error:', err);
@@ -107,33 +130,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         setIsCheckingAuth(true);
         
-        // First, check if we have stored tokens
-        const hasStoredTokens = tokenManager.isAuthenticated();
-        console.log('useAuth: checkAuth - has stored tokens:', hasStoredTokens);
+        // First, check if we have a valid session
+        const hasValidSession = sessionAuthService.isAuthenticated();
+        console.log('useAuth: checkAuth - has valid session:', hasValidSession);
         
         if (!isMounted) return; // Check if component is still mounted
         
-        if (hasStoredTokens) {
-          console.log('useAuth: checkAuth - stored tokens found, loading user...');
+        if (hasValidSession) {
+          console.log('useAuth: checkAuth - valid session found, loading user...');
           await loadUser();
         } else {
-          console.log('useAuth: checkAuth - no stored tokens, checking with backend...');
-          // Try to validate tokens with backend
-          const isAuth = await appwriteAuthService.isAuthenticated();
-          console.log('useAuth: checkAuth - backend auth result:', isAuth);
-          
-          if (!isMounted) return;
-          
-          if (isAuth) {
-            console.log('useAuth: checkAuth - backend confirmed auth, loading user...');
-            await loadUser();
-          } else {
-            console.log('useAuth: checkAuth - user not authenticated, clearing state...');
-            // Clear user data if not authenticated
-            setUser(null);
-            setUserRole(null);
-            setLoading(false);
-          }
+          console.log('useAuth: checkAuth - no valid session, clearing state...');
+          // Clear user data if not authenticated
+          setUser(null);
+          setUserRole(null);
+          setLoading(false);
         }
       } catch (error) {
         if (!isMounted) return; // Check if component is still mounted
@@ -162,50 +173,73 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     setError(null);
     try {
-      console.log('useAuth: Calling appwriteAuthService.signIn...');
-      const response = await appwriteAuthService.signIn(email, password);
-      console.log('useAuth: Response from appwriteAuthService:', response);
+      console.log('useAuth: Calling sessionApiService.login...');
+      const response = await sessionApiService.login(email, password);
+      console.log('useAuth: Response from sessionApiService:', response);
       
       // Validate response structure
-      if (!response) {
-        throw new Error('No response received from authentication service');
+      if (!response.success) {
+        throw new Error(response.error || 'Login failed');
       }
       
-      console.log('useAuth: Access token check:', !!response.access_token);
-      console.log('useAuth: User check:', !!response.user);
-      console.log('useAuth: User ID check:', !!response.user?.id);
+      const authData = response.data;
+      console.log('useAuth: Auth data check:', !!authData);
+      console.log('useAuth: User check:', !!authData?.user);
+      console.log('useAuth: User ID check:', !!authData?.user?.id);
       
-      if (!response.access_token) {
-        throw new Error('No access token received from authentication service');
+      if (!authData) {
+        throw new Error('No authentication data received');
       }
       
-      if (!response.user) {
+      if (!authData.user) {
         throw new Error('No user information received from authentication service');
       }
       
-      if (!response.user.id) {
+      if (!authData.user.id) {
         throw new Error('Invalid user information received from authentication service');
       }
       
-      tokenManager.setTokens({
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-      });
+      // Persist backend tokens for authenticated requests (cookie or bearer)
+      if (authData.access_token || authData.refresh_token || authData.user) {
+        sessionAuthService.setBackendTokens({
+          access_token: authData.access_token,
+          refresh_token: authData.refresh_token,
+          user: authData.user,
+        });
+      }
+
+      // If sessionId is provided, persist it for legacy or hybrid flows
+      if (authData.sessionId) {
+        sessionAuthService.storeAuthData(authData.sessionId, {
+          access_token: authData.access_token,
+          refresh_token: authData.refresh_token,
+          user: authData.user,
+          sessionId: authData.sessionId
+        });
+      }
+
+      // Force refresh tokens from storage to ensure they're immediately available
+      sessionAuthService.forceRefreshFromStorage();
+      
+      // Validate that tokens are properly available
+      if (!sessionAuthService.validateTokensAvailable()) {
+        console.warn('useAuth: Tokens not properly available after storage');
+      }
       
       // Set user immediately to avoid race conditions
-      setUser(response.user);
-      setUserRole({ role: response.user.role });
+      setUser(authData.user);
+      setUserRole({ role: authData.user.role });
       
       // Ensure profile exists by calling the profile endpoint
       // This will also update the user data if needed
-      await ensureProfileExists(response.user);
+      await ensureProfileExists(authData.user);
       
       // No need to call loadUser() again since we already have the user data
       // and ensureProfileExists handles profile creation/verification
       
       return { 
-        user: response.user,
-        redirect: response.redirect
+        user: authData.user,
+        redirect: authData.redirect
       };
     } catch (err) {
       console.error('useAuth: Sign in error:', err);
@@ -218,10 +252,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async (email: string, password: string, metadata?: Record<string, unknown>) => {
     setError(null);
     try {
-      const response = await appwriteAuthService.signUp(email, password, metadata);
-      return {
-        requiresFrontendVerification: response.requiresFrontendVerification
-      };
+      const response = await sessionApiService.signup(email, password, metadata);
+      if (response.success) {
+        return {
+          requiresFrontendVerification: response.data?.requiresFrontendVerification || false
+        };
+      } else {
+        throw new Error(response.error || 'Signup failed');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Signup failed';
       setError(errorMessage);
@@ -244,8 +282,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const checkEmailVerification = async (email: string) => {
     setError(null);
     try {
-      const result = await appwriteAuthService.checkEmailVerification(email);
-      return result;
+      // For now, we'll use the session API service
+      // This would need to be implemented in the backend
+      throw new Error('Email verification check not yet implemented for session-based auth');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to check email verification status';
       setError(errorMessage);
@@ -256,26 +295,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signOut = async () => {
     try {
       setError(null);
-      await appwriteAuthService.signOut();
+      await sessionApiService.logout();
       setUser(null);
       setUserRole(null);
-      // Clear any stored tokens
-      tokenManager.clearTokens();
+      // Clear any stored session data
+      sessionAuthService.clearAuthData();
     } catch (err) {
       console.error('Sign out error:', err);
       // Even if sign out fails, clear local state
       setUser(null);
       setUserRole(null);
-      tokenManager.clearTokens();
+      sessionAuthService.clearAuthData();
     }
   };
 
   const refreshToken = async () => {
     try {
       setError(null);
-      await appwriteAuthService.refreshUserToken();
-      // Reload user data after token refresh
-      await loadUser();
+      const newToken = await sessionAuthService.refreshToken();
+      if (newToken) {
+        // Reload user data after token refresh
+        await loadUser();
+      } else {
+        throw new Error('Token refresh failed');
+      }
     } catch (err) {
       console.error('Token refresh error:', err);
       // If refresh fails, sign out the user
@@ -305,10 +348,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         error.message.includes('Authentication failed') ||
         error.message.includes('please log in again')) {
       
-      // Clear user data and tokens
+      // Clear user data and session data
       setUser(null);
       setUserRole(null);
-      tokenManager.clearTokens();
+      sessionAuthService.clearAuthData();
       
       // Set error message
       setError('Your session has expired. Please log in again.');
@@ -325,7 +368,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const forgotPassword = async (email: string) => {
     setError(null);
     try {
-      await appwriteAuthService.forgotPassword(email);
+      // For now, we'll use the session API service
+      // This would need to be implemented in the backend
+      throw new Error('Password reset not yet implemented for session-based auth');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to send password reset email';
       setError(errorMessage);
@@ -336,9 +381,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const resetPassword = async (token: string, newPassword: string) => {
     setError(null);
     try {
-      // For Appwrite, we need userId and secret from the reset link
-      // This will need to be updated based on how the reset link is structured
-      throw new Error('Password reset not yet implemented for Appwrite');
+      // For now, password reset is not implemented in session-based auth
+      // This would need to be implemented in the backend
+      throw new Error('Password reset not yet implemented for session-based auth');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to reset password';
       setError(errorMessage);
@@ -349,9 +394,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const verifyEmail = async (token: string) => {
     setError(null);
     try {
-      // For Appwrite, we need userId and secret from the verification link
-      // This will need to be updated based on how the verification link is structured
-      throw new Error('Email verification not yet implemented for Appwrite');
+      // For now, email verification is not implemented in session-based auth
+      // This would need to be implemented in the backend
+      throw new Error('Email verification not yet implemented for session-based auth');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to verify email';
       setError(errorMessage);
@@ -363,8 +408,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const verifyEmailWithUserId = async (token: string, userId: string) => {
     setError(null);
     try {
-      const result = await appwriteAuthService.verifyEmail(token, userId);
-      return result;
+      // For now, email verification is not implemented in session-based auth
+      // This would need to be implemented in the backend
+      throw new Error('Email verification not yet implemented for session-based auth');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to verify email';
       setError(errorMessage);
@@ -379,104 +425,73 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // OAuth Methods
   const startOAuth = async (provider: string) => {
     setError(null);
-    try {
-      const response = await appwriteAuthService.startOAuth(provider);
-      return response;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to start OAuth flow';
-      setError(errorMessage);
-      throw new Error(errorMessage);
+    const successUrl = `${window.location.origin}/auth/oauth/callback`;
+    const failureUrl = `${window.location.origin}/auth?oauth=failed`;
+    const res = await sessionApiService.oauthStart(provider, { successUrl, failureUrl });
+    if (!res.success || !res.data?.redirectUrl) {
+      const msg = res.error || 'Failed to start OAuth flow';
+      setError(msg);
+      throw new Error(msg);
     }
+    return { redirectUrl: res.data.redirectUrl, state: res.data.state } as OAuthResponse;
   };
 
   const handleOAuthCallback = async (provider: string, code: string, state?: string) => {
     setError(null);
-    try {
-      const response = await appwriteAuthService.handleOAuthCallback(provider, code, state);
-      
-      if (!response.access_token) {
-        throw new Error('No access token received from OAuth callback');
-      }
-      
-      if (!response.user) {
-        throw new Error('No user information received from OAuth callback');
-      }
-      
-      tokenManager.setTokens({
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-      });
-      
-      // Set user immediately
-      setUser(response.user);
-      setUserRole({ role: response.user.role });
-      
-      // Ensure profile exists
-      await ensureProfileExists(response.user);
-      
-      // Load user data
-      await loadUser();
-      
-      return { 
-        user: response.user,
-        redirect: response.redirect
-      };
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'OAuth callback failed';
-      setError(errorMessage);
-      throw new Error(errorMessage);
+    // Backend handles the callback and sets cookies; just fetch current user
+    const me = await sessionApiService.oauthMe();
+    if (!me.success || !me.data) {
+      const msg = me.error || 'OAuth callback failed';
+      setError(msg);
+      throw new Error(msg);
     }
+    // Persist user into session store for UI
+    sessionAuthService.setBackendTokens({ user: me.data });
+    await loadUser();
+    return { user: sessionAuthService.getCurrentUser() as UserProfile, redirect: { url: '/dashboard', message: 'Login successful' } };
   };
 
   const getOAuthUser = async () => {
-    try {
-      return await appwriteAuthService.getOAuthUser();
-    } catch (err) {
-      console.error('Get OAuth user error:', err);
-      return null;
-    }
+    const res = await sessionApiService.oauthMe();
+    return res.success ? ({ id: res.data!.id, email: res.data!.email, provider: 'oauth' } as OAuthUser) : null;
   };
 
   const logoutOAuth = async () => {
     setError(null);
     try {
-      await appwriteAuthService.logoutOAuth();
+      await sessionApiService.oauthLogout();
     } catch (error) {
       console.error('OAuth logout error:', error);
     } finally {
-      tokenManager.clearTokens();
+      sessionAuthService.clearAuthData();
       setUser(null);
       setUserRole(null);
     }
   };
 
   const checkOAuthSuccess = () => {
-    return appwriteAuthService.checkOAuthSuccess();
+    const p = new URLSearchParams(window.location.search);
+    return p.get('oauth_success') === 'true';
   };
 
   const getOAuthCallbackParams = () => {
-    return appwriteAuthService.getOAuthCallbackParams();
+    const p = new URLSearchParams(window.location.search);
+    return { code: p.get('code') || undefined, state: p.get('state') || undefined, error: p.get('error') || undefined };
   };
 
   // Ensure user profile exists after login
   const ensureProfileExists = async (userData: UserProfile) => {
     try {
-      // Try to get the profile first
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api'}/profiles/me`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${tokenManager.getAccessToken()}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      // Try to get the profile first using session API service
+      const response = await sessionApiService.getProfile();
 
-      if (response.status === 404) {
-        // Profile doesn't exist, create it using the service method
+      if (!response.success && response.error?.includes('404')) {
+        // Profile doesn't exist, create it using the session API service
         console.log('Profile not found, creating new profile...');
-        await appwriteAuthService.createUserProfile(userData);
-        console.log('Profile created successfully');
-      } else if (!response.ok) {
-        console.error('Error checking profile:', response.statusText);
+        // For now, we'll skip profile creation as it's not implemented
+        console.log('Profile creation not yet implemented for session-based auth');
+      } else if (!response.success) {
+        console.error('Error checking profile:', response.error);
         throw new Error('Failed to check user profile');
       }
     } catch (error) {
@@ -490,7 +505,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loading,
     userRole,
     roleLoading,
-    isAuthenticated: !!user,
+    isAuthenticated: sessionAuthService.isAuthenticated(),
     error,
     signIn,
     signUp,

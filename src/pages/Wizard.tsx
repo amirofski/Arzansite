@@ -17,6 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 import { wizardErrorHandler, WizardErrorHandler } from '@/lib/wizardErrorHandler';
 import { mockApiClient } from '@/lib/wizardApiClient';
 import AuthenticationStatus from '@/components/AuthenticationStatus';
+import BackendConnectionTest from '@/components/BackendConnectionTest';
+import SimplePingTest from '@/components/SimplePingTest';
+import AuthFlowTest from '@/components/AuthFlowTest';
 
 interface WizardData {
   siteType: 'personal' | 'business' | '';
@@ -397,7 +400,12 @@ const Wizard = () => {
         <div className="container mx-auto px-4">
           {/* Authentication Status - Debug Panel */}
           <div className="mb-6">
-            <AuthenticationStatus />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <AuthenticationStatus />
+          <SimplePingTest />
+        </div>
+        <BackendConnectionTest />
+        <AuthFlowTest />
           </div>
           
           {/* Progress */}

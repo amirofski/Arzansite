@@ -3,8 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
-import { tokenManager } from '@/lib/tokenManager';
-import { apiClient } from '@/lib/api-client';
+import { sessionAuthService } from '@/lib/sessionAuthService';
 
 interface TestResult {
   id: number;
@@ -34,20 +33,20 @@ const DebugApiTest = () => {
   };
 
   const testTokenManager = () => {
-    addTestResult('TokenManager Status', {
-      isAuthenticated: tokenManager.isAuthenticated(),
-      hasAccessToken: !!tokenManager.getAccessToken(),
-      hasRefreshToken: !!tokenManager.getRefreshToken(),
-      tokenExpiration: tokenManager.getTokenExpiration(),
-      userInfo: tokenManager.getUserInfo()
+    const info = sessionAuthService.getSessionInfo();
+    addTestResult('Session Status', {
+      isAuthenticated: info.isAuthenticated,
+      hasAccessToken: info.hasAccessToken,
+      hasRefreshToken: info.hasRefreshToken,
+      sessionId: info.sessionId
     }, 'info');
   };
 
   const testApiClient = () => {
+    const info = sessionAuthService.getSessionInfo();
     addTestResult('API Client Status', {
-      hasToken: !!apiClient.getToken(),
-      baseURL: 'https://nest.arzansite.com/api',
-      tokenLength: apiClient.getToken()?.length || 0
+      mode: info.hasAccessToken ? 'Bearer' : 'Cookie',
+      baseURL: 'https://nest.arzansite.com/api'
     }, 'info');
   };
 
@@ -65,16 +64,13 @@ const DebugApiTest = () => {
 
   const testLocalStorage = () => {
     try {
-      const accessToken = localStorage.getItem('access_token');
-      const refreshToken = localStorage.getItem('refresh_token');
-      const expiresAt = localStorage.getItem('token_expires_at');
-      
+      const backendAccess = localStorage.getItem('backend_access_token');
+      const backendRefresh = localStorage.getItem('backend_refresh_token');
+      const appwriteSession = localStorage.getItem('appwrite_session_id');
       addTestResult('LocalStorage Status', {
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        hasExpiresAt: !!expiresAt,
-        accessTokenLength: accessToken?.length || 0,
-        refreshTokenLength: refreshToken?.length || 0
+        hasBackendAccessToken: !!backendAccess,
+        hasBackendRefreshToken: !!backendRefresh,
+        hasAppwriteSessionId: !!appwriteSession
       }, 'info');
     } catch (error) {
       addTestResult('LocalStorage Error', error, 'error');
@@ -85,20 +81,15 @@ const DebugApiTest = () => {
     try {
       setIsTesting(true);
       
-      // Clear tokens from memory
-      tokenManager.clearTokens();
-      addTestResult('Tokens Cleared', 'All tokens cleared from memory', 'info');
+      sessionAuthService.clearAuthData();
+      addTestResult('Auth Cleared', 'Cleared backend tokens and session', 'info');
       
       // Wait a moment
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Force restoration from localStorage
-      tokenManager.forceRefreshFromStorage();
-      addTestResult('Token Restoration', {
-        isAuthenticated: tokenManager.isAuthenticated(),
-        hasAccessToken: !!tokenManager.getAccessToken(),
-        hasRefreshToken: !!tokenManager.getRefreshToken()
-      }, 'info');
+      sessionAuthService.forceRefreshFromStorage();
+      const info = sessionAuthService.getSessionInfo();
+      addTestResult('Auth Restoration', info, 'info');
       
     } catch (error) {
       addTestResult('Token Restoration Error', error, 'error');
@@ -112,13 +103,10 @@ const DebugApiTest = () => {
       setIsTesting(true);
       addTestResult(`Testing ${endpoint}`, 'Making request...', 'info');
       
-      // Use a simple fetch instead of the private API method
+      // Session-based test request with cookies (Bearer added internally by service if present)
       const response = await fetch(`https://nest.arzansite.com/api${endpoint}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(apiClient.getToken() ? { Authorization: `Bearer ${apiClient.getToken()}` } : {})
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include'
       });
       

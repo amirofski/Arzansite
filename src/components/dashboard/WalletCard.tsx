@@ -223,21 +223,17 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
       console.log('Requesting wallet deposit for amount:', amount);
       
       // Use the dedicated wallet deposit endpoint
-      const { apiClient } = await import('@/lib/api-client');
+      const { sessionApiService } = await import('@/lib/sessionApiService');
       const depositPayload = {
         amount: Math.floor(amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
         description: depositDescription || `شارژ کیف پول - ${WalletService.formatAmount(amount)}`,
-        user_id: userId, // Backend might expect snake_case
-        metadata: JSON.stringify({
-          type: 'wallet_deposit',
-          source: 'web',
-          timestamp: Date.now(),
-          amountInTomans: amount,
-          amountInRials: Math.floor(amount * 10)
-        })
-      };
+        callbackUrl: `${window.location.origin}/wallet-payment-callback`
+        // Do not send user_id; backend derives from session
+      } as { amount: number; description: string; callbackUrl: string };
       
-      const depositData = await apiClient.requestWalletDeposit(depositPayload);
+      const res = await sessionApiService.requestWalletDeposit(depositPayload);
+      if (!res.success || !res.data?.paymentUrl) throw new Error(res.error || 'Failed to create deposit request');
+      const depositData = res.data;
       
       // Store payment information for callback handling
       const paymentInfo = {
@@ -253,10 +249,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
       sessionStorage.setItem('walletPaymentInfo', JSON.stringify(paymentInfo));
       
       if (depositData.paymentUrl) {
-        // Add callback URL parameter for wallet payment
-        const callbackUrl = `${window.location.origin}/wallet-payment-callback`;
-        const paymentUrlWithCallback = `${depositData.paymentUrl}&callback_url=${encodeURIComponent(callbackUrl)}`;
-        window.location.href = paymentUrlWithCallback;
+        window.location.href = depositData.paymentUrl;
       } else {
         throw new Error('Failed to create deposit request - no payment URL received');
       }
@@ -412,24 +405,18 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                     onClick={async () => {
                       try {
                         // Request wallet deposit for the pending payment
-                        const { apiClient } = await import('@/lib/api-client');
+                        const { sessionApiService } = await import('@/lib/sessionApiService');
                         const depositPayload = {
                           amount: Math.floor(pendingPayment.amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
-                          description: pendingPayment.description,
-                          user_id: userId,
-                          metadata: {
-                            type: 'wallet_deposit',
-                            source: 'web',
-                            timestamp: Date.now()
-                          }
-                        };
+                          description: pendingPayment.description
+                        } as { amount: number; description: string };
                         
-                        const depositData = await apiClient.requestWalletDeposit(depositPayload);
+                        const res = await sessionApiService.requestWalletDeposit({ ...depositPayload, callbackUrl: `${window.location.origin}/wallet-payment-callback` });
+                        if (!res.success || !res.data?.paymentUrl) throw new Error(res.error || 'Failed to create deposit request');
+                        const depositData = res.data;
                         
                         if (depositData.paymentUrl) {
-                          const callbackUrl = `${window.location.origin}/wallet-payment-callback`;
-                          const paymentUrlWithCallback = `${depositData.paymentUrl}&callback_url=${encodeURIComponent(callbackUrl)}`;
-                          window.location.href = paymentUrlWithCallback;
+                          window.location.href = depositData.paymentUrl;
                         } else {
                           throw new Error('Failed to create deposit request');
                         }

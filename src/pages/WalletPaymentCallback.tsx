@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient } from "@/lib/api-client";
+import { sessionApiService } from "@/lib/sessionApiService";
 import { WalletService } from "@/lib/walletService";
 import { CheckCircle, XCircle, Loader2, RefreshCw, Home, Wallet, Receipt, AlertCircle, CreditCard } from 'lucide-react';
 import Layout from "@/components/ui/Layout";
@@ -107,16 +107,16 @@ const WalletPaymentCallback = () => {
       }
 
              try {
-         // Verify wallet deposit payment
-         const verificationData = await apiClient.verifyWalletDeposit({ 
+         // Verify wallet deposit payment via session-based API
+         const verificationRes = await sessionApiService.verifyWalletDeposit({ 
            orderId: orderId || undefined,
            authority: authority
-         });
+          });
 
-         if (verificationData?.success) {
+         if (verificationRes.success && verificationRes.data?.success) {
            setStatus('success');
-           setRefId(verificationData.refId || '');
-           setNewBalance(verificationData.newBalance || null);
+           setRefId(verificationRes.data.refId || '');
+           setNewBalance(verificationRes.data.newBalance || null);
            
            toast({
              title: "✅ شارژ کیف پول موفق",
@@ -124,7 +124,7 @@ const WalletPaymentCallback = () => {
            });
          } else {
            setStatus('failed');
-           const errorMsg = verificationData?.error || "پرداخت موفقیت‌آمیز نبود";
+           const errorMsg = verificationRes.error || "پرداخت موفقیت‌آمیز نبود";
            setVerificationError(errorMsg);
            toast({
              title: "خطا در پرداخت",
@@ -170,32 +170,28 @@ const WalletPaymentCallback = () => {
 
     setIsRetrying(true);
     try {
-      // Request new wallet deposit for retry
-             const depositPayload = {
-         amount: Math.floor(paymentInfo.amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
-         description: paymentInfo.description,
-         user_id: paymentInfo.userId,
-         metadata: JSON.stringify({
-           type: 'wallet_deposit',
-           source: 'web',
-           timestamp: Date.now()
-         })
-       };
+      // Request new wallet deposit for retry via session-based API
+      const depositPayload = {
+        amount: Math.floor(paymentInfo.amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
+        description: paymentInfo.description,
+        callbackUrl: `${window.location.origin}/wallet-payment-callback`
+      } as { amount: number; description: string; callbackUrl: string };
       
       console.log('Requesting retry wallet deposit with payload:', depositPayload);
-      const depositData = await apiClient.requestWalletDeposit(depositPayload);
-      console.log('Retry wallet deposit response:', depositData);
+      const res = await sessionApiService.requestWalletDeposit(depositPayload);
+      console.log('Retry wallet deposit response:', res);
       
       // Update stored payment info
+      const depositData = res.data;
       const updatedPaymentInfo = {
         ...paymentInfo,
-        orderId: depositData.orderId,
+        orderId: depositData?.orderId || paymentInfo.orderId,
         timestamp: Date.now()
       };
       sessionStorage.setItem('walletPaymentInfo', JSON.stringify(updatedPaymentInfo));
       setPaymentInfo(updatedPaymentInfo);
 
-      if (depositData.paymentUrl) {
+      if (depositData?.paymentUrl) {
         window.location.href = depositData.paymentUrl;
       } else {
         throw new Error('Failed to create deposit request');

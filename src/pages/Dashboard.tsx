@@ -60,7 +60,8 @@ const Dashboard = () => {
 
      try {
        // Fetch user profile first
-       const profileData = await apiClient.getMyProfile();
+       const profileRes = await (await import('@/lib/sessionApiService')).sessionApiService.getProfile();
+       const profileData = profileRes.success ? profileRes.data : null;
        setProfile(profileData);
 
        // Fetch user orders with loading state
@@ -82,7 +83,8 @@ const Dashboard = () => {
 
      setOrdersLoading(true);
      try {
-       const ordersData = await apiClient.getOrders({ mine: true });
+       const ordersRes = await (await import('@/lib/sessionApiService')).sessionApiService.getOrders();
+       const ordersData = ordersRes.success && Array.isArray(ordersRes.data) ? ordersRes.data : [];
        // Ensure ordersData is always an array
        if (Array.isArray(ordersData)) {
          // Filter out any invalid order objects

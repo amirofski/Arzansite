@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { sessionApiService } from '@/lib/sessionApiService';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -34,7 +35,9 @@ const OAuthCallback: React.FC<OAuthCallbackProps> = ({ provider }) => {
           return;
         }
 
-        // Handle the OAuth callback
+        // Backend handles callback via server; just verify session
+        const me = await sessionApiService.oauthMe();
+        if (!me.success) throw new Error(me.error || 'OAuth session not found');
         const result = await handleOAuthCallback(provider, params.code, params.state);
         
         setStatus('success');

@@ -18,7 +18,7 @@ const OAuthButton: React.FC<OAuthButtonProps> = ({
   onSuccess,
   onError,
 }) => {
-  const { startOAuth, error } = useAuth();
+  const { startOAuth } = useAuth();
   const [isLoading, setIsLoading] = React.useState(false);
 
   const handleOAuthLogin = async () => {

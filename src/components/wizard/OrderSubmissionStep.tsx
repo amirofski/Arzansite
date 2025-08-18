@@ -49,6 +49,8 @@ interface WizardData {
   websiteFramework?: {
     dynamicDesign?: {
       pages?: Array<{
+        id: string;
+        name: string;
         sections: Array<{
           id: string;
           sectionType: string;
@@ -56,7 +58,12 @@ interface WizardData {
           order: number;
           customData?: Record<string, unknown>;
         }>;
+        canvasDimensions: {
+          width: number;
+          height: number;
+        };
       }>;
+      currentPageId: string;
     };
   };
   branding?: {
@@ -104,8 +111,13 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
 
   // Calculate pricing based on current selections
   const pricingBreakdown = calculateTotalPrice({
-    ...wizardData,
-    additionalServices: wizardData.additionalServices || [],
+    siteType: wizardData.siteType,
+    websiteFramework: wizardData.websiteFramework?.dynamicDesign
+      ? { dynamicDesign: { pages: wizardData.websiteFramework.dynamicDesign.pages || [], currentPageId: wizardData.websiteFramework.dynamicDesign.currentPageId } }
+      : undefined,
+    branding: wizardData.branding,
+    userInfo: wizardData.userInfo,
+    additionalServices: wizardData.pricing?.additionalServices,
     paymentCycle
   });
 
@@ -121,40 +133,28 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
     updateData({ autoRenewal: checked });
   };
 
-  // Zarrin Pal payment integration
-  const initiateZarrinPalPayment = async (orderData: any) => {
+  // ZarinPal payment integration via backend payments API
+  const initiateZarrinPalPayment = async (orderData: { id?: string; order_id?: string; price?: number; title?: string }) => {
     try {
-      // Call the Zarrin Pal API endpoint
-      const response = await fetch('https://nest.arzansite.com/api/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jwt_token')}`,
-        },
-        body: JSON.stringify({
-          ...orderData,
-          payment_gateway: 'zarrinpal',
-          callback_url: `${window.location.origin}/payment/callback`,
-          return_url: `${window.location.origin}/payment/success`,
-        }),
+      const orderId = orderData.order_id || orderData.id;
+      const amountTomans = typeof orderData.price === 'number' ? orderData.price : totalCost;
+      const amountRials = Math.floor(amountTomans * 10);
+      const description = `پرداخت سفارش ${orderData.title || orderId || ''}`.trim();
+
+      const payment = await apiClient.requestPayment({
+        amount: amountRials,
+        description,
+        orderId,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Payment initiation failed: ${response.status}`);
+      if (payment && payment.paymentUrl) {
+        window.location.href = payment.paymentUrl;
+        return;
       }
 
-      const paymentData = await response.json();
-      
-      // Redirect to Zarrin Pal payment page
-      if (paymentData.payment_url) {
-        window.location.href = paymentData.payment_url;
-      } else {
-        throw new Error('Payment URL not received from Zarrin Pal');
-      }
-
+      throw new Error('Failed to create payment request');
     } catch (error) {
-      console.error('Zarrin Pal payment error:', error);
+      console.error('ZarrinPal payment initiation error:', error);
       throw error;
     }
   };
@@ -183,7 +183,6 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
             siteType: wizardData.siteType,
             websiteFramework: wizardData.websiteFramework,
             branding: wizardData.branding,
-            additionalServices: wizardData.additionalServices,
             domains: {
               primary_domain: wizardData.userInfo?.domain || 'mywebsite.ir',
               additional_domains: wizardData.userInfo?.additionalDomains || []
@@ -198,13 +197,12 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
               auto_renewal: autoRenewal,
               annual_discount: paymentCycle === 'annual' ? pricingBreakdown.annualDiscount : 0
             },
-            paymentCycle,
-            autoRenewal
+            additionalServices: wizardData.pricing?.additionalServices || {}
           }),
           price: totalCost,
           comments: `دامنه: ${wizardData.userInfo?.domain || 'mywebsite'}.ir | دوره پرداخت: ${paymentCycle === 'annual' ? 'سالانه' : 'ماهانه'} | تمدید خودکار: ${autoRenewal ? 'بله' : 'خیر'}`,
           total_pages: wizardData.websiteFramework?.dynamicDesign?.pages?.length || 1,
-          total_sections: wizardData.websiteFramework?.dynamicDesign?.pages?.reduce((total: number, page: any) => total + (page.sections?.length || 0), 0) || 0
+          total_sections: wizardData.websiteFramework?.dynamicDesign?.pages?.reduce((total: number, page: { sections?: Array<{ id: string }> }) => total + (page.sections?.length || 0), 0) || 0
         };
 
         newOrder = await apiClient.createOrder(apiOrderData);
@@ -216,7 +214,7 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
           siteType: wizardData.siteType,
           websiteFramework: wizardData.websiteFramework,
           branding: wizardData.branding,
-          additionalServices: wizardData.additionalServices,
+          // additionalServices field is not part of mock payload here
           domains: {
             primaryDomain: wizardData.userInfo?.domain || 'mywebsite.ir',
             additionalDomains: wizardData.userInfo?.additionalDomains || []
@@ -239,7 +237,7 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
         try {
           await DesignService.saveDesign(
             newOrder.id,
-            wizardData.websiteFramework.dynamicDesign,
+            wizardData.websiteFramework.dynamicDesign as import('@/lib/designService').DynamicDesign,
             {
               siteType: wizardData.siteType,
               modules: wizardData.modules,
@@ -374,26 +372,26 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
             </div>
           </div>
 
-          {wizardData.additionalServices && Object.values(wizardData.additionalServices).some(Boolean) && (
+          {wizardData.pricing?.additionalServices && Object.values(wizardData.pricing.additionalServices).some(Boolean) && (
             <div className="mt-4">
               <h4 className="font-semibold mb-2">خدمات اضافی انتخاب شده:</h4>
               <div className="flex flex-wrap gap-2">
-                {wizardData.additionalServices.seoOptimization && (
+                {wizardData.pricing?.additionalServices?.seoOptimization && (
                   <Badge variant="secondary">SEO</Badge>
                 )}
-                {wizardData.additionalServices.socialMediaIntegration && (
+                {wizardData.pricing?.additionalServices?.socialMediaIntegration && (
                   <Badge variant="secondary">شبکه‌های اجتماعی</Badge>
                 )}
-                {wizardData.additionalServices.analyticsSetup && (
+                {wizardData.pricing?.additionalServices?.analyticsSetup && (
                   <Badge variant="secondary">آنالیتیکس</Badge>
                 )}
-                {wizardData.additionalServices.backupService && (
+                {wizardData.pricing?.additionalServices?.backupService && (
                   <Badge variant="secondary">پشتیبان‌گیری</Badge>
                 )}
-                {wizardData.additionalServices.maintenancePlan && (
+                {wizardData.pricing?.additionalServices?.maintenancePlan && (
                   <Badge variant="secondary">نگهداری</Badge>
                 )}
-                {wizardData.additionalServices.rushDelivery && (
+                {wizardData.pricing?.additionalServices?.rushDelivery && (
                   <Badge variant="secondary">تحویل فوری</Badge>
                 )}
               </div>

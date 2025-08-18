@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Image, FileIcon, Trash2, Download } from 'lucide-react';
-import { apiClient } from "@/lib/api-client";
+import { sessionApiService } from "@/lib/sessionApiService";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -45,14 +45,12 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
   const loadUploadedFiles = async () => {
     if (!user) return;
     try {
-      const response = await apiClient.request('/uploads', { method: 'GET' });
+      const response = await sessionApiService.getUploads();
       
-      if (response && response.success && response.data) {
+      if (response.success && response.data) {
         setUploadedFiles(response.data);
-      } else if (Array.isArray(response)) {
-        // Fallback for direct array response
-        setUploadedFiles(response);
       } else {
+        console.error('Failed to load files:', response.error);
         setUploadedFiles([]);
       }
     } catch (error) {
@@ -124,17 +122,18 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
         formDataEntries: Array.from(form.entries())
       });
 
-      const response = await apiClient.request('/uploads', { method: 'POST', body: form });
-
+      console.log('FileUploadManager: About to make API request...');
+      
+      const response = await sessionApiService.uploadFile(file, selectedCategory, fileDescription);
       console.log('FileUploadManager: Upload response:', response);
 
-      if (response && response.success) {
+      if (response.success) {
         toast.success('فایل با موفقیت آپلود شد');
         setFileDescription('');
         await loadUploadedFiles();
         event.target.value = '';
       } else {
-        throw new Error(response?.error || 'خطا در آپلود فایل');
+        throw new Error(response.error || 'خطا در آپلود فایل');
       }
     } catch (error) {
       console.error('FileUploadManager: Error uploading file:', error);
@@ -151,13 +150,13 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const handleDeleteFile = async (fileId: string, _filePath: string) => {
     try {
-      const response = await apiClient.request(`/uploads/${fileId}`, { method: 'DELETE' });
+      const response = await sessionApiService.deleteFile(fileId);
 
-      if (response && response.success) {
+      if (response.success) {
         toast.success('فایل حذف شد');
         await loadUploadedFiles();
       } else {
-        throw new Error(response?.error || 'خطا در حذف فایل');
+        throw new Error(response.error || 'خطا در حذف فایل');
       }
     } catch (error) {
       console.error('Error deleting file:', error);
@@ -168,8 +167,12 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
   // Get specific file by ID
   const getFileById = async (fileId: string) => {
     try {
-      const response = await apiClient.request(`/uploads/${fileId}`);
-      return response;
+      const response = await sessionApiService.getUploads();
+      if (response.success && response.data) {
+        const file = response.data.find((f: any) => f.id === fileId);
+        return file || null;
+      }
+      return null;
     } catch (error) {
       console.error('Error fetching file:', error);
       toast.error('خطا در دریافت اطلاعات فایل');
@@ -217,19 +220,17 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     });
 
     try {
-      const response = await apiClient.request('/uploads/bulk', { 
-        method: 'POST', 
-        body: form 
-      });
-
+      console.log('FileUploadManager: About to make bulk API request...');
+      
+      const response = await sessionApiService.uploadBulkFiles(fileArray, selectedCategory);
       console.log('FileUploadManager: Bulk upload response:', response);
 
-      if (response && response.success) {
+      if (response.success) {
         toast.success(`${files.length} فایل با موفقیت آپلود شد`);
         setFileDescription('');
         await loadUploadedFiles();
       } else {
-        throw new Error(response?.error || 'خطا در آپلود فایل‌ها');
+        throw new Error(response.error || 'خطا در آپلود فایل‌ها');
       }
     } catch (error) {
       console.error('FileUploadManager: Error uploading files:', error);
@@ -261,13 +262,18 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const getSignedUrl = async (filePath: string) => {
     try {
-      const response = await apiClient.request(`/uploads/signed-url?path=${encodeURIComponent(filePath)}`);
+      // Extract file ID from path or use a different approach
+      // For now, we'll try to get the file by path
+      const response = await sessionApiService.getUploads();
       
-      if (response && response.success && response.data?.url) {
-        return response.data.url;
-      } else if (response && response.url) {
-        // Fallback for direct url response
-        return response.url;
+      if (response.success && response.data) {
+        const file = response.data.find((f: any) => f.file_path === filePath);
+        if (file) {
+          const signedUrlResponse = await sessionApiService.getSignedUrl(file.id);
+          if (signedUrlResponse.success && signedUrlResponse.data) {
+            return signedUrlResponse.data;
+          }
+        }
       }
       
       return null;

@@ -26,6 +26,8 @@ export interface SessionValidationResponse {
   };
 }
 
+import { tokenManager } from './tokenManager';
+
 export class SessionAuthService {
   private baseURL = import.meta.env.VITE_API_URL || (import.meta.env.PROD 
     ? 'https://nest.arzansite.com/api'  // Production
@@ -151,6 +153,12 @@ export class SessionAuthService {
         if (newAccessToken) {
           this.backendAccessToken = newAccessToken;
           localStorage.setItem('backend_access_token', newAccessToken);
+          // Sync with api client token storage
+          tokenManager.setTokens({
+            access_token: newAccessToken,
+            refresh_token: this.getStoredRefreshToken() || undefined,
+          });
+          localStorage.setItem('access_token', newAccessToken);
           console.log('SessionAuthService: Token refreshed successfully');
           return newAccessToken;
         }
@@ -217,10 +225,15 @@ export class SessionAuthService {
     if (authData.access_token) {
       this.backendAccessToken = authData.access_token;
       localStorage.setItem('backend_access_token', authData.access_token);
+      // Keep api client token manager in sync
+      tokenManager.setTokens({ access_token: authData.access_token, refresh_token: authData.refresh_token || undefined });
+      // Backward compatibility for api clients reading generic keys
+      localStorage.setItem('access_token', authData.access_token);
     }
     if (authData.refresh_token) {
       this.backendRefreshToken = authData.refresh_token;
       localStorage.setItem('backend_refresh_token', authData.refresh_token);
+      localStorage.setItem('refresh_token', authData.refresh_token);
     }
     if (authData.user) {
       localStorage.setItem('user_info', JSON.stringify(authData.user));
@@ -237,6 +250,10 @@ export class SessionAuthService {
     localStorage.setItem('backend_access_token', authData.access_token);
     localStorage.setItem('backend_refresh_token', authData.refresh_token);
     localStorage.setItem('user_info', JSON.stringify(authData.user));
+    // Sync tokens for api client
+    tokenManager.setTokens({ access_token: authData.access_token, refresh_token: authData.refresh_token });
+    localStorage.setItem('access_token', authData.access_token);
+    localStorage.setItem('refresh_token', authData.refresh_token);
     
     console.log('SessionAuthService: Auth data stored successfully');
   }

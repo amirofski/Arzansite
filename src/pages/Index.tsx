@@ -20,7 +20,6 @@ import {
   Target
 } from 'lucide-react';
 import Layout from "@/components/ui/Layout";
-import DebugApiTest from "@/components/DebugApiTest";
 
 const SLIDE_COUNT = 6; // Update if you add/remove slides
 const SCROLL_LOCK_DURATION = 900; // ms, should match Framer Motion transition
@@ -637,10 +636,7 @@ const Index = () => {
         )}
       </AnimatePresence>
       
-      {/* Temporary Debug Component */}
-      <div className="mt-16">
-        <DebugApiTest />
-      </div>
+      {/* Debug components moved to /debug */}
 
     </Layout>
   );

@@ -19,9 +19,12 @@ const BackendConnectionTest = () => {
 
   const testEndpoints = [
     { name: 'Health Check', url: 'https://nest.arzansite.com/api/health', method: 'GET' },
-    { name: 'Auth Status', url: 'https://nest.arzansite.com/api/auth/status', method: 'GET' },
+    // Some backends use /auth/me instead of /auth/status
+    { name: 'Auth Me', url: 'https://nest.arzansite.com/api/auth/me', method: 'GET' },
     { name: 'Profiles (me)', url: 'https://nest.arzansite.com/api/profiles/me', method: 'GET' },
     { name: 'Orders', url: 'https://nest.arzansite.com/api/orders', method: 'GET' },
+    { name: 'Invoices', url: 'https://nest.arzansite.com/api/invoices', method: 'GET' },
+    { name: 'Receipts', url: 'https://nest.arzansite.com/api/receipts', method: 'GET' },
     { name: 'Wallet Balance', url: 'https://nest.arzansite.com/api/wallets/me/balance', method: 'GET' },
     { name: 'Wallet Transactions', url: 'https://nest.arzansite.com/api/wallets/me/transactions', method: 'GET' },
   ];

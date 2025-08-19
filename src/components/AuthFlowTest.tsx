@@ -2,10 +2,11 @@ import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Shield, ShieldCheck, ShieldX, Loader2, Key } from 'lucide-react';
+import { Shield, ShieldCheck, ShieldX, Loader2, Key, User as UserIcon } from 'lucide-react';
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { sessionAuthService } from "@/lib/sessionAuthService";
+import { sessionApiService } from "@/lib/sessionApiService";
 
 interface AuthTestResult {
   status: 'success' | 'failed' | 'skipped';
@@ -37,8 +38,19 @@ const AuthFlowTest = () => {
       
       console.log('AuthFlowTest: Session info:', sessionInfo);
 
+      // Optional: bootstrap session if we have a legacy sessionId but backend cookie is not set
+      if (!sessionInfo.isAuthenticated && sessionInfo.sessionId) {
+        try {
+          console.log('AuthFlowTest: Attempting session bootstrap via /auth/session-auth');
+          const bootstrap = await sessionApiService.sessionAuthenticate({ sessionId: sessionInfo.sessionId, email: user?.email });
+          console.log('AuthFlowTest: Bootstrap result:', bootstrap);
+        } catch (e) {
+          console.warn('AuthFlowTest: Session bootstrap failed:', e);
+        }
+      }
+
       // Test 3: Try to authenticate with NestJS (cookie/session)
-      const authResponse = await fetch('https://nest.arzansite.com/api/auth/status', {
+      const authResponse = await fetch('https://nest.arzansite.com/api/auth/me', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -81,6 +93,34 @@ const AuthFlowTest = () => {
         }
       } else {
         setAuthResults(prev => ({ ...prev, protected: { status: 'skipped', error: 'No valid session available' } }));
+      }
+
+      // Test 5: Invoices endpoint (cookie-based)
+      try {
+        const invoicesRes = await fetch('https://nest.arzansite.com/api/invoices', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          mode: 'cors',
+          credentials: 'include'
+        });
+        console.log('AuthFlowTest: Invoices response:', invoicesRes.status, invoicesRes.statusText);
+        if (!invoicesRes.ok) throw new Error(`HTTP ${invoicesRes.status}`);
+      } catch (e) {
+        console.warn('AuthFlowTest: Invoices test failed:', e);
+      }
+
+      // Test 6: Receipts endpoint (cookie-based)
+      try {
+        const receiptsRes = await fetch('https://nest.arzansite.com/api/receipts', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          mode: 'cors',
+          credentials: 'include'
+        });
+        console.log('AuthFlowTest: Receipts response:', receiptsRes.status, receiptsRes.statusText);
+        if (!receiptsRes.ok) throw new Error(`HTTP ${receiptsRes.status}`);
+      } catch (e) {
+        console.warn('AuthFlowTest: Receipts test failed:', e);
       }
 
     } catch (error) {
@@ -137,6 +177,24 @@ const AuthFlowTest = () => {
               'Test Authentication Flow'
             )}
           </Button>
+          <Button
+            onClick={async () => {
+              try {
+                const info = sessionAuthService.getSessionInfo();
+                if (!info.sessionId && !user?.email) {
+                  toast.error('No sessionId or email available for bootstrap');
+                  return;
+                }
+                const res = await sessionApiService.sessionAuthenticate({ sessionId: info.sessionId || undefined, email: user?.email });
+                if (res.success) toast.success('Session bootstrap attempted'); else toast.error(res.error || 'Bootstrap failed');
+              } catch (e) {
+                toast.error('Bootstrap error');
+              }
+            }}
+            variant="outline"
+          >
+            Bootstrap Cookie Session
+          </Button>
         </div>
 
         {/* Current User Status */}
@@ -149,6 +207,10 @@ const AuthFlowTest = () => {
             )}
             <div>Session ID: {sessionAuthService.getSessionInfo().sessionId ? '✅ Present' : '❌ Missing'}</div>
             <div>Backend Token: {sessionAuthService.getSessionInfo().hasAccessToken ? '✅ Present' : '❌ Missing'}</div>
+            <div className="flex items-center gap-2 mt-1 text-xs">
+              <UserIcon className="w-3 h-3" />
+              <span>Auth Mode: {sessionAuthService.getSessionInfo().hasAccessToken ? 'Bearer + Cookie' : 'Cookie only'}</span>
+            </div>
           </div>
         </div>
 
@@ -215,10 +277,9 @@ const AuthFlowTest = () => {
         <div className="mt-6 p-4 bg-muted rounded-lg">
           <h4 className="font-medium mb-2">Recommendations:</h4>
           <ul className="text-sm text-muted-foreground space-y-1">
-            <li>• If NestJS auth fails: Check JWT validation in backend</li>
-            <li>• If protected endpoints fail: Check token format compatibility</li>
-            <li>• Consider using NestJS for authentication instead of Appwrite</li>
-            <li>• Ensure JWT secrets are properly configured</li>
+            <li>• If status/invoices/receipts return 401: ensure backend sets HttpOnly cookie with SameSite=None; Secure; Domain=.arzansite.com</li>
+            <li>• Enable CORS with origin=frontend domain and credentials=true</li>
+            <li>• All fetches use credentials: 'include' and no Authorization header if no token</li>
           </ul>
         </div>
       </CardContent>

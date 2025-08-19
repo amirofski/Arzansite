@@ -149,7 +149,13 @@ const DebugApiTest = () => {
     await testTokenRestoration();
     
     // Test API endpoints
+    // try /auth/me as status endpoint for your backend
+    await testApiEndpoint('/auth/me');
     await testApiEndpoint('/profiles/me');
+    await testApiEndpoint('/invoices');
+    await testApiEndpoint('/receipts');
+    await testApiEndpoint('/payments/status');
+    await testApiEndpoint('/payments/test-connection');
   };
 
   useEffect(() => {
@@ -201,6 +207,15 @@ const DebugApiTest = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Button 
+              onClick={() => testApiEndpoint('/auth/me')} 
+              disabled={isTesting}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              Test /auth/me
+            </Button>
+            <Button 
               onClick={() => testApiEndpoint('/profiles/me')} 
               disabled={isTesting}
               variant="outline"
@@ -220,6 +235,46 @@ const DebugApiTest = () => {
               Test /orders
             </Button>
             
+            <Button 
+              onClick={() => testApiEndpoint('/invoices')} 
+              disabled={isTesting}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              Test /invoices
+            </Button>
+            
+            <Button 
+              onClick={() => testApiEndpoint('/receipts')} 
+              disabled={isTesting}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              Test /receipts
+            </Button>
+            
+            <Button 
+              onClick={() => testApiEndpoint('/payments/status')} 
+              disabled={isTesting}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              Test /payments/status
+            </Button>
+
+            <Button 
+              onClick={() => testApiEndpoint('/payments/test-connection')} 
+              disabled={isTesting}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              Test /payments/test-connection
+            </Button>
+
             <Button 
               onClick={() => testApiEndpoint('/wallets/me')} 
               disabled={isTesting}

@@ -16,10 +16,6 @@ import Layout from "@/components/ui/Layout";
 import { useToast } from '@/hooks/use-toast';
 import { wizardErrorHandler, WizardErrorHandler } from '@/lib/wizardErrorHandler';
 import { mockApiClient } from '@/lib/wizardApiClient';
-import AuthenticationStatus from '@/components/AuthenticationStatus';
-import BackendConnectionTest from '@/components/BackendConnectionTest';
-import SimplePingTest from '@/components/SimplePingTest';
-import AuthFlowTest from '@/components/AuthFlowTest';
 
 interface WizardData {
   siteType: 'personal' | 'business' | '';
@@ -209,18 +205,24 @@ const Wizard = () => {
       const progress = await mockApiClient.getWizardProgress(sessionId);
       
       // Map API response to WizardData format
+      // Use partial typing with fallbacks to satisfy strict typing
       const mappedProgress: WizardData = {
         siteType: progress.siteType,
         pageMode: '',
         modules: [],
-        websiteFramework: progress.websiteFramework,
+        websiteFramework: (progress as unknown as { websiteFramework?: WizardData['websiteFramework'] }).websiteFramework || {
+          selectedLayouts: {},
+          uploadedImages: {},
+          pageStructure: 'single',
+          canvasDimensions: { width: 1200, height: 2000 },
+        },
         wireframe: undefined,
-        branding: progress.branding || {
+        branding: (progress as unknown as { branding?: WizardData['branding'] }).branding || {
           primaryColor: '#8B5CF6',
           fontFamily: 'vazir',
           logo: ''
         },
-        pricing: progress.pricing || {
+        pricing: (progress as unknown as { pricing?: WizardData['pricing'] }).pricing || {
           additionalServices: {},
           customizationLevel: [3],
           rushDelivery: false,
@@ -228,11 +230,11 @@ const Wizard = () => {
         },
         paymentCycle: undefined,
         autoRenewal: undefined,
-        userInfo: progress.domains ? {
-          domain: progress.domains.primaryDomain || '',
+        userInfo: (progress as unknown as { domains?: { primaryDomain?: string; additionalDomains?: Array<{ domain: string; extension: string; price: number; available: boolean }> } }).domains ? {
+          domain: ((progress as unknown as { domains?: { primaryDomain?: string } }).domains?.primaryDomain) || '',
           domainExtension: undefined,
           domainPrice: undefined,
-          additionalDomains: progress.domains.additionalDomains
+          additionalDomains: ((progress as unknown as { domains?: { additionalDomains?: Array<{ domain: string; extension: string; price: number; available: boolean }> } }).domains?.additionalDomains)
         } : {
           domain: ''
         }
@@ -398,14 +400,8 @@ const Wizard = () => {
       </Helmet>
       <div className="min-h-screen bg-background mt-20 pt-16">
         <div className="container mx-auto px-4">
-          {/* Authentication Status - Debug Panel */}
+          {/* Quick ping widget (full debug tools moved to /debug) */}
           <div className="mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <AuthenticationStatus />
-          <SimplePingTest />
-        </div>
-        <BackendConnectionTest />
-        <AuthFlowTest />
           </div>
           
           {/* Progress */}

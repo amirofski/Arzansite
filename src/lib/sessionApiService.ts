@@ -108,6 +108,25 @@ export class SessionApiService {
   }
 
   // Authentication endpoints
+  async createSession(jwt: string): Promise<ApiResponse<{ user?: { id: string; email: string } }>> {
+    try {
+      const response = await fetch(`${this.baseURL}/auth/session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jwt }),
+        credentials: 'include'
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        return { success: false, error: errorText || 'Failed to create session' };
+      }
+      const data = await response.json().catch(() => ({}));
+      return { success: true, data: (data && data.data) ? data.data : data };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Failed to create session' };
+    }
+  }
+
   async login(email: string, password: string): Promise<ApiResponse<unknown>> {
     try {
       console.log('SessionApiService: Login attempt for:', email);

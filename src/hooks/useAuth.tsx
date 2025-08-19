@@ -182,7 +182,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error(response.error || 'Login failed');
       }
       
-      const authData = response.data;
+      const authData = response.data as {
+        access_token?: string;
+        refresh_token?: string;
+        sessionId?: string;
+        user?: UserProfile;
+        redirect?: { url: string; message: string };
+      } | undefined;
       console.log('useAuth: Auth data check:', !!authData);
       console.log('useAuth: User check:', !!authData?.user);
       console.log('useAuth: User ID check:', !!authData?.user?.id);
@@ -191,7 +197,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error('No authentication data received');
       }
       
-      if (!authData.user) {
+      if (!authData?.user) {
         throw new Error('No user information received from authentication service');
       }
       
@@ -211,9 +217,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // If sessionId is provided, persist it for legacy or hybrid flows
       if (authData.sessionId) {
         sessionAuthService.storeAuthData(authData.sessionId, {
-          access_token: authData.access_token,
-          refresh_token: authData.refresh_token,
-          user: authData.user,
+          access_token: authData.access_token || '',
+          refresh_token: authData.refresh_token || '',
+          user: {
+            id: authData.user.id,
+            email: authData.user.email,
+            role: authData.user.role,
+            first_name: authData.user.first_name,
+            last_name: authData.user.last_name,
+            phone: authData.user.phone,
+            created_at: authData.user.created_at || new Date().toISOString(),
+            updated_at: authData.user.updated_at || new Date().toISOString(),
+          },
           sessionId: authData.sessionId
         });
       }
@@ -226,8 +241,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.warn('useAuth: Tokens not properly available after storage');
       }
       
-      // Set user immediately to avoid race conditions
-      setUser(authData.user);
+      // Set user immediately to avoid race conditions (normalize required fields)
+      setUser({
+        id: authData.user.id,
+        email: authData.user.email,
+        role: authData.user.role,
+        first_name: authData.user.first_name,
+        last_name: authData.user.last_name,
+        phone: authData.user.phone,
+        created_at: authData.user.created_at || new Date().toISOString(),
+        updated_at: authData.user.updated_at || new Date().toISOString(),
+      });
       setUserRole({ role: authData.user.role });
       
       // Ensure profile exists by calling the profile endpoint
@@ -255,7 +279,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const response = await sessionApiService.signup(email, password, metadata);
       if (response.success) {
         return {
-          requiresFrontendVerification: response.data?.requiresFrontendVerification || false
+          requiresFrontendVerification: (response.data as { requiresFrontendVerification?: boolean } | undefined)?.requiresFrontendVerification || false
         };
       } else {
         throw new Error(response.error || 'Signup failed');
@@ -368,9 +392,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const forgotPassword = async (email: string) => {
     setError(null);
     try {
-      // For now, we'll use the session API service
-      // This would need to be implemented in the backend
-      throw new Error('Password reset not yet implemented for session-based auth');
+      // Use token-based public endpoint (no auth required)
+      const { apiClient } = await import('@/lib/api-client');
+      await apiClient.forgotPassword(email);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to send password reset email';
       setError(errorMessage);
@@ -381,9 +405,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const resetPassword = async (token: string, newPassword: string) => {
     setError(null);
     try {
-      // For now, password reset is not implemented in session-based auth
-      // This would need to be implemented in the backend
-      throw new Error('Password reset not yet implemented for session-based auth');
+      const { apiClient } = await import('@/lib/api-client');
+      await apiClient.resetPassword(token, newPassword);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to reset password';
       setError(errorMessage);

@@ -48,8 +48,11 @@ class TokenManager {
   private initializeFromStorage(): void {
     try {
       if (typeof window !== 'undefined') {
-        const accessToken = localStorage.getItem('access_token');
-        const refreshToken = localStorage.getItem('refresh_token');
+        let accessToken = localStorage.getItem('access_token');
+        let refreshToken = localStorage.getItem('refresh_token');
+        // Fallback to backend-specific keys for backward compatibility
+        if (!accessToken) accessToken = localStorage.getItem('backend_access_token');
+        if (!refreshToken) refreshToken = localStorage.getItem('backend_refresh_token');
         const expiresAt = localStorage.getItem('token_expires_at');
         
         if (accessToken && refreshToken) {
@@ -192,6 +195,9 @@ class TokenManager {
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         localStorage.removeItem('token_expires_at');
+        // Also remove backend-specific keys for compatibility
+        localStorage.removeItem('backend_access_token');
+        localStorage.removeItem('backend_refresh_token');
       }
       
       // Clear any non-sensitive UI data

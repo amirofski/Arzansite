@@ -16,6 +16,7 @@ import PaymentCallback from "./pages/PaymentCallback";
 import WalletPaymentCallback from "./pages/WalletPaymentCallback";
 import OAuthCallback from "./components/OAuthCallback";
 import NotFound from "./pages/NotFound";
+import Debug from "./pages/Debug";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -68,6 +69,7 @@ const SiteModeWrapper = React.memo(() => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/auth/oauth/callback" element={<OAuthCallback provider="github" />} />
+        <Route path="/debug" element={<Debug />} />
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />

@@ -176,33 +176,35 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
       // First, create the order in our system
       let newOrder;
       try {
-        // Format order data according to API interface
+        // Format order data according to backend expectations
         const apiOrderData = {
           title: `وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${wizardData.userInfo?.domain || 'mywebsite'}.ir`,
-          description: JSON.stringify({
-            siteType: wizardData.siteType,
-            websiteFramework: wizardData.websiteFramework,
-            branding: wizardData.branding,
-            domains: {
-              primary_domain: wizardData.userInfo?.domain || 'mywebsite.ir',
-              additional_domains: wizardData.userInfo?.additionalDomains || []
-            },
-            pricing: {
-              base_price: pricingBreakdown.basePrice,
-              pages_cost: pricingBreakdown.pagesCost,
-              sections_cost: pricingBreakdown.sectionsCost,
-              additional_services_cost: pricingBreakdown.additionalServicesCost,
-              total_price: totalCost,
-              payment_cycle: paymentCycle,
-              auto_renewal: autoRenewal,
-              annual_discount: paymentCycle === 'annual' ? pricingBreakdown.annualDiscount : 0
-            },
-            additionalServices: wizardData.pricing?.additionalServices || {}
-          }),
+          description: 'سفارش ساخت وب‌سایت',
           price: totalCost,
           comments: `دامنه: ${wizardData.userInfo?.domain || 'mywebsite'}.ir | دوره پرداخت: ${paymentCycle === 'annual' ? 'سالانه' : 'ماهانه'} | تمدید خودکار: ${autoRenewal ? 'بله' : 'خیر'}`,
           total_pages: wizardData.websiteFramework?.dynamicDesign?.pages?.length || 1,
-          total_sections: wizardData.websiteFramework?.dynamicDesign?.pages?.reduce((total: number, page: { sections?: Array<{ id: string }> }) => total + (page.sections?.length || 0), 0) || 0
+          total_sections: wizardData.websiteFramework?.dynamicDesign?.pages?.reduce((total: number, page: { sections?: Array<{ id: string }> }) => total + (page.sections?.length || 0), 0) || 0,
+          siteType: wizardData.siteType,
+          sessionId: `wizard_${Date.now()}`,
+          wizardData: {
+            websiteFramework: wizardData.websiteFramework,
+            branding: wizardData.branding,
+            domains: {
+              primary_domain: wizardData.userInfo?.domain || 'mywebsite',
+              additional_domains: wizardData.userInfo?.additionalDomains || []
+            },
+            pricing: {
+              basePrice: pricingBreakdown.basePrice,
+              pagesCost: pricingBreakdown.pagesCost,
+              sectionsCost: pricingBreakdown.sectionsCost,
+              additionalServicesCost: pricingBreakdown.additionalServicesCost,
+              totalPrice: totalCost,
+              paymentCycle,
+              autoRenewal,
+              annualDiscount: paymentCycle === 'annual' ? pricingBreakdown.annualDiscount : 0
+            },
+            additionalServices: wizardData.pricing?.additionalServices || {}
+          }
         };
 
         newOrder = await apiClient.createOrder(apiOrderData);
@@ -252,12 +254,11 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
         }
       }
 
-      // Update user profile if needed
+      // Update user profile if needed (allowed fields only)
       if (wizardData.userInfo) {
         try {
           await apiClient.updateProfile({
             full_name: wizardData.userInfo.name,
-            email: wizardData.userInfo.email
           });
         } catch (profileError) {
           console.warn('Profile update warning:', profileError);
@@ -274,7 +275,7 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
 
       // Initiate Zarrin Pal payment
       await initiateZarrinPalPayment({
-        ...newOrder, // Use the newOrder object directly
+        ...newOrder,
         order_id: newOrder.id
       });
 

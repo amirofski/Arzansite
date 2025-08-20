@@ -1,4 +1,4 @@
-import { sessionApiService } from '@/lib/sessionApiService';
+import { apiClient } from '@/lib/api-client';
 export interface WalletBalanceResponse { balance: number }
 export interface WalletTransaction {
   id: string;
@@ -48,9 +48,8 @@ export class WalletService {
   // Get user's wallet balance
   static async getWalletBalance(userId: string): Promise<number> {
     try {
-      const res = await sessionApiService.getWalletBalance();
-      const data = res.success && res.data ? res.data as WalletBalanceResponse : { balance: 0 };
-      return typeof (data as WalletBalanceResponse).balance === 'number' ? (data as WalletBalanceResponse).balance : 0;
+      const data = await apiClient.getWalletBalance();
+      return typeof data.balance === 'number' ? data.balance : 0;
     } catch (error) {
       console.error('Error fetching wallet balance:', error);
       return 0;
@@ -87,9 +86,8 @@ export class WalletService {
     offset: number = 0
   ): Promise<Transaction[]> {
     try {
-      const res = await sessionApiService.getWalletTransactions();
-      const data = (res.success && Array.isArray(res.data) ? res.data : []) as unknown as Transaction[];
-      return data;
+      const data = await apiClient.getWalletTransactions(limit, offset);
+      return data as unknown as Transaction[];
     } catch (error) {
       console.error('Error fetching transactions:', error);
       return [];
@@ -118,10 +116,9 @@ export class WalletService {
       };
       
       console.log('Creating wallet transaction with payload:', payload);
-      const res = await sessionApiService.createWalletTransaction(payload);
+      const res = await apiClient.createWalletTransaction(payload);
       console.log('Wallet transaction response:', res);
-      const data = res.data as { id?: string } | undefined;
-      return res.success && data?.id ? data.id : null;
+      return res?.id ?? null;
     } catch (error) {
       console.error('Error processing transaction:', error);
       return null;
@@ -167,9 +164,8 @@ export class WalletService {
   // Refund order to wallet
   static async refundOrder(orderId: string): Promise<string | null> {
     try {
-      const res = await sessionApiService.refundOrder(orderId);
-      const data = res.data as { transactionId?: string } | undefined;
-      return res.success ? (data?.transactionId ?? null) : null;
+      const res = await apiClient.refundOrder(orderId);
+      return res?.transactionId ?? null;
     } catch (error) {
       console.error('Error refunding order:', error);
       return null;

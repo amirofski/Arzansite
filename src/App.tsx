@@ -80,8 +80,10 @@ const SiteModeWrapper = React.memo(() => {
             <AdminDashboard />
           </ProtectedRoute>
         } />
-        <Route path="/payment-callback" element={<PaymentCallback />} />
-        <Route path="/wallet-payment-callback" element={<WalletPaymentCallback />} />
+        {/* <Route path="/payment-callback" element={<PaymentCallback />} /> */}
+        <Route path="/payment/callback" element={<PaymentCallback />} />
+        {/* <Route path="/wallet-payment-callback" element={<WalletPaymentCallback />} /> */}
+        <Route path="/wallet/payment/callback" element={<WalletPaymentCallback />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

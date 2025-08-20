@@ -39,10 +39,13 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
 
     try {
       const orderData = {
-        user_id: user.id,
         title: `وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${wizardData.userInfo?.domain || 'mywebsite'}`,
-        description: JSON.stringify({
-          siteType: wizardData.siteType,
+        description: 'پروژه ذخیره شده',
+        price: totalCost,
+        comments: `پروژه ذخیره شده - دامنه: ${wizardData.userInfo?.domain || 'mywebsite'}.ir`,
+        siteType: wizardData.siteType,
+        sessionId: `wizard_${Date.now()}`,
+        wizardData: {
           modules: wizardData.modules,
           branding: wizardData.branding,
           userInfo: wizardData.userInfo,
@@ -51,20 +54,17 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
             ...m,
             position: index
           }))
-        }),
-        price: totalCost,
-        status: 'saved', // Different status for saved projects
-        payment_status: 'pending',
-        comments: `پروژه ذخیره شده - دامنه: ${wizardData.userInfo?.domain || 'mywebsite'}.ir`
+        }
       };
 
       await apiClient.createOrder(orderData);
 
-      // Update user profile if needed
+      // Update user profile if needed (allowed fields only)
       if (wizardData.userInfo) {
         await apiClient.updateProfile({
           full_name: wizardData.userInfo.name,
-          email: wizardData.userInfo.email,
+          phone: undefined,
+          address: undefined,
         } as any);
       }
 

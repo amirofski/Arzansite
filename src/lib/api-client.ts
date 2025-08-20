@@ -5,7 +5,7 @@
 // For maximum security, the backend should set tokens as httpOnly cookies.
 // See SECURITY_IMPROVEMENTS.md for details.
 
-import { tokenManager, TokenData } from './tokenManager';
+import { tokenManager, TokenData } from '@/lib/tokenManager';
 
 export interface BackendUserProfile {
   id: string;
@@ -503,11 +503,64 @@ class ApiClient {
     comments?: string;
     total_pages?: number;
     total_sections?: number;
+    // Extended fields supported by backend
+    siteType?: string;
+    sessionId?: string;
+    wizardData?: unknown;
   }): Promise<Order> {
-    return this.request('/orders', {
+    const result = await this.request<unknown>('/orders', {
       method: 'POST',
       body: JSON.stringify(orderData),
     });
+    // Handle possible wrapped response
+    if (result && typeof result === 'object') {
+      const maybe = result as { data?: unknown };
+      if (maybe.data && typeof maybe.data === 'object') {
+        const data = maybe.data as Record<string, unknown>;
+        if ('id' in data) {
+          return data as unknown as Order;
+        }
+        if ('$id' in data) {
+          const d = data as Record<string, unknown>;
+          const mapped: Order = {
+            id: String(d['$id'] as string | number),
+            title: orderData.title,
+            description: orderData.description,
+            price: orderData.price,
+            status: 'pending',
+            user_id: typeof d['user_id'] === 'string' ? (d['user_id'] as string) : '',
+            comments: orderData.comments,
+            total_pages: orderData.total_pages,
+            total_sections: orderData.total_sections,
+            created_at: typeof d['created_at'] === 'string' ? (d['created_at'] as string) : new Date().toISOString(),
+            updated_at: typeof d['updated_at'] === 'string' ? (d['updated_at'] as string) : new Date().toISOString(),
+          };
+          return mapped;
+        }
+      }
+      const obj = result as Record<string, unknown>;
+      if ('id' in obj) {
+        return obj as unknown as Order;
+      }
+      if ('$id' in obj) {
+        const o = obj as Record<string, unknown>;
+        const mapped: Order = {
+          id: String(o['$id'] as string | number),
+          title: orderData.title,
+          description: orderData.description,
+          price: orderData.price,
+          status: 'pending',
+          user_id: typeof o['user_id'] === 'string' ? (o['user_id'] as string) : '',
+          comments: orderData.comments,
+          total_pages: orderData.total_pages,
+          total_sections: orderData.total_sections,
+          created_at: typeof o['created_at'] === 'string' ? (o['created_at'] as string) : new Date().toISOString(),
+          updated_at: typeof o['updated_at'] === 'string' ? (o['updated_at'] as string) : new Date().toISOString(),
+        };
+        return mapped;
+      }
+    }
+    throw new Error('Invalid order response from server');
   }
 
   async getOrder(orderId: string): Promise<Order> {
@@ -642,14 +695,28 @@ class ApiClient {
     return this.request(`/payments/${paymentId}`);
   }
 
-  async requestPayment(payload: { amount: number; description: string; orderId?: string }): Promise<{ paymentUrl: string }> {
+  async requestPayment(payload: { amount: number; description: string; orderId?: string }): Promise<{ paymentUrl: string; authority?: string }> {
     console.log('Requesting payment with payload:', payload);
-    const result = await this.request<{ paymentUrl: string }>('/payments/request', {
+    const result = await this.request<unknown>('/payments/request', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
     console.log('Payment request response:', result);
-    return result;
+    if (result && typeof result === 'object') {
+      const obj = result as Record<string, unknown>;
+      // Prefer wrapped structure { success, data: { paymentUrl, authority }, ... }
+      if ('data' in obj && obj.data && typeof obj.data === 'object') {
+        const data = obj.data as Record<string, unknown>;
+        if (typeof data.paymentUrl === 'string') {
+          return { paymentUrl: data.paymentUrl, authority: typeof data.authority === 'string' ? data.authority : undefined };
+        }
+      }
+      // Fallback to flat structure
+      if (typeof obj.paymentUrl === 'string') {
+        return { paymentUrl: obj.paymentUrl as string, authority: typeof obj.authority === 'string' ? (obj.authority as string) : undefined };
+      }
+    }
+    throw new Error('Failed to create payment request');
   }
 
   async verifyPayment(payload: { authority: string; orderId?: string }): Promise<{ success: boolean; refId?: string; error?: string }> {
@@ -783,6 +850,7 @@ class ApiClient {
   async requestWalletDeposit(payload: { 
     amount: number; // Amount in Rials (normalized)
     description?: string; 
+    callbackUrl?: string;
     user_id?: string; 
     metadata?: string | Record<string, unknown> 
   }): Promise<{ paymentUrl: string; orderId: string }> {
@@ -907,6 +975,56 @@ class ApiClient {
     return this.request('/emails/send', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  }
+
+  // Storage endpoints
+  async uploadStorageFile(bucketId: string, file: File): Promise<{ fileId: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const result = await this.request<unknown>(`/storage/upload/${encodeURIComponent(bucketId)}`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (result && typeof result === 'object') {
+      const obj = result as { fileId?: unknown; data?: unknown };
+      let fileId: string | undefined;
+      if (typeof obj.fileId === 'string') {
+        fileId = obj.fileId;
+      } else if (
+        obj.data &&
+        typeof obj.data === 'object' &&
+        (obj.data as { fileId?: unknown }) !== null &&
+        'fileId' in (obj.data as { fileId?: unknown }) &&
+        typeof (obj.data as { fileId?: unknown }).fileId === 'string'
+      ) {
+        fileId = (obj.data as { fileId?: unknown }).fileId as string;
+      }
+      if (fileId) return { fileId };
+    }
+    throw new Error('Invalid upload response');
+  }
+
+  async getStorageFileUrl(bucketId: string, fileId: string): Promise<{ url: string; fileId: string }> {
+    return this.request(`/storage/${encodeURIComponent(bucketId)}/${encodeURIComponent(fileId)}/url`);
+  }
+
+  async listStorageFiles(bucketId: string, queries?: string[]): Promise<{ files: unknown[]; total?: number }> {
+    const qs = new URLSearchParams();
+    if (queries && Array.isArray(queries)) {
+      for (const q of queries) {
+        qs.append('queries[]', q);
+      }
+    }
+    const path = `/storage/${encodeURIComponent(bucketId)}${qs.toString() ? `?${qs.toString()}` : ''}`;
+    return this.request(path);
+  }
+
+  async deleteStorageFile(bucketId: string, fileId: string): Promise<{ success: boolean }> {
+    return this.request(`/storage/${encodeURIComponent(bucketId)}/${encodeURIComponent(fileId)}`, {
+      method: 'DELETE',
     });
   }
 

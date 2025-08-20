@@ -222,8 +222,8 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
     try {
       console.log('Requesting wallet deposit for amount:', amount);
       
-      // Use the dedicated wallet deposit endpoint
-      const { sessionApiService } = await import('@/lib/sessionApiService');
+      // Use the dedicated wallet deposit endpoint (backend JWT)
+      const { apiClient } = await import('@/lib/api-client');
       const depositPayload = {
         amount: Math.floor(amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
         description: depositDescription || `شارژ کیف پول - ${WalletService.formatAmount(amount)}`,
@@ -231,9 +231,9 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
         // Do not send user_id; backend derives from session
       } as { amount: number; description: string; callbackUrl: string };
       
-      const res = await sessionApiService.requestWalletDeposit(depositPayload);
-      if (!res.success || !res.data?.paymentUrl) throw new Error(res.error || 'Failed to create deposit request');
-      const depositData = res.data;
+      const res = await apiClient.requestWalletDeposit(depositPayload);
+      if (!res.paymentUrl) throw new Error('Failed to create deposit request');
+      const depositData = res;
       
       // Store payment information for callback handling
       const paymentInfo = {
@@ -405,15 +405,15 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                     onClick={async () => {
                       try {
                         // Request wallet deposit for the pending payment
-                        const { sessionApiService } = await import('@/lib/sessionApiService');
+                        const { apiClient } = await import('@/lib/api-client');
                         const depositPayload = {
                           amount: Math.floor(pendingPayment.amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
                           description: pendingPayment.description
                         } as { amount: number; description: string };
                         
-                        const res = await sessionApiService.requestWalletDeposit({ ...depositPayload, callbackUrl: `${window.location.origin}/wallet-payment-callback` });
-                        if (!res.success || !res.data?.paymentUrl) throw new Error(res.error || 'Failed to create deposit request');
-                        const depositData = res.data;
+                        const res = await apiClient.requestWalletDeposit({ ...depositPayload, callbackUrl: `${window.location.origin}/wallet-payment-callback` });
+                        if (!res.paymentUrl) throw new Error('Failed to create deposit request');
+                        const depositData = res;
                         
                         if (depositData.paymentUrl) {
                           window.location.href = depositData.paymentUrl;

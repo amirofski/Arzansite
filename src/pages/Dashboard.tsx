@@ -43,6 +43,7 @@ const Dashboard = () => {
 
      useEffect(() => {
      fetchData();
+     // eslint-disable-next-line react-hooks/exhaustive-deps
    }, [user]);
 
   // Check if user needs email verification
@@ -59,9 +60,8 @@ const Dashboard = () => {
      }
 
      try {
-       // Fetch user profile first
-       const profileRes = await (await import('@/lib/sessionApiService')).sessionApiService.getProfile();
-       const profileData = profileRes.success ? profileRes.data : null;
+       // Fetch user profile first (JWT-only)
+       const profileData = await apiClient.getMyProfile();
        setProfile(profileData);
 
        // Fetch user orders with loading state
@@ -83,8 +83,7 @@ const Dashboard = () => {
 
      setOrdersLoading(true);
      try {
-       const ordersRes = await (await import('@/lib/sessionApiService')).sessionApiService.getOrders();
-       const ordersData = ordersRes.success && Array.isArray(ordersRes.data) ? ordersRes.data : [];
+       const ordersData = await apiClient.getOrders({ mine: true });
        // Ensure ordersData is always an array
        if (Array.isArray(ordersData)) {
          // Filter out any invalid order objects

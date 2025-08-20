@@ -104,9 +104,10 @@ const DebugApiTest = () => {
       addTestResult(`Testing ${endpoint}`, 'Making request...', 'info');
       
       // Session-based test request with cookies (Bearer added internally by service if present)
+      const bearer = localStorage.getItem('backend_access_token') || localStorage.getItem('access_token');
       const response = await fetch(`https://nest.arzansite.com/api${endpoint}`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}) },
         credentials: 'include'
       });
       

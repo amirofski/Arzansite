@@ -7,7 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Image, FileIcon, Trash2, Download } from 'lucide-react';
-import { sessionApiService } from "@/lib/sessionApiService";
+import { apiClient } from "@/lib/api-client";
+import axios from 'axios';
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -23,8 +24,8 @@ interface UploadedFile {
 }
 
 interface FileUploadManagerProps {
-  data: any;
-  updateData: (data: any) => void;
+  data: Record<string, unknown> | null;
+  updateData: (data: Record<string, unknown>) => void;
 }
 
 const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
@@ -33,6 +34,8 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('general');
   const [fileDescription, setFileDescription] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const categories = [
     { value: 'general', label: 'عمومی', icon: FileIcon },
@@ -45,14 +48,19 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
   const loadUploadedFiles = async () => {
     if (!user) return;
     try {
-      const response = await sessionApiService.getUploads();
-      
-      if (response.success && response.data) {
-        setUploadedFiles(response.data);
-      } else {
-        console.error('Failed to load files:', response.error);
-        setUploadedFiles([]);
-      }
+      const baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
+      const token = apiClient.getToken();
+      const res = await fetch(`${baseURL}/uploads`, {
+        method: 'GET',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: 'include'
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw: unknown = await res.json().catch(() => ({}));
+      const data = (raw && typeof raw === 'object' && raw !== null && 'data' in (raw as Record<string, unknown>))
+        ? (raw as { data: unknown }).data
+        : raw;
+      setUploadedFiles(Array.isArray(data) ? (data as UploadedFile[]) : []);
     } catch (error) {
       console.error('Error loading files:', error);
       toast.error('خطا در بارگذاری فایل‌ها');
@@ -62,6 +70,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   useEffect(() => {
     loadUploadedFiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const validateFile = (file: File): string | null => {
@@ -87,76 +96,21 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     return null;
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !user) return;
-
-    // Validate file
-    const validationError = validateFile(file);
-    if (validationError) {
-      toast.error(validationError);
-      return;
-    }
-
-    console.log('FileUploadManager: Starting file upload:', {
-      fileName: file.name,
-      fileSize: file.size,
-      fileType: file.type,
-      category: selectedCategory,
-      description: fileDescription
-    });
-
-    setUploading(true);
-
-    try {
-      // Upload via backend endpoint
-      const form = new FormData();
-      form.append('file', file);
-      form.append('category', selectedCategory);
-      if (fileDescription) form.append('description', fileDescription);
-
-      console.log('FileUploadManager: FormData contents:', {
-        file: file.name,
-        category: selectedCategory,
-        description: fileDescription,
-        formDataEntries: Array.from(form.entries())
-      });
-
-      console.log('FileUploadManager: About to make API request...');
-      
-      const response = await sessionApiService.uploadFile(file, selectedCategory, fileDescription);
-      console.log('FileUploadManager: Upload response:', response);
-
-      if (response.success) {
-        toast.success('فایل با موفقیت آپلود شد');
-        setFileDescription('');
-        await loadUploadedFiles();
-        event.target.value = '';
-      } else {
-        throw new Error(response.error || 'خطا در آپلود فایل');
-      }
-    } catch (error) {
-      console.error('FileUploadManager: Error uploading file:', error);
-      console.error('FileUploadManager: Error details:', {
-        error,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        errorStack: error instanceof Error ? error.stack : undefined
-      });
-      toast.error('خطا در آپلود فایل');
-    } finally {
-      setUploading(false);
-    }
-  };
+  // Single file upload is disabled; use bulk upload below
 
   const handleDeleteFile = async (fileId: string, _filePath: string) => {
     try {
-      const response = await sessionApiService.deleteFile(fileId);
+      const delRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api'}/uploads/${encodeURIComponent(fileId)}`, {
+        method: 'DELETE',
+        headers: { ...(apiClient.getToken() ? { Authorization: `Bearer ${apiClient.getToken()}` } : {}) },
+        credentials: 'include'
+      });
 
-      if (response.success) {
+      if (delRes.ok) {
         toast.success('فایل حذف شد');
         await loadUploadedFiles();
       } else {
-        throw new Error(response.error || 'خطا در حذف فایل');
+        throw new Error('خطا در حذف فایل');
       }
     } catch (error) {
       console.error('Error deleting file:', error);
@@ -167,12 +121,20 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
   // Get specific file by ID
   const getFileById = async (fileId: string) => {
     try {
-      const response = await sessionApiService.getUploads();
-      if (response.success && response.data) {
-        const file = response.data.find((f: any) => f.id === fileId);
-        return file || null;
-      }
-      return null;
+      const baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
+      const token = apiClient.getToken();
+      const res = await fetch(`${baseURL}/uploads`, {
+        method: 'GET',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: 'include'
+      });
+      if (!res.ok) return null;
+      const raw: unknown = await res.json().catch(() => ({}));
+      const data = (raw && typeof raw === 'object' && raw !== null && 'data' in (raw as Record<string, unknown>))
+        ? (raw as { data: unknown }).data
+        : raw;
+      const file = Array.isArray(data) ? (data as Array<{ id?: string }>).find((f) => f.id === fileId) : null;
+      return (file as UploadedFile) || null;
     } catch (error) {
       console.error('Error fetching file:', error);
       toast.error('خطا در دریافت اطلاعات فایل');
@@ -202,6 +164,8 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     });
 
     setUploading(true);
+    setUploadProgress(0);
+    setUploadError(null);
     const form = new FormData();
     
     // Add all files to form data
@@ -221,17 +185,27 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
     try {
       console.log('FileUploadManager: About to make bulk API request...');
-      
-      const response = await sessionApiService.uploadBulkFiles(fileArray, selectedCategory);
-      console.log('FileUploadManager: Bulk upload response:', response);
-
-      if (response.success) {
-        toast.success(`${files.length} فایل با موفقیت آپلود شد`);
-        setFileDescription('');
-        await loadUploadedFiles();
-      } else {
-        throw new Error(response.error || 'خطا در آپلود فایل‌ها');
-      }
+      const baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
+      const token = apiClient.getToken();
+      await axios.post(
+        `${baseURL}/uploads/bulk`,
+        form,
+        {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            'Content-Type': 'multipart/form-data'
+          },
+          withCredentials: true,
+          onUploadProgress: (evt) => {
+            if (!evt.total) return;
+            const percent = Math.round((evt.loaded * 100) / evt.total);
+            setUploadProgress(percent);
+          }
+        }
+      );
+      toast.success(`${files.length} فایل با موفقیت آپلود شد`);
+      setFileDescription('');
+      await loadUploadedFiles();
     } catch (error) {
       console.error('FileUploadManager: Error uploading files:', error);
       console.error('FileUploadManager: Bulk upload error details:', {
@@ -239,9 +213,11 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
         errorStack: error instanceof Error ? error.stack : undefined
       });
+      setUploadError(error instanceof Error ? error.message : 'خطا در آپلود فایل‌ها');
       toast.error('خطا در آپلود فایل‌ها');
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -264,15 +240,32 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     try {
       // Extract file ID from path or use a different approach
       // For now, we'll try to get the file by path
-      const response = await sessionApiService.getUploads();
-      
-      if (response.success && response.data) {
-        const file = response.data.find((f: any) => f.file_path === filePath);
-        if (file) {
-          const signedUrlResponse = await sessionApiService.getSignedUrl(file.id);
-          if (signedUrlResponse.success && signedUrlResponse.data) {
-            return signedUrlResponse.data;
-          }
+      const baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
+      const token = apiClient.getToken();
+      const res = await fetch(`${baseURL}/uploads`, {
+        method: 'GET',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        credentials: 'include'
+      });
+      if (!res.ok) return null;
+      const raw: unknown = await res.json().catch(() => ({}));
+      const data = (raw && typeof raw === 'object' && raw !== null && 'data' in (raw as Record<string, unknown>))
+        ? (raw as { data: unknown }).data
+        : raw;
+      if (Array.isArray(data)) {
+        const file = (data as Array<Record<string, unknown>>).find((f) => f.file_path === filePath);
+        if (file && typeof file.id === 'string') {
+          const urlRes = await fetch(`${baseURL}/storage/file-url?bucketId=uploads&fileId=${encodeURIComponent(file.id)}`, {
+            method: 'GET',
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+            credentials: 'include'
+          });
+          if (!urlRes.ok) return null;
+          const urlRaw: unknown = await urlRes.json().catch(() => ({}));
+          const url = (urlRaw && typeof urlRaw === 'object' && urlRaw !== null && 'data' in (urlRaw as Record<string, unknown>))
+            ? ((urlRaw as { data: { url?: string } }).data.url)
+            : ((urlRaw as { url?: string }).url);
+          if (typeof url === 'string') return url;
         }
       }
       
@@ -353,33 +346,8 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
               </div>
             </div>
 
-            {/* File Input */}
+            {/* File Input (multiple only) */}
             <div className="text-center space-y-4">
-              {/* Single File Upload */}
-              <div>
-                <Input
-                  type="file"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                  className="hidden"
-                  id="file-upload"
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.svg"
-                />
-                <Label htmlFor="file-upload">
-                  <Button 
-                    variant="outline" 
-                    className="cursor-pointer" 
-                    disabled={uploading}
-                    asChild
-                  >
-                    <span>
-                      {uploading ? 'در حال آپلود...' : 'انتخاب فایل'}
-                    </span>
-                  </Button>
-                </Label>
-              </div>
-
-              {/* Bulk File Upload */}
               <div>
                 <Input
                   type="file"
@@ -392,7 +360,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
                 />
                 <Label htmlFor="bulk-file-upload">
                   <Button 
-                    variant="secondary" 
+                    variant="secondary"
                     className="cursor-pointer" 
                     disabled={uploading}
                     asChild
@@ -403,6 +371,27 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
                   </Button>
                 </Label>
               </div>
+
+              {uploading && (
+                <div className="w-full max-w-md mx-auto">
+                  <div className="w-full h-2 bg-muted rounded overflow-hidden">
+                    <div
+                      className="h-2 bg-primary transition-[width]"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">{uploadProgress}%</div>
+                </div>
+              )}
+
+              {uploadError && (
+                <div className="p-3 border border-destructive/30 bg-destructive/10 text-destructive rounded">
+                  <div className="text-sm">{uploadError}</div>
+                  <div className="mt-2">
+                    <Button variant="outline" size="sm" onClick={() => setUploadError(null)}>بستن</Button>
+                  </div>
+                </div>
+              )}
 
               <p className="text-xs text-muted-foreground">
                 فرمت‌های مجاز: PDF, Word, تصاویر (حداکثر 10MB برای هر فایل)

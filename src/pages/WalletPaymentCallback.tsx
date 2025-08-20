@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { sessionApiService } from "@/lib/sessionApiService";
+import { apiClient } from "@/lib/api-client";
 import { WalletService } from "@/lib/walletService";
 import { CheckCircle, XCircle, Loader2, RefreshCw, Home, Wallet, Receipt, AlertCircle, CreditCard } from 'lucide-react';
 import Layout from "@/components/ui/Layout";
@@ -107,16 +107,16 @@ const WalletPaymentCallback = () => {
       }
 
              try {
-         // Verify wallet deposit payment via session-based API
-         const verificationRes = await sessionApiService.verifyWalletDeposit({ 
+         // Verify wallet deposit payment via backend JWT-only API
+         const verificationRes = await apiClient.verifyWalletDeposit({ 
            orderId: orderId || undefined,
            authority: authority
           });
 
-         if (verificationRes.success && verificationRes.data?.success) {
+         if (verificationRes.success) {
            setStatus('success');
-           setRefId(verificationRes.data.refId || '');
-           setNewBalance(verificationRes.data.newBalance || null);
+           setRefId(verificationRes.refId || '');
+           setNewBalance(verificationRes.newBalance || null);
            
            toast({
              title: "✅ شارژ کیف پول موفق",
@@ -146,7 +146,8 @@ const WalletPaymentCallback = () => {
     };
 
     verifyWalletPayment();
-  }, [searchParams, toast]);
+    // Note: we depend on paymentInfo.amount for accurate toasts after verification
+  }, [searchParams, toast, paymentInfo?.amount]);
 
   const handleBackToDashboard = () => {
     sessionStorage.removeItem('walletPaymentInfo');
@@ -170,7 +171,7 @@ const WalletPaymentCallback = () => {
 
     setIsRetrying(true);
     try {
-      // Request new wallet deposit for retry via session-based API
+      // Request new wallet deposit for retry via backend JWT-only API
       const depositPayload = {
         amount: Math.floor(paymentInfo.amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
         description: paymentInfo.description,
@@ -178,11 +179,11 @@ const WalletPaymentCallback = () => {
       } as { amount: number; description: string; callbackUrl: string };
       
       console.log('Requesting retry wallet deposit with payload:', depositPayload);
-      const res = await sessionApiService.requestWalletDeposit(depositPayload);
+      const res = await apiClient.requestWalletDeposit(depositPayload);
       console.log('Retry wallet deposit response:', res);
       
       // Update stored payment info
-      const depositData = res.data;
+      const depositData = res;
       const updatedPaymentInfo = {
         ...paymentInfo,
         orderId: depositData?.orderId || paymentInfo.orderId,

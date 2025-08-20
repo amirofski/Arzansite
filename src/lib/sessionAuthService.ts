@@ -55,32 +55,9 @@ export class SessionAuthService {
     });
   }
 
-  // Authenticate with backend using Appwrite session ID
-  async authenticateWithBackend(sessionId: string, email: string): Promise<SessionAuthResponse> {
-    try {
-      console.log('SessionAuthService: Authenticating with backend using session:', sessionId);
-      
-      const response = await fetch(`${this.baseURL}/auth/session-auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, email }),
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('SessionAuthService: Backend authentication failed:', response.status, errorText);
-        throw new Error(`Backend authentication failed: ${response.status} - ${errorText}`);
-      }
-
-      const authData = await response.json();
-      console.log('SessionAuthService: Backend authentication successful:', authData);
-      
-      return authData;
-    } catch (error) {
-      console.error('SessionAuthService: Error authenticating with backend:', error);
-      throw error;
-    }
+  // DEPRECATED: Session bootstrap is not supported in frontend anymore
+  async authenticateWithBackend(_sessionId: string, _email: string): Promise<SessionAuthResponse> {
+    throw new Error('authenticateWithBackend is deprecated. Use standard login with backend JWT.');
   }
 
   // Validate session with backend
@@ -99,28 +76,8 @@ export class SessionAuthService {
         }
       }
 
-      // Fallback to legacy sessionId validation if available
-      const sessionId = this.getStoredSessionId();
-      if (!sessionId) {
-        console.log('SessionAuthService: No token or session ID found');
-        return false;
-      }
-
-      console.log('SessionAuthService: Validating legacy session:', sessionId);
-      const response = await fetch(`${this.baseURL}/auth/session-validate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        const result: SessionValidationResponse = await response.json();
-        console.log('SessionAuthService: Legacy session validation result:', result);
-        return result.valid;
-      }
-
-      console.log('SessionAuthService: Legacy session validation failed:', response.status);
+      // No legacy fallback. Frontend must use backend JWT only.
+      console.log('SessionAuthService: No valid JWT; session invalid');
       return false;
     } catch (error) {
       console.error('SessionAuthService: Session validation error:', error);
@@ -294,33 +251,20 @@ export class SessionAuthService {
     console.log('SessionAuthService: Auth data cleared');
   }
 
-  // Logout from backend
+  // Logout from backend using JWT
   async logoutFromBackend(): Promise<boolean> {
     try {
-      const sessionId = this.getStoredSessionId();
-      if (!sessionId) {
-        console.log('SessionAuthService: No session to logout from backend');
-        return true;
-      }
-
-      console.log('SessionAuthService: Logging out from backend');
-      
-      const response = await fetch(`${this.baseURL}/auth/session-logout`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId }),
-        credentials: 'include'
+      console.log('SessionAuthService: Logging out using JWT');
+      const response = await this.makeAuthenticatedRequest(`${this.baseURL}/auth/logout`, {
+        method: 'POST'
       });
-
-      if (response.ok) {
-        console.log('SessionAuthService: Backend logout successful');
-        return true;
-      } else {
-        console.log('SessionAuthService: Backend logout failed:', response.status);
-        return false;
+      const ok = response.ok;
+      if (!ok) {
+        console.log('SessionAuthService: Logout request failed with status:', response.status);
       }
+      return ok;
     } catch (error) {
-      console.error('SessionAuthService: Backend logout error:', error);
+      console.error('SessionAuthService: Logout error:', error);
       return false;
     }
   }

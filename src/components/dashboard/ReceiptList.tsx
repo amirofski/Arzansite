@@ -19,9 +19,11 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ pageSize = 10 }) => {
 	const [loading, setLoading] = useState(true);
 	const [search, setSearch] = useState('');
 	const [downloading, setDownloading] = useState<string | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
 
 	const load = async () => {
 		setLoading(true);
+		setLoadError(null);
 		try {
 			const data = await apiClient.getReceipts();
 			setReceipts(data);
@@ -38,6 +40,7 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ pageSize = 10 }) => {
 					variant: 'default'
 				});
 			} else {
+				setLoadError('خطا در دریافت رسیدها');
 				toast({ title: 'خطا در دریافت رسیدها', variant: 'destructive' });
 			}
 		} finally {
@@ -85,6 +88,12 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ pageSize = 10 }) => {
 				</Button>
 			</CardHeader>
 			<CardContent>
+				{loadError && (
+					<div className="p-3 mb-3 border border-destructive/30 bg-destructive/10 text-destructive rounded flex items-center justify-between">
+						<div className="text-sm">{loadError}</div>
+						<Button size="sm" variant="outline" onClick={load} className="ml-2">تلاش مجدد</Button>
+					</div>
+				)}
 				<div className="relative mb-4">
 					<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
 					<Input placeholder="جستجوی رسید (RefId/سرویس)..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />

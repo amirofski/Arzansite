@@ -6,7 +6,7 @@ import { Shield, ShieldCheck, ShieldX, Loader2, Key, User as UserIcon } from 'lu
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { sessionAuthService } from "@/lib/sessionAuthService";
-import { sessionApiService } from "@/lib/sessionApiService";
+ 
 
 interface AuthTestResult {
   status: 'success' | 'failed' | 'skipped';
@@ -38,22 +38,15 @@ const AuthFlowTest = () => {
       
       console.log('AuthFlowTest: Session info:', sessionInfo);
 
-      // Optional: bootstrap session if we have a legacy sessionId but backend cookie is not set
-      if (!sessionInfo.isAuthenticated && sessionInfo.sessionId) {
-        try {
-          console.log('AuthFlowTest: Attempting session bootstrap via /auth/session-auth');
-          const bootstrap = await sessionApiService.sessionAuthenticate({ sessionId: sessionInfo.sessionId, email: user?.email });
-          console.log('AuthFlowTest: Bootstrap result:', bootstrap);
-        } catch (e) {
-          console.warn('AuthFlowTest: Session bootstrap failed:', e);
-        }
-      }
+      // Note: session-auth bootstrap is deprecated; use backend JWT login/refresh only.
 
       // Test 3: Try to authenticate with NestJS (cookie/session)
+      const bearer = localStorage.getItem('backend_access_token') || localStorage.getItem('access_token');
       const authResponse = await fetch('https://nest.arzansite.com/api/auth/me', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
+          ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}),
         },
         mode: 'cors',
         credentials: 'include'
@@ -76,6 +69,7 @@ const AuthFlowTest = () => {
           method: 'GET',
           headers: {
             'Accept': 'application/json',
+            ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}),
           },
           mode: 'cors',
           credentials: 'include'
@@ -99,7 +93,7 @@ const AuthFlowTest = () => {
       try {
         const invoicesRes = await fetch('https://nest.arzansite.com/api/invoices', {
           method: 'GET',
-          headers: { 'Accept': 'application/json' },
+          headers: { 'Accept': 'application/json', ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}) },
           mode: 'cors',
           credentials: 'include'
         });
@@ -113,7 +107,7 @@ const AuthFlowTest = () => {
       try {
         const receiptsRes = await fetch('https://nest.arzansite.com/api/receipts', {
           method: 'GET',
-          headers: { 'Accept': 'application/json' },
+          headers: { 'Accept': 'application/json', ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}) },
           mode: 'cors',
           credentials: 'include'
         });
@@ -158,7 +152,7 @@ const AuthFlowTest = () => {
           Authentication Flow Test
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Test the authentication flow between Appwrite and NestJS
+          Test the authentication flow with backend JWT (no Appwrite in frontend)
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -177,31 +171,14 @@ const AuthFlowTest = () => {
               'Test Authentication Flow'
             )}
           </Button>
-          <Button
-            onClick={async () => {
-              try {
-                const info = sessionAuthService.getSessionInfo();
-                if (!info.sessionId && !user?.email) {
-                  toast.error('No sessionId or email available for bootstrap');
-                  return;
-                }
-                const res = await sessionApiService.sessionAuthenticate({ sessionId: info.sessionId || undefined, email: user?.email });
-                if (res.success) toast.success('Session bootstrap attempted'); else toast.error(res.error || 'Bootstrap failed');
-              } catch (e) {
-                toast.error('Bootstrap error');
-              }
-            }}
-            variant="outline"
-          >
-            Bootstrap Cookie Session
-          </Button>
+          
         </div>
 
         {/* Current User Status */}
         <div className="p-3 border rounded-lg">
           <h4 className="font-medium mb-2">Current User Status:</h4>
           <div className="text-sm space-y-1">
-            <div>Appwrite User: {user ? '✅ Logged In' : '❌ Not Logged In'}</div>
+            <div>User: {user ? '✅ Logged In' : '❌ Not Logged In'}</div>
             {user && (
               <div>User ID: {user.id}</div>
             )}

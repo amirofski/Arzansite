@@ -41,10 +41,12 @@ const BackendConnectionTest = () => {
     try {
       console.log(`Testing ${endpoint.name}: ${endpoint.url}`);
       
+      const bearer = localStorage.getItem('backend_access_token') || localStorage.getItem('access_token');
       const response = await fetch(endpoint.url, {
         method: endpoint.method,
         headers: {
           'Accept': 'application/json',
+          ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}),
         },
         mode: 'cors',
         credentials: 'include'

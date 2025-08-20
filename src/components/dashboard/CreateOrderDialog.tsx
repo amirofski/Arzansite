@@ -34,13 +34,10 @@ const CreateOrderDialog = ({ open, onOpenChange, onOrderCreated }: CreateOrderDi
 
     try {
       await apiClient.createOrder({
-        user_id: user.id,
         title: formData.title,
         description: formData.description,
         price: formData.price ? parseFloat(formData.price) : 0,
-        comments: formData.comments || undefined,
-        status: 'pending',
-        payment_status: 'pending',
+        comments: formData.comments || undefined
       } as any);
 
       toast({

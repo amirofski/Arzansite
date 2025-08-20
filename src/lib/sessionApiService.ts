@@ -108,23 +108,8 @@ export class SessionApiService {
   }
 
   // Authentication endpoints
-  async createSession(jwt: string): Promise<ApiResponse<{ user?: { id: string; email: string } }>> {
-    try {
-      const response = await fetch(`${this.baseURL}/auth/session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jwt }),
-        credentials: 'include'
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        return { success: false, error: errorText || 'Failed to create session' };
-      }
-      const data = await response.json().catch(() => ({}));
-      return { success: true, data: (data && data.data) ? data.data : data };
-    } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Failed to create session' };
-    }
+  async createSession(_jwt: string): Promise<ApiResponse<{ user?: { id: string; email: string } }>> {
+    return { success: false, error: 'createSession is deprecated. Use /auth/login and /auth/refresh with backend JWT.' };
   }
 
   async login(email: string, password: string): Promise<ApiResponse<unknown>> {
@@ -163,35 +148,8 @@ export class SessionApiService {
   }
 
   // Authenticate using Appwrite sessionId or JWT (backend will tolerate either)
-  async sessionAuthenticate(params: { sessionId?: string; jwt?: string; email?: string }): Promise<ApiResponse<unknown>> {
-    try {
-      console.log('SessionApiService: Session authenticate with params:', Object.keys(params));
-      const response = await fetch(`${this.baseURL}/auth/session-auth`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params),
-        credentials: 'include'
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({} as unknown));
-        throw new Error((errorData as { message?: string } | unknown as { message?: string })?.message || 'Session authentication failed');
-      }
-
-      const data: unknown = await response.json();
-      return {
-        success: true,
-        data: (data && typeof data === 'object' && 'data' in (data as Record<string, unknown>))
-          ? (data as { data: unknown }).data
-          : data
-      };
-    } catch (error) {
-      console.error('SessionApiService: Session authenticate error:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Session authentication failed'
-      };
-    }
+  async sessionAuthenticate(_params: { sessionId?: string; jwt?: string; email?: string }): Promise<ApiResponse<unknown>> {
+    return { success: false, error: 'sessionAuthenticate is deprecated. Use /auth/login and /auth/refresh with backend JWT.' };
   }
 
   async signup(email: string, password: string, metadata?: Record<string, unknown>): Promise<ApiResponse<unknown>> {

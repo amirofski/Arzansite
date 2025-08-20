@@ -34,9 +34,11 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 	const [statusFilter, setStatusFilter] = useState<string>('all');
 	const [search, setSearch] = useState('');
 	const [payingId, setPayingId] = useState<string | null>(null);
+	const [loadError, setLoadError] = useState<string | null>(null);
 
 	const load = async () => {
 		setLoading(true);
+		setLoadError(null);
 		try {
 			const data = await apiClient.getInvoices(statusFilter !== 'all' ? { status: statusFilter } : undefined);
 			setInvoices(data);
@@ -53,6 +55,7 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 					variant: 'default'
 				});
 			} else {
+				setLoadError('خطا در دریافت فاکتورها');
 				toast({ title: 'خطا در دریافت فاکتورها', variant: 'destructive' });
 			}
 		} finally {
@@ -107,6 +110,12 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 				</Button>
 			</CardHeader>
 			<CardContent>
+				{loadError && (
+					<div className="p-3 mb-3 border border-destructive/30 bg-destructive/10 text-destructive rounded flex items-center justify-between">
+						<div className="text-sm">{loadError}</div>
+						<Button size="sm" variant="outline" onClick={load} className="ml-2">تلاش مجدد</Button>
+					</div>
+				)}
 				<div className="flex flex-col sm:flex-row gap-3 mb-4">
 					<Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-full sm:w-auto">
 						<TabsList>

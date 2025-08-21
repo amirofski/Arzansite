@@ -324,6 +324,22 @@ const Auth = () => {
                     });
                   }}
                 />
+                <OAuthButton 
+                  provider="google"
+                  onSuccess={() => {
+                    toast({
+                      title: "OAuth شروع شد",
+                      description: "در حال انتقال به Google...",
+                    });
+                  }}
+                  onError={(error) => {
+                    toast({
+                      title: "خطا در OAuth",
+                      description: error,
+                      variant: "destructive",
+                    });
+                  }}
+                />
               </div>
             </div>
 

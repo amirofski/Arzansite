@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { apiClient } from "@/lib/api-client";
 import { calculateTotalPrice } from '@/lib/pricingUtils';
 import { Check, Clock, CreditCard, UserPlus } from 'lucide-react';
+import { localOrders } from '@/lib/localOrders';
 
 interface FinalStepButtonProps {
   wizardData: any;
@@ -77,6 +78,23 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
 
     } catch (error: any) {
       console.error('Save project error:', error);
+      try {
+        const draft = localOrders.save({
+          title: orderData.title,
+          description: orderData.description,
+          price: orderData.price,
+          comments: orderData.comments,
+          siteType: orderData.siteType,
+          sessionId: orderData.sessionId,
+          wizardData: orderData.wizardData,
+        });
+        toast({
+          title: 'پروژه به صورت پیش‌نویس ذخیره شد',
+          description: 'می‌توانید از داشبورد پرداخت را تکمیل کنید',
+        });
+        navigate('/dashboard');
+        return;
+      } catch {}
       toast({
         title: "خطا در ذخیره پروژه",
         description: error.message || "مشکلی در ذخیره پروژه پیش آمد. لطفاً دوباره تلاش کنید",

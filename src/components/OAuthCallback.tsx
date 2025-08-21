@@ -1,44 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { sessionApiService } from '@/lib/sessionApiService';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
-interface OAuthCallbackProps {
-  provider: string;
-}
-
-const OAuthCallback: React.FC<OAuthCallbackProps> = ({ provider }) => {
+const OAuthCallback: React.FC<{ provider?: string }> = ({ provider }) => {
   const { handleOAuthCallback, getOAuthCallbackParams, error } = useAuth();
   const navigate = useNavigate();
+  const params = useParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('Processing OAuth callback...');
 
   useEffect(() => {
     const processCallback = async () => {
       try {
-        const params = getOAuthCallbackParams();
+        const qp = getOAuthCallbackParams();
         
         // Check for OAuth error
-        if (params.error) {
+        if (qp.error) {
           setStatus('error');
-          setMessage(`OAuth error: ${params.error}`);
+          setMessage(`OAuth error: ${qp.error}`);
           return;
         }
 
         // Check if we have the required code parameter
-        if (!params.code) {
+        if (!qp.code) {
           setStatus('error');
           setMessage('No authorization code received from OAuth provider');
           return;
         }
+        // Determine provider from route or query; fallback to prop or github
+        const routeProvider = (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('provider') || '' : '')
+          || (params.provider as string)
+          || provider
+          || 'github';
 
-        // Backend handles callback via server; just verify session
-        const me = await sessionApiService.oauthMe();
-        if (!me.success) throw new Error(me.error || 'OAuth session not found');
-        const result = await handleOAuthCallback(provider, params.code, params.state);
+        const result = await handleOAuthCallback(routeProvider, qp.code, qp.state);
         
         setStatus('success');
         setMessage('OAuth login successful! Redirecting...');
@@ -55,7 +53,7 @@ const OAuthCallback: React.FC<OAuthCallbackProps> = ({ provider }) => {
     };
 
     processCallback();
-  }, [provider, handleOAuthCallback, getOAuthCallbackParams, navigate]);
+  }, [provider, handleOAuthCallback, getOAuthCallbackParams, navigate, params.provider]);
 
   const getStatusIcon = () => {
     switch (status) {

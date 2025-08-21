@@ -18,15 +18,27 @@ const PaymentCallback = () => {
     const verifyPayment = async () => {
       const authority = searchParams.get('Authority');
       const statusParam = searchParams.get('Status');
-      const orderId = searchParams.get('order_id');
+      let orderId = searchParams.get('order_id');
 
-      if (!authority || !orderId) {
+      // If we have authority but no orderId, try to create order from pending payload
+      if (authority && !orderId) {
+        try {
+          const raw = localStorage.getItem('pending_order_payload');
+          if (raw) {
+            const payload = JSON.parse(raw);
+            const created = await apiClient.createOrder(payload);
+            orderId = created?.id;
+            // Clear stored payload now that order exists
+            localStorage.removeItem('pending_order_payload');
+          }
+        } catch (e) {
+          // ignore and proceed to verify without orderId
+        }
+      }
+
+      if (!authority) {
         setStatus('failed');
-        toast({
-          title: "خطا",
-          description: "اطلاعات پرداخت ناقص است",
-          variant: "destructive",
-        });
+        toast({ title: "خطا", description: "Authority نامعتبر است", variant: "destructive" });
         return;
       }
 

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Instagram, Linkedin, Github, Phone, Mail, Menu, User, LogOut, Shield } from "lucide-react";
+import { Instagram, Linkedin, Github, Phone, Mail, Menu, User, LogOut, Shield, Bell } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 // Removed direct Supabase usage; user role is provided by useAuth
 import { Button } from "@/components/ui/button";
+import { useNotifications } from "@/hooks/useNotifications";
+import { NotificationsBell } from "@/components/ui/NotificationsBell";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +24,7 @@ const socials = [
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const { user, signOut, loading } = useAuth();
+  const { unseenCount } = useNotifications();
   const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
@@ -146,6 +149,7 @@ const Header: React.FC = () => {
               )}
             </>
           )}
+          {user && <NotificationsBell />}
           <a href="tel:+9802191030981" className="hidden lg:inline-flex items-center gap-1 bg-white text-primary transition-colors text-sm px-2 rounded-lg font-semibold shadow-sm hover:bg-primary hover:text-white">
             <Phone className="w-4 h-4" /> ۰۲۱-۹۱۰۳-۰۹۸۱
           </a>
@@ -154,7 +158,7 @@ const Header: React.FC = () => {
           </a>
         </div>
         {/* Mobile menu/socials */}
-        <div className="hidden lg:inline-flex flex items-center gap-2">
+        <div className="hidden lg:inline-flex items-center gap-2">
           {socials.map(({ icon: Icon, label, href }) => (
             <a
               key={label}

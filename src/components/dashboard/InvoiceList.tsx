@@ -44,7 +44,6 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 			setInvoices(data);
 		} catch (e: unknown) {
 			console.error('Error loading invoices:', e);
-			
 			// Check if it's a missing collection error
 			const error = e as { message?: string; error?: string };
 			if (error?.message?.includes('Collection with the requested ID could not be found') || 
@@ -86,7 +85,7 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 	const payFromWallet = async (invoiceId: string) => {
 		setPayingId(invoiceId);
 		try {
-			const res = await apiClient.payInvoice(invoiceId);
+			const res = await apiClient.payInvoice(invoiceId, { method: 'wallet', useWallet: true });
 			if (res?.success) {
 				toast({ title: 'فاکتور پرداخت شد' });
 				await load();
@@ -95,6 +94,23 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 			}
 		} catch (e) {
 			toast({ title: 'خطا در پرداخت', variant: 'destructive' });
+		} finally {
+			setPayingId(null);
+		}
+	};
+
+	const payViaGateway = async (invoiceId: string) => {
+		setPayingId(invoiceId);
+		try {
+			const res = await apiClient.payInvoice(invoiceId, { method: 'gateway' });
+			if (res?.success) {
+				toast({ title: 'درخواست پرداخت ایجاد شد' });
+				await load();
+			} else {
+				toast({ title: 'ایجاد پرداخت ناموفق', variant: 'destructive' });
+			}
+		} catch (e) {
+			toast({ title: 'خطا در ایجاد پرداخت', variant: 'destructive' });
 		} finally {
 			setPayingId(null);
 		}
@@ -152,9 +168,14 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 								<div className="flex items-center gap-3">
 									<div className="font-medium whitespace-nowrap">{formatAmount(inv.amount)}</div>
 									{inv.status !== 'paid' && (
-										<Button size="sm" disabled={payingId === inv.id} onClick={() => payFromWallet(inv.id)}>
-											{payingId === inv.id ? 'در حال پرداخت...' : 'پرداخت از کیف پول'}
-										</Button>
+										<div className="flex items-center gap-2">
+											<Button size="sm" disabled={payingId === inv.id} onClick={() => payFromWallet(inv.id)}>
+												{payingId === inv.id ? 'در حال پرداخت...' : 'پرداخت از کیف پول'}
+											</Button>
+											<Button size="sm" variant="outline" disabled={payingId === inv.id} onClick={() => payViaGateway(inv.id)}>
+												{payingId === inv.id ? '...' : 'پرداخت درگاه'}
+											</Button>
+										</div>
 									)}
 								</div>
 							</div>

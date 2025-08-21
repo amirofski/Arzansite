@@ -69,6 +69,7 @@ const SiteModeWrapper = React.memo(() => {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/auth/oauth/callback" element={<OAuthCallback provider="github" />} />
+        <Route path="/auth/oauth/callback/:provider" element={<OAuthCallback />} />
         <Route path="/debug" element={<Debug />} />
         <Route path="/dashboard" element={
           <ProtectedRoute>

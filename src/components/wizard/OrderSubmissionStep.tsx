@@ -27,6 +27,7 @@ import { PRICING_CONFIG } from '@/lib/pricingUtils';
 import { apiClient } from '@/lib/api-client';
 import { DesignService } from '@/lib/designService';
 import { mockApiClient } from '@/lib/wizardApiClient';
+import { localOrders } from '@/lib/localOrders';
 
 interface OrderSubmissionStepProps {
   data: WizardData;
@@ -134,17 +135,36 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
   };
 
   // ZarinPal payment integration via backend payments API
-  const initiateZarrinPalPayment = async (orderData: { id?: string; order_id?: string; price?: number; title?: string }) => {
+  const initiateZarrinPalPayment = async (
+    orderData: { id?: string; order_id?: string; price?: number; title?: string },
+    fallbackPayload?: {
+      title: string;
+      description: string;
+      price: number;
+      comments?: string;
+      total_pages?: number;
+      total_sections?: number;
+      siteType?: string;
+      sessionId?: string;
+      wizardData?: unknown;
+    }
+  ) => {
     try {
       const orderId = orderData.order_id || orderData.id;
       const amountTomans = typeof orderData.price === 'number' ? orderData.price : totalCost;
       const amountRials = Math.floor(amountTomans * 10);
       const description = `پرداخت سفارش ${orderData.title || orderId || ''}`.trim();
 
+      // Persist fallback payload for callback recovery if orderId is not present
+      if (!orderId && fallbackPayload) {
+        localStorage.setItem('pending_order_payload', JSON.stringify(fallbackPayload));
+      }
+
       const payment = await apiClient.requestPayment({
         amount: amountRials,
         description,
         orderId,
+        callbackUrl: `${window.location.origin}/payment/callback`,
       });
 
       if (payment && payment.paymentUrl) {
@@ -173,53 +193,26 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
 
     setIsProcessing(true);
     try {
-      // First, create the order in our system
-      let newOrder;
-      try {
-        // Format order data according to backend expectations
-        const apiOrderData = {
-          title: `وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${wizardData.userInfo?.domain || 'mywebsite'}.ir`,
-          description: 'سفارش ساخت وب‌سایت',
-          price: totalCost,
-          comments: `دامنه: ${wizardData.userInfo?.domain || 'mywebsite'}.ir | دوره پرداخت: ${paymentCycle === 'annual' ? 'سالانه' : 'ماهانه'} | تمدید خودکار: ${autoRenewal ? 'بله' : 'خیر'}`,
-          total_pages: wizardData.websiteFramework?.dynamicDesign?.pages?.length || 1,
-          total_sections: wizardData.websiteFramework?.dynamicDesign?.pages?.reduce((total: number, page: { sections?: Array<{ id: string }> }) => total + (page.sections?.length || 0), 0) || 0,
-          siteType: wizardData.siteType,
-          sessionId: `wizard_${Date.now()}`,
-          wizardData: {
-            websiteFramework: wizardData.websiteFramework,
-            branding: wizardData.branding,
-            domains: {
-              primary_domain: wizardData.userInfo?.domain || 'mywebsite',
-              additional_domains: wizardData.userInfo?.additionalDomains || []
-            },
-            pricing: {
-              basePrice: pricingBreakdown.basePrice,
-              pagesCost: pricingBreakdown.pagesCost,
-              sectionsCost: pricingBreakdown.sectionsCost,
-              additionalServicesCost: pricingBreakdown.additionalServicesCost,
-              totalPrice: totalCost,
-              paymentCycle,
-              autoRenewal,
-              annualDiscount: paymentCycle === 'annual' ? pricingBreakdown.annualDiscount : 0
-            },
-            additionalServices: wizardData.pricing?.additionalServices || {}
-          }
-        };
-
-        newOrder = await apiClient.createOrder(apiOrderData);
-      } catch (orderError) {
-        console.error('Order creation error:', orderError);
-        // Try using mock API as fallback
-        newOrder = await mockApiClient.saveWizardProgress({
-          sessionId: 'temp_' + Date.now(),
-          siteType: wizardData.siteType,
+      // Prepare payload once for reuse and possible callback recovery
+      const apiOrderData = {
+        title: `وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${wizardData.userInfo?.domain || 'mywebsite'}.ir`,
+        description: 'سفارش ساخت وب‌سایت',
+        price: totalCost,
+        comments: `دامنه: ${wizardData.userInfo?.domain || 'mywebsite'}.ir | دوره پرداخت: ${paymentCycle === 'annual' ? 'سالانه' : 'ماهانه'} | تمدید خودکار: ${autoRenewal ? 'بله' : 'خیر'}`,
+        total_pages: wizardData.websiteFramework?.dynamicDesign?.pages?.length || 1,
+        total_sections:
+          wizardData.websiteFramework?.dynamicDesign?.pages?.reduce(
+            (total: number, page: { sections?: Array<{ id: string }> }) => total + (page.sections?.length || 0),
+            0
+          ) || 0,
+        siteType: wizardData.siteType,
+        sessionId: `wizard_${Date.now()}`,
+        wizardData: {
           websiteFramework: wizardData.websiteFramework,
           branding: wizardData.branding,
-          // additionalServices field is not part of mock payload here
           domains: {
-            primaryDomain: wizardData.userInfo?.domain || 'mywebsite.ir',
-            additionalDomains: wizardData.userInfo?.additionalDomains || []
+            primary_domain: wizardData.userInfo?.domain || 'mywebsite',
+            additional_domains: wizardData.userInfo?.additionalDomains || [],
           },
           pricing: {
             basePrice: pricingBreakdown.basePrice,
@@ -229,13 +222,31 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
             totalPrice: totalCost,
             paymentCycle,
             autoRenewal,
-            annualDiscount: paymentCycle === 'annual' ? pricingBreakdown.annualDiscount : 0
-          }
+            annualDiscount: paymentCycle === 'annual' ? pricingBreakdown.annualDiscount : 0,
+          },
+          additionalServices: wizardData.pricing?.additionalServices || {},
+        },
+      };
+
+      // First, create the order in our system
+      let newOrder: { id: string; title?: string; price?: number };
+      try {
+        newOrder = await apiClient.createOrder(apiOrderData);
+      } catch (orderError) {
+        console.error('Order creation error:', orderError);
+        // Persist a local draft so it shows in dashboard and can be paid later
+        const draft = localOrders.save({
+          ...apiOrderData,
         });
+        newOrder = { id: draft.id, title: draft.payload.title, price: draft.payload.price };
       }
 
-      // Save design data if available
-      if (wizardData.websiteFramework?.dynamicDesign) {
+      // Save design data if available and order exists on backend
+      if (
+        wizardData.websiteFramework?.dynamicDesign &&
+        !newOrder.id.startsWith('mock_') &&
+        !newOrder.id.startsWith('local_')
+      ) {
         try {
           await DesignService.saveDesign(
             newOrder.id,
@@ -273,11 +284,12 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
         variant: "default",
       });
 
-      // Initiate Zarrin Pal payment
-      await initiateZarrinPalPayment({
-        ...newOrder,
-        order_id: newOrder.id
-      });
+      // Initiate payment; if order is a local draft, continue to payment and create order after callback
+      if (newOrder.id.startsWith('local_')) {
+        await initiateZarrinPalPayment({ ...newOrder }, apiOrderData);
+      } else {
+        await initiateZarrinPalPayment({ ...newOrder, order_id: newOrder.id });
+      }
 
     } catch (error) {
       console.error('Order submission error:', error);

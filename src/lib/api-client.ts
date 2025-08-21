@@ -435,6 +435,50 @@ class ApiClient {
     });
   }
 
+  // OAuth endpoints
+  async oauthStart(provider: string, params: { successUrl: string; failureUrl: string }): Promise<{ redirectUrl: string; state?: string }> {
+    const res = await this.request<unknown>(`/auth/oauth/${encodeURIComponent(provider)}/start`, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+    if (res && typeof res === 'object') {
+      const obj = res as Record<string, unknown>;
+      if ('data' in obj && obj.data && typeof obj.data === 'object') {
+        const data = obj.data as Record<string, unknown>;
+        if (typeof data.redirectUrl === 'string') {
+          return { redirectUrl: data.redirectUrl, state: typeof data.state === 'string' ? data.state : undefined };
+        }
+      }
+      if (typeof obj.redirectUrl === 'string') {
+        return { redirectUrl: obj.redirectUrl as string, state: typeof obj.state === 'string' ? (obj.state as string) : undefined };
+      }
+    }
+    throw new Error('Failed to start OAuth');
+  }
+
+  async oauthMe(): Promise<{ id: string; email: string; role?: string }> {
+    const res = await this.request<unknown>('/auth/oauth/me');
+    if (res && typeof res === 'object') {
+      const obj = res as Record<string, unknown>;
+      if ('data' in obj && obj.data && typeof obj.data === 'object') {
+        return obj.data as { id: string; email: string; role?: string };
+      }
+      return obj as { id: string; email: string; role?: string };
+    }
+    throw new Error('Not authenticated');
+  }
+
+  async oauthLogout(): Promise<{ success: boolean }> {
+    const res = await this.request<{ success?: boolean } | Record<string, unknown> | string>(
+      '/auth/oauth/logout',
+      { method: 'POST' }
+    );
+    if (res && typeof res === 'object' && 'success' in (res as Record<string, unknown>)) {
+      return { success: Boolean((res as Record<string, unknown>).success) };
+    }
+    return { success: true };
+  }
+
   async forgotPassword(email: string): Promise<{ message: string }> {
     return this.request('/auth/forgot-password', {
       method: 'POST',
@@ -608,6 +652,23 @@ class ApiClient {
     });
   }
 
+  // Wizard progress fallback (save pending order)
+  async wizardSaveProgress(payload: Record<string, unknown>): Promise<{ id?: string; orderId?: string }> {
+    const res = await this.request<unknown>('/wizard/save-progress', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (res && typeof res === 'object') {
+      const obj = res as Record<string, unknown>;
+      if ('data' in obj && obj.data && typeof obj.data === 'object') {
+        const data = obj.data as Record<string, unknown>;
+        return { id: (data.id as string) || (data.orderId as string) };
+      }
+      return { id: (obj.id as string) || (obj.orderId as string) };
+    }
+    return {};
+  }
+
   // Wallet endpoints
   async getWalletBalance(): Promise<WalletBalanceResponse> {
     const result = await this.request<{data: WalletBalanceResponse, success: boolean, timestamp: string} | WalletBalanceResponse>('/wallets/me/balance');
@@ -695,7 +756,7 @@ class ApiClient {
     return this.request(`/payments/${paymentId}`);
   }
 
-  async requestPayment(payload: { amount: number; description: string; orderId?: string }): Promise<{ paymentUrl: string; authority?: string }> {
+  async requestPayment(payload: { amount: number; description: string; orderId?: string; callbackUrl?: string }): Promise<{ paymentUrl: string; authority?: string }> {
     console.log('Requesting payment with payload:', payload);
     const result = await this.request<unknown>('/payments/request', {
       method: 'POST',
@@ -707,13 +768,21 @@ class ApiClient {
       // Prefer wrapped structure { success, data: { paymentUrl, authority }, ... }
       if ('data' in obj && obj.data && typeof obj.data === 'object') {
         const data = obj.data as Record<string, unknown>;
-        if (typeof data.paymentUrl === 'string') {
-          return { paymentUrl: data.paymentUrl, authority: typeof data.authority === 'string' ? data.authority : undefined };
+        const wrappedUrl = (data.paymentUrl as string)
+          || (data.redirectUrl as string)
+          || (data.url as string)
+          || (data.payment_url as string);
+        if (typeof wrappedUrl === 'string') {
+          return { paymentUrl: wrappedUrl, authority: typeof data.authority === 'string' ? data.authority : undefined };
         }
       }
       // Fallback to flat structure
-      if (typeof obj.paymentUrl === 'string') {
-        return { paymentUrl: obj.paymentUrl as string, authority: typeof obj.authority === 'string' ? (obj.authority as string) : undefined };
+      const flatUrl = (obj.paymentUrl as string)
+        || (obj.redirectUrl as string)
+        || (obj.url as string)
+        || (obj.payment_url as string);
+      if (typeof flatUrl === 'string') {
+        return { paymentUrl: flatUrl, authority: typeof obj.authority === 'string' ? (obj.authority as string) : undefined };
       }
     }
     throw new Error('Failed to create payment request');
@@ -755,8 +824,14 @@ class ApiClient {
     return this.request(`/invoices/${invoiceId}`);
   }
 
-  async payInvoice(invoiceId: string): Promise<{ success: boolean; refId?: string } > {
-    return this.request(`/invoices/${invoiceId}/pay`, { method: 'POST' });
+  async payInvoice(
+    invoiceId: string,
+    payload?: { method?: 'wallet' | 'gateway'; useWallet?: boolean; amount?: number }
+  ): Promise<{ success: boolean; refId?: string } > {
+    return this.request(`/invoices/${invoiceId}/pay`, {
+      method: 'POST',
+      ...(payload ? { body: JSON.stringify(payload) } : {}),
+    });
   }
 
   // Receipts (user)

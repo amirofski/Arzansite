@@ -24,6 +24,7 @@ import ReceiptList from '@/components/dashboard/ReceiptList';
 import DesignPreview from '@/components/wizard/DesignPreview';
 import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import { EmailVerificationPrompt } from '@/components/EmailVerificationPrompt';
+import { localOrders, LocalOrder } from '@/lib/localOrders';
 
 const Dashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -32,6 +33,9 @@ const Dashboard = () => {
   const [profile, setProfile] = useState<BackendUserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(false);
+  const [invoiceCount, setInvoiceCount] = useState<number>(0);
+  const [receiptCount, setReceiptCount] = useState<number>(0);
+  const [draftOrders, setDraftOrders] = useState<LocalOrder[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
@@ -66,6 +70,20 @@ const Dashboard = () => {
 
        // Fetch user orders with loading state
        await fetchOrders();
+       // Counts for invoices and receipts (best-effort)
+       try {
+         const invoices = await apiClient.getInvoices();
+         if (Array.isArray(invoices)) setInvoiceCount(invoices.length);
+       } catch {
+         setInvoiceCount(0);
+       }
+       try {
+         const receipts = await apiClient.getReceipts();
+         if (Array.isArray(receipts)) setReceiptCount(receipts.length);
+       } catch {
+         setReceiptCount(0);
+       }
+       setDraftOrders(localOrders.list());
      } catch (error) {
       console.error('Error fetching data:', error);
       toast({
@@ -472,8 +490,8 @@ const Dashboard = () => {
             <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="orders">سفارشات من</TabsTrigger>
               <TabsTrigger value="wallet">کیف پول</TabsTrigger>
-              <TabsTrigger value="invoices">فاکتورها</TabsTrigger>
-              <TabsTrigger value="receipts">رسیدها</TabsTrigger>
+              <TabsTrigger value="invoices">فاکتورها {invoiceCount > 0 ? `(${invoiceCount})` : ''}</TabsTrigger>
+              <TabsTrigger value="receipts">رسیدها {receiptCount > 0 ? `(${receiptCount})` : ''}</TabsTrigger>
               <TabsTrigger value="profile">اطلاعات حساب</TabsTrigger>
             </TabsList>
 
@@ -552,6 +570,92 @@ const Dashboard = () => {
               ) : (
                 <div className="space-y-6">
                   <div className="grid gap-6">
+                    {Array.isArray(draftOrders) && draftOrders.length > 0 && draftOrders.map((d) => (
+                      <Card key={d.id} className="border-dashed">
+                        <CardHeader>
+                          <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                              <CardTitle className="text-lg">{d.payload.title}</CardTitle>
+                              <div className="mt-3">
+                                <div className="border rounded-lg p-4 bg-muted/30">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-sm font-medium">توضیحات سفارش</span>
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">{d.payload.description}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 items-center">
+                              <Badge className="bg-orange-100 text-orange-800 border-0">پیش‌نویس</Badge>
+                              <Button
+                                size="sm"
+                                onClick={async () => {
+                                  try {
+                                    const real = await apiClient.createOrder({
+                                      title: d.payload.title,
+                                      description: d.payload.description,
+                                      price: d.payload.price,
+                                      comments: d.payload.comments,
+                                      total_pages: d.payload.total_pages,
+                                      total_sections: d.payload.total_sections,
+                                      siteType: d.payload.siteType,
+                                      sessionId: d.payload.sessionId,
+                                      wizardData: d.payload.wizardData,
+                                    });
+                                    localOrders.remove(d.id);
+                                    setDraftOrders((prev) => prev.filter((x) => x.id !== d.id));
+                                    const { paymentUrl } = await apiClient.requestPayment({
+                                      amount: real.price || 0,
+                                      description: `پرداخت سفارش ${real.id}`,
+                                      orderId: real.id,
+                                    });
+                                    if (paymentUrl) {
+                                      window.location.href = paymentUrl;
+                                    } else {
+                                      throw new Error('آدرس پرداخت نامعتبر است');
+                                    }
+                                  } catch (err) {
+                                    toast({
+                                      title: 'خطا در ادامه سفارش پیش‌نویس',
+                                      description: err instanceof Error ? err.message : 'مشکلی پیش آمد',
+                                      variant: 'destructive',
+                                    });
+                                  }
+                                }}
+                              >
+                                پرداخت درگاه
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  localOrders.remove(d.id);
+                                  setDraftOrders((prev) => prev.filter((x) => x.id !== d.id));
+                                }}
+                              >
+                                حذف پیش‌نویس
+                              </Button>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div>
+                              <span className="font-medium">قیمت: </span>
+                              {formatPrice(d.payload.price)}
+                            </div>
+                            <div>
+                              <span className="font-medium">تاریخ ایجاد: </span>
+                              {new Date(d.created_at).toLocaleDateString('fa-IR')}
+                            </div>
+                            <div>
+                              <span className="font-medium">آخرین بروزرسانی: </span>
+                              {new Date(d.updated_at).toLocaleDateString('fa-IR')}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
                     {Array.isArray(currentOrders) ? currentOrders.map((order) => {
                       if (!order || typeof order !== 'object' || !order.id) {
                         console.warn('Invalid order in currentOrders map:', order);
@@ -618,6 +722,67 @@ const Dashboard = () => {
                                 <p className="text-sm mt-1">{order.comments}</p>
                               </div>
                             )}
+                            {order.status === 'pending' && (
+                              <div className="mt-4 flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={async () => {
+                                    try {
+                                      const { paymentUrl } = await apiClient.requestPayment({
+                                        amount: order.price || 0,
+                                        description: `پرداخت سفارش ${order.id}`,
+                                        orderId: order.id,
+                                        callbackUrl: `${window.location.origin}/payment/callback`,
+                                      });
+                                      if (paymentUrl) {
+                                        window.location.href = paymentUrl;
+                                      } else {
+                                        throw new Error('آدرس پرداخت نامعتبر است');
+                                      }
+                                    } catch (err) {
+                                      toast({
+                                        title: 'خطا در ایجاد پرداخت',
+                                        description: err instanceof Error ? err.message : 'مشکلی در ایجاد پرداخت پیش آمد',
+                                        variant: 'destructive',
+                                      });
+                                    }
+                                  }}
+                                >
+                                  پرداخت درگاه
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={async () => {
+                                    try {
+                                      // Find a pending invoice for this order, then pay via wallet
+                                      const invoices = await apiClient.getInvoices();
+                                      const invoice = Array.isArray(invoices)
+                                        ? invoices.find((inv) => inv && inv.order_id === order.id && inv.status !== 'paid')
+                                        : undefined;
+                                      if (!invoice) {
+                                        throw new Error('فاکتور معتبری برای این سفارش یافت نشد');
+                                      }
+                                      const res = await apiClient.payInvoice(invoice.id, { method: 'wallet', useWallet: true, amount: invoice.amount });
+                                      if (res?.success) {
+                                        toast({ title: 'پرداخت موفق', description: 'سفارش شما فعال شد.' });
+                                        await fetchOrders();
+                                      } else {
+                                        throw new Error('پرداخت کیف پول ناموفق بود');
+                                      }
+                                    } catch (err) {
+                                      toast({
+                                        title: 'خطا در پرداخت از کیف پول',
+                                        description: err instanceof Error ? err.message : 'مشکلی در پرداخت پیش آمد',
+                                        variant: 'destructive',
+                                      });
+                                    }
+                                  }}
+                                >
+                                  پرداخت از کیف پول
+                                </Button>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       );
@@ -661,12 +826,26 @@ const Dashboard = () => {
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">فاکتورها</h2>
               </div>
+              {/* Quick summary widget for unpaid and paid invoices */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">وضعیت</CardTitle></CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">در این بخش می‌توانید فاکتورها را مشاهده و پرداخت کنید.</CardContent>
+                </Card>
+              </div>
               <InvoiceList />
             </TabsContent>
 
             <TabsContent value="receipts" className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">رسیدها</h2>
+              </div>
+              {/* Quick info */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-2"><CardTitle className="text-sm">راهنما</CardTitle></CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">رسیدهای پرداخت موفق شما در این بخش قابل دانلود هستند.</CardContent>
+                </Card>
               </div>
               <ReceiptList />
             </TabsContent>

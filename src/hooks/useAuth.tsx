@@ -1,6 +1,7 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
 import { sessionApiService } from '@/lib/sessionApiService';
 import { sessionAuthService } from '@/lib/sessionAuthService';
+import { apiClient } from '@/lib/api-client';
 type UserProfile = {
   id: string;
   email: string;
@@ -63,6 +64,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const clearError = () => setError(null);
 
+  // Normalize role coming from various sources (e.g., Appwrite labels: "users" | "admin")
+  const normalizeRole = (rawRole?: unknown, labels?: unknown): UserRole => {
+    const labelCandidate = Array.isArray(labels) && labels.length > 0 ? String(labels[0]) : undefined;
+    const value = String(rawRole || labelCandidate || '').toLowerCase();
+    if (['admin', 'admins', 'administrator', 'superadmin'].includes(value) || value.includes('admin')) {
+      return 'admin';
+    }
+    if (['user', 'users', 'member', 'basic'].includes(value)) {
+      return 'user';
+    }
+    return 'user';
+  };
+
   // Debounce authentication checks to prevent rapid successive calls
   const debouncedAuthCheck = (callback: () => void, delay: number = 1000) => {
     const now = Date.now();
@@ -92,8 +106,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log('useAuth: loadUser - result:', me ? 'User found' : 'No user');
         
         if (me) {
-          setUser(me);
-          setUserRole({ role: me.role });
+          // labels field may be present from Appwrite; cast narrowly
+          const role = normalizeRole((me as unknown as { role?: string }).role, (me as unknown as { labels?: string[] }).labels);
+          setUser({ ...me, role });
+          setUserRole({ role });
           setError(null);
         } else {
           setUser(null);
@@ -242,17 +258,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       
       // Set user immediately to avoid race conditions (normalize required fields)
+      const normalized = normalizeRole(authData.user.role, (authData.user as unknown as { labels?: string[] }).labels);
       setUser({
         id: authData.user.id,
         email: authData.user.email,
-        role: authData.user.role,
+        role: normalized,
         first_name: authData.user.first_name,
         last_name: authData.user.last_name,
         phone: authData.user.phone,
         created_at: authData.user.created_at || new Date().toISOString(),
         updated_at: authData.user.updated_at || new Date().toISOString(),
       });
-      setUserRole({ role: authData.user.role });
+      setUserRole({ role: normalized });
       
       // Ensure profile exists by calling the profile endpoint
       // This will also update the user data if needed
@@ -450,39 +467,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     const successUrl = `${window.location.origin}/auth/oauth/callback`;
     const failureUrl = `${window.location.origin}/auth?oauth=failed`;
-    const res = await sessionApiService.oauthStart(provider, { successUrl, failureUrl });
-    if (!res.success || !res.data?.redirectUrl) {
-      const msg = res.error || 'Failed to start OAuth flow';
-      setError(msg);
-      throw new Error(msg);
-    }
-    return { redirectUrl: res.data.redirectUrl, state: res.data.state } as OAuthResponse;
+    const res = await apiClient.oauthStart(provider, { successUrl, failureUrl });
+    return { redirectUrl: res.redirectUrl, state: res.state } as OAuthResponse;
   };
 
   const handleOAuthCallback = async (provider: string, code: string, state?: string) => {
     setError(null);
-    // Backend handles the callback and sets cookies; just fetch current user
-    const me = await sessionApiService.oauthMe();
-    if (!me.success || !me.data) {
-      const msg = me.error || 'OAuth callback failed';
-      setError(msg);
-      throw new Error(msg);
-    }
-    // Persist user into session store for UI
-    sessionAuthService.setBackendTokens({ user: me.data });
+    // Backend handles callback via server; just verify
+    const me = await apiClient.oauthMe();
+    sessionAuthService.setBackendTokens({ user: me });
     await loadUser();
     return { user: sessionAuthService.getCurrentUser() as UserProfile, redirect: { url: '/dashboard', message: 'Login successful' } };
   };
 
   const getOAuthUser = async () => {
-    const res = await sessionApiService.oauthMe();
-    return res.success ? ({ id: res.data!.id, email: res.data!.email, provider: 'oauth' } as OAuthUser) : null;
+    try {
+      const me = await apiClient.oauthMe();
+      return { id: me.id, email: me.email, provider: 'oauth' } as OAuthUser;
+    } catch {
+      return null;
+    }
   };
 
   const logoutOAuth = async () => {
     setError(null);
     try {
-      await sessionApiService.oauthLogout();
+      await apiClient.oauthLogout();
     } catch (error) {
       console.error('OAuth logout error:', error);
     } finally {

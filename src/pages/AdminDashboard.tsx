@@ -41,6 +41,8 @@ import AdminInvoiceManager from '@/components/admin/AdminInvoiceManager';
 import AdminReceiptManager from '@/components/admin/AdminReceiptManager';
 import AdminPaymentLogs from '@/components/admin/AdminPaymentLogs';
 import AdminDashboardStats from '@/components/admin/AdminDashboardStats';
+import { Label } from '@/components/ui/label';
+
 
 const AdminDashboard = () => {
   const { user } = useAuth();

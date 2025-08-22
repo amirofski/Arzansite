@@ -239,46 +239,28 @@ export class SessionApiService {
     return this.authenticatedRequest(`/orders/${orderId}/design`);
   }
 
-  // File upload endpoints
-  async getUploads(): Promise<ApiResponse<unknown[]>> {
-    return this.authenticatedRequest('/uploads');
+  // File storage endpoints (prefer low-level Appwrite wrappers via backend)
+  async listStorageFiles(bucketId: string): Promise<ApiResponse<unknown[]>> {
+    return this.authenticatedRequest(`/storage/${encodeURIComponent(bucketId)}`);
   }
 
-  async uploadFile(file: File, category: string, description?: string): Promise<ApiResponse<unknown>> {
+  async uploadStorageFile(bucketId: string, file: File): Promise<ApiResponse<{ fileId: string }>> {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('category', category);
-    if (description) {
-      formData.append('description', description);
-    }
-
-    return this.authenticatedRequest('/uploads', {
+    return this.authenticatedRequest(`/storage/upload/${encodeURIComponent(bucketId)}`, {
       method: 'POST',
       body: formData
     });
   }
 
-  async uploadBulkFiles(files: File[], category: string): Promise<ApiResponse<unknown[]>> {
-    const formData = new FormData();
-    files.forEach(file => {
-      formData.append('files', file);
-    });
-    formData.append('category', category);
-
-    return this.authenticatedRequest('/uploads/bulk', {
-      method: 'POST',
-      body: formData
-    });
-  }
-
-  async deleteFile(fileId: string): Promise<ApiResponse<void>> {
-    return this.authenticatedRequest(`/uploads/${fileId}`, {
+  async deleteStorageFile(bucketId: string, fileId: string): Promise<ApiResponse<void>> {
+    return this.authenticatedRequest(`/storage/${encodeURIComponent(bucketId)}/${encodeURIComponent(fileId)}`, {
       method: 'DELETE'
     });
   }
 
-  async getSignedUrl(fileId: string): Promise<ApiResponse<string>> {
-    return this.authenticatedRequest(`/uploads/${fileId}/signed-url`);
+  async getStorageFileUrl(bucketId: string, fileId: string): Promise<ApiResponse<{ url: string }>> {
+    return this.authenticatedRequest(`/storage/${encodeURIComponent(bucketId)}/${encodeURIComponent(fileId)}/url`);
   }
 
   // Wallet endpoints

@@ -434,9 +434,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const verifyEmail = async (token: string) => {
     setError(null);
     try {
-      // For now, email verification is not implemented in session-based auth
-      // This would need to be implemented in the backend
-      throw new Error('Email verification not yet implemented for session-based auth');
+      await apiClient.verifyEmail(token);
+      return;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to verify email';
       setError(errorMessage);
@@ -448,13 +447,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const verifyEmailWithUserId = async (token: string, userId: string) => {
     setError(null);
     try {
-      // For now, email verification is not implemented in session-based auth
-      // This would need to be implemented in the backend
-      throw new Error('Email verification not yet implemented for session-based auth');
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to verify email';
-      setError(errorMessage);
-      throw new Error(errorMessage);
+      // Primary path: backend expects token only
+      const res = await apiClient.verifyEmail(token);
+      return res;
+    } catch (primaryError) {
+      // Fallback path: try sending userId as well (some backends require it)
+      try {
+        const { appwriteAuthService } = await import('@/lib/appwriteAuth');
+        const res = await appwriteAuthService.verifyEmail(token, userId);
+        return res;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to verify email';
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
     }
   };
 

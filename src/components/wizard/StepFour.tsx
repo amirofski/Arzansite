@@ -54,19 +54,27 @@ interface StepFourProps {
     };
     pricing?: {
       totalPrice?: number;
+      additionalServices?: {
+        seoOptimization?: boolean;
+        socialMediaIntegration?: boolean;
+        analyticsSetup?: boolean;
+        backupService?: boolean;
+        maintenancePlan?: boolean;
+        rushDelivery?: boolean;
+      };
     };
   };
   updateData: (data: Partial<{
     pricing: {
       totalPrice?: number;
-    };
-    additionalServices: {
-      seoOptimization?: boolean;
-      socialMediaIntegration?: boolean;
-      analyticsSetup?: boolean;
-      backupService?: boolean;
-      maintenancePlan?: boolean;
-      rushDelivery?: boolean;
+      additionalServices?: {
+        seoOptimization?: boolean;
+        socialMediaIntegration?: boolean;
+        analyticsSetup?: boolean;
+        backupService?: boolean;
+        maintenancePlan?: boolean;
+        rushDelivery?: boolean;
+      };
     };
   }>) => void;
 }
@@ -162,7 +170,12 @@ const SummaryCard = ({
 
 const StepFour = ({ data, updateData }: StepFourProps) => {
   const { user } = useAuth();
-  const [additionalServices, setAdditionalServices] = useState(data.additionalServices || {});
+  // Source of truth for additional services should live under pricing.additionalServices
+  const [additionalServices, setAdditionalServices] = useState(
+    (data.pricing as { additionalServices?: StepFourProps['data']['additionalServices'] } | undefined)?.additionalServices ||
+    data.additionalServices ||
+    {}
+  );
   
   // Use the new pricing calculation
   const pricingBreakdown = calculateTotalPrice({
@@ -170,14 +183,14 @@ const StepFour = ({ data, updateData }: StepFourProps) => {
     additionalServices
   });
   
-  // Update pricing data when costs change
+  // Update pricing data when costs change and persist services under pricing
   useEffect(() => {
     updateData({
       pricing: {
         ...data.pricing,
+        additionalServices,
         totalPrice: pricingBreakdown.totalPrice
-      },
-      additionalServices
+      }
     });
   }, [pricingBreakdown.totalPrice, additionalServices, updateData, data.pricing]);
 

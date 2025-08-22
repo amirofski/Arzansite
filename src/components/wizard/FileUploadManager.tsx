@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Image, FileIcon, Trash2, Download } from 'lucide-react';
 import { apiClient } from "@/lib/api-client";
-import axios from 'axios';
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
@@ -22,6 +21,21 @@ interface UploadedFile {
   description?: string;
   created_at: string;
 }
+
+type StorageFile = {
+  id?: string;
+  $id?: string;
+  name?: string;
+  file_name?: string;
+  filename?: string;
+  mimeType?: string;
+  file_type?: string;
+  sizeOriginal?: number;
+  file_size?: number;
+  description?: string;
+  category?: string;
+  created_at?: string;
+};
 
 interface FileUploadManagerProps {
   data: Record<string, unknown> | null;
@@ -48,19 +62,59 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
   const loadUploadedFiles = async () => {
     if (!user) return;
     try {
-      const baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
-      const token = apiClient.getToken();
-      const res = await fetch(`${baseURL}/uploads`, {
-        method: 'GET',
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        credentials: 'include'
+      const orderId = typeof (data as Record<string, unknown> | null)?.orderId === 'string'
+        ? ((data as Record<string, unknown>)?.orderId as string)
+        : undefined;
+
+      let list: unknown;
+      let rawFiles: Array<Record<string, unknown>> = [];
+
+      // Prefer new unified uploads endpoint, fallback to legacy storage listing
+      try {
+        list = await apiClient.listUploads({ orderId, bucketType: 'uploads' });
+      } catch (e) {
+        list = await apiClient.listStorageFiles('uploads');
+      }
+
+      if (list && typeof list === 'object' && 'files' in (list as Record<string, unknown>)) {
+        const maybeFiles = (list as { files?: unknown }).files;
+        if (Array.isArray(maybeFiles)) rawFiles = maybeFiles as Array<Record<string, unknown>>;
+      } else if (Array.isArray(list)) {
+        rawFiles = list as Array<Record<string, unknown>>;
+      }
+
+      const mapped: UploadedFile[] = rawFiles.map((f) => {
+        const rf = f as StorageFile;
+        const id = typeof rf.id === 'string'
+          ? rf.id
+          : (typeof (rf as Record<string, unknown>)['fileId'] === 'string'
+            ? ((rf as Record<string, unknown>)['fileId'] as string)
+            : (typeof rf.$id === 'string' ? rf.$id : ''));
+        const file_name = (typeof rf.name === 'string' && rf.name)
+          || (typeof rf.file_name === 'string' && rf.file_name)
+          || (typeof rf.filename === 'string' && rf.filename)
+          || id
+          || 'file';
+        const file_type = (typeof rf.mimeType === 'string' && rf.mimeType)
+          || (typeof (rf as Record<string, unknown>)['mime'] === 'string' && ((rf as Record<string, unknown>)['mime'] as string))
+          || (typeof rf.file_type === 'string' && rf.file_type)
+          || '';
+        const file_size = (typeof (rf as Record<string, unknown>)['size'] === 'number' && ((rf as Record<string, unknown>)['size'] as number))
+          || (typeof rf.sizeOriginal === 'number' && rf.sizeOriginal)
+          || (typeof rf.file_size === 'number' && rf.file_size)
+          || 0;
+        const description = (typeof rf.description === 'string' ? rf.description : undefined);
+        const category = (typeof rf.category === 'string' ? rf.category : 'general');
+        const file_path = `api://uploads/${id}`;
+        const created_at = (typeof rf.created_at === 'string'
+          ? rf.created_at
+          : (typeof (rf as Record<string, unknown>)['createdAt'] === 'string'
+            ? ((rf as Record<string, unknown>)['createdAt'] as string)
+            : ''));
+        return { id, file_name, file_path, file_type, file_size, category, description, created_at };
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const raw: unknown = await res.json().catch(() => ({}));
-      const data = (raw && typeof raw === 'object' && raw !== null && 'data' in (raw as Record<string, unknown>))
-        ? (raw as { data: unknown }).data
-        : raw;
-      setUploadedFiles(Array.isArray(data) ? (data as UploadedFile[]) : []);
+
+      setUploadedFiles(mapped);
     } catch (error) {
       console.error('Error loading files:', error);
       toast.error('خطا در بارگذاری فایل‌ها');
@@ -98,48 +152,20 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   // Single file upload is disabled; use bulk upload below
 
-  const handleDeleteFile = async (fileId: string, _filePath: string) => {
+  const handleDeleteFile = async (fileId: string) => {
     try {
-      const delRes = await fetch(`${import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api'}/uploads/${encodeURIComponent(fileId)}`, {
-        method: 'DELETE',
-        headers: { ...(apiClient.getToken() ? { Authorization: `Bearer ${apiClient.getToken()}` } : {}) },
-        credentials: 'include'
-      });
-
-      if (delRes.ok) {
-        toast.success('فایل حذف شد');
-        await loadUploadedFiles();
-      } else {
-        throw new Error('خطا در حذف فایل');
-      }
+      await apiClient.deleteStorageFile('uploads', fileId);
+      toast.success('فایل حذف شد');
+      await loadUploadedFiles();
     } catch (error) {
       console.error('Error deleting file:', error);
       toast.error('خطا در حذف فایل');
     }
   };
 
-  // Get specific file by ID
+  // Get specific file by ID (from in-memory list)
   const getFileById = async (fileId: string) => {
-    try {
-      const baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
-      const token = apiClient.getToken();
-      const res = await fetch(`${baseURL}/uploads`, {
-        method: 'GET',
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        credentials: 'include'
-      });
-      if (!res.ok) return null;
-      const raw: unknown = await res.json().catch(() => ({}));
-      const data = (raw && typeof raw === 'object' && raw !== null && 'data' in (raw as Record<string, unknown>))
-        ? (raw as { data: unknown }).data
-        : raw;
-      const file = Array.isArray(data) ? (data as Array<{ id?: string }>).find((f) => f.id === fileId) : null;
-      return (file as UploadedFile) || null;
-    } catch (error) {
-      console.error('Error fetching file:', error);
-      toast.error('خطا در دریافت اطلاعات فایل');
-      return null;
-    }
+    return uploadedFiles.find(f => f.id === fileId) || null;
   };
 
   // Upload multiple files
@@ -166,45 +192,28 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     setUploading(true);
     setUploadProgress(0);
     setUploadError(null);
-    const form = new FormData();
-    
-    // Add all files to form data
-    fileArray.forEach((file, index) => {
-      form.append('files', file);
-    });
-    
-    form.append('category', selectedCategory);
-    if (fileDescription) form.append('description', fileDescription);
+    // Sequentially upload via storage wrapper
 
-    console.log('FileUploadManager: Bulk FormData contents:', {
-      fileCount: fileArray.length,
-      category: selectedCategory,
-      description: fileDescription,
-      formDataEntries: Array.from(form.entries())
-    });
+    console.log('FileUploadManager: Prepared files:', fileArray.map(f => f.name));
 
     try {
-      console.log('FileUploadManager: About to make bulk API request...');
-      const baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
-      const token = apiClient.getToken();
-      await axios.post(
-        `${baseURL}/uploads/bulk`,
-        form,
-        {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            'Content-Type': 'multipart/form-data'
-          },
-          withCredentials: true,
-          onUploadProgress: (evt) => {
-            if (!evt.total) return;
-            const percent = Math.round((evt.loaded * 100) / evt.total);
-            setUploadProgress(percent);
-          }
-        }
-      );
+      console.log('FileUploadManager: Uploading via /storage/upload/...');
+      const total = fileArray.length;
+      let uploaded = 0;
+      const orderId = typeof (data as Record<string, unknown> | null)?.orderId === 'string'
+        ? ((data as Record<string, unknown>)?.orderId as string)
+        : undefined;
+      for (const f of fileArray) {
+        await apiClient.uploadStorageFile('uploads', f, {
+          category: selectedCategory,
+          description: fileDescription || undefined,
+          orderId,
+        });
+        uploaded += 1;
+        setUploadProgress(Math.round((uploaded * 100) / total));
+      }
+      if (fileDescription) setFileDescription('');
       toast.success(`${files.length} فایل با موفقیت آپلود شد`);
-      setFileDescription('');
       await loadUploadedFiles();
     } catch (error) {
       console.error('FileUploadManager: Error uploading files:', error);
@@ -236,39 +245,10 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getSignedUrl = async (filePath: string) => {
+  const getSignedUrl = async (fileId: string) => {
     try {
-      // Extract file ID from path or use a different approach
-      // For now, we'll try to get the file by path
-      const baseURL = import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
-      const token = apiClient.getToken();
-      const res = await fetch(`${baseURL}/uploads`, {
-        method: 'GET',
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        credentials: 'include'
-      });
-      if (!res.ok) return null;
-      const raw: unknown = await res.json().catch(() => ({}));
-      const data = (raw && typeof raw === 'object' && raw !== null && 'data' in (raw as Record<string, unknown>))
-        ? (raw as { data: unknown }).data
-        : raw;
-      if (Array.isArray(data)) {
-        const file = (data as Array<Record<string, unknown>>).find((f) => f.file_path === filePath);
-        if (file && typeof file.id === 'string') {
-          const urlRes = await fetch(`${baseURL}/storage/file-url?bucketId=uploads&fileId=${encodeURIComponent(file.id)}`, {
-            method: 'GET',
-            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-            credentials: 'include'
-          });
-          if (!urlRes.ok) return null;
-          const urlRaw: unknown = await urlRes.json().catch(() => ({}));
-          const url = (urlRaw && typeof urlRaw === 'object' && urlRaw !== null && 'data' in (urlRaw as Record<string, unknown>))
-            ? ((urlRaw as { data: { url?: string } }).data.url)
-            : ((urlRaw as { url?: string }).url);
-          if (typeof url === 'string') return url;
-        }
-      }
-      
+      const res = (await apiClient.getStorageFileUrl('uploads', fileId)) as unknown as { url?: string; fileId?: string };
+      if (res && typeof res.url === 'string') return res.url;
       return null;
     } catch (error) {
       console.error('Error getting signed URL:', error);
@@ -277,8 +257,8 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     }
   };
 
-  const handleDownload = async (filePath: string, fileName: string) => {
-    const signedUrl = await getSignedUrl(filePath);
+  const handleDownload = async (fileId: string, fileName: string) => {
+    const signedUrl = await getSignedUrl(fileId);
     if (!signedUrl) return;
 
     const link = document.createElement('a');
@@ -435,7 +415,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDownload(file.file_path, file.file_name)}
+                          onClick={() => handleDownload(file.id, file.file_name)}
                           title="دانلود فایل"
                         >
                           <Download className="w-4 h-4" />
@@ -451,7 +431,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDeleteFile(file.id, file.file_path)}
+                          onClick={() => handleDeleteFile(file.id)}
                           title="حذف فایل"
                         >
                           <Trash2 className="w-4 h-4" />

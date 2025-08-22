@@ -299,6 +299,12 @@ class ApiClient {
       }
 
       if (!response.ok) {
+        // Log detailed error body for easier debugging of server-side issues
+        try {
+          console.error('API error response body:', body);
+        } catch (e) {
+          // no-op
+        }
         // Attempt a single refresh on 401 and retry the original request
         if (response.status === 401 && retryOn401) {
           const refreshToken = tokenManager.getRefreshToken();
@@ -551,11 +557,38 @@ class ApiClient {
     siteType?: string;
     sessionId?: string;
     wizardData?: unknown;
+    payment_status?: string;
   }): Promise<Order> {
-    const result = await this.request<unknown>('/orders', {
-      method: 'POST',
-      body: JSON.stringify(orderData),
-    });
+    // Whitelist only backend-accepted fields to avoid Appwrite schema rejections
+    const basePayload: Record<string, unknown> = {
+      payment_status: orderData.payment_status || 'pending',
+      title: orderData.title,
+      description: orderData.description,
+      price: orderData.price,
+      ...(typeof orderData.comments === 'string' ? { comments: orderData.comments } : {}),
+      ...(typeof orderData.total_pages === 'number' ? { total_pages: orderData.total_pages } : {}),
+      ...(typeof orderData.total_sections === 'number' ? { total_sections: orderData.total_sections } : {}),
+    };
+
+    let result: unknown;
+    try {
+      result = await this.request<unknown>('/orders', {
+        method: 'POST',
+        body: JSON.stringify(basePayload),
+      });
+    } catch (e) {
+      // As a fallback, try the absolute minimal payload if server rejects extra fields
+      const minimalPayload = {
+        payment_status: 'pending',
+        title: orderData.title,
+        description: orderData.description,
+        price: orderData.price,
+      };
+      result = await this.request<unknown>('/orders', {
+        method: 'POST',
+        body: JSON.stringify(minimalPayload),
+      });
+    }
     // Handle possible wrapped response
     if (result && typeof result === 'object') {
       const maybe = result as { data?: unknown };
@@ -1054,9 +1087,16 @@ class ApiClient {
   }
 
   // Storage endpoints
-  async uploadStorageFile(bucketId: string, file: File): Promise<{ fileId: string }> {
+  async uploadStorageFile(
+    bucketId: string,
+    file: File,
+    meta?: { category?: string; description?: string; orderId?: string }
+  ): Promise<{ fileId: string }> {
     const formData = new FormData();
     formData.append('file', file);
+    if (meta?.category) formData.append('category', meta.category);
+    if (meta?.description) formData.append('description', meta.description);
+    if (meta?.orderId) formData.append('orderId', meta.orderId);
 
     const result = await this.request<unknown>(`/storage/upload/${encodeURIComponent(bucketId)}`, {
       method: 'POST',
@@ -1101,6 +1141,23 @@ class ApiClient {
     return this.request(`/storage/${encodeURIComponent(bucketId)}/${encodeURIComponent(fileId)}`, {
       method: 'DELETE',
     });
+  }
+
+  // Unified uploads endpoints
+  async listUploads(params?: { userId?: string; orderId?: string; bucketType?: string }): Promise<unknown> {
+    const qs = new URLSearchParams();
+    if (params?.userId) qs.append('userId', params.userId);
+    if (params?.orderId) qs.append('orderId', params.orderId);
+    if (params?.bucketType) qs.append('bucketType', params.bucketType);
+    const path = `/uploads${qs.toString() ? `?${qs.toString()}` : ''}`;
+    return this.request(path);
+  }
+
+  async getUploadById(id: string, params?: { bucketType?: string }): Promise<unknown> {
+    const qs = new URLSearchParams();
+    if (params?.bucketType) qs.append('bucketType', params.bucketType);
+    const path = `/uploads/${encodeURIComponent(id)}${qs.toString() ? `?${qs.toString()}` : ''}`;
+    return this.request(path);
   }
 
   // Health check

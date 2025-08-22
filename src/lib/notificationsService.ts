@@ -17,9 +17,19 @@ export class NotificationsService {
           ...(apiClient.getToken() ? { Authorization: `Bearer ${apiClient.getToken()}` } : {})
         },
         credentials: 'include',
-        body: JSON.stringify({ name: topicId, subscribe: ['me'] })
+        body: JSON.stringify({ name: topicId, subscribe: [topicId.startsWith('user:') ? topicId : `user:${topicId}`] })
       });
-      return res.ok;
+      if (res.ok) return true;
+      // Treat "already exists" as success to avoid repeated 500s on re-subscribe
+      try {
+        const data = await res.json();
+        if (typeof data?.error === 'string' && data.error.includes('already exists')) {
+          return true;
+        }
+      } catch (e) {
+        // ignore parse errors
+      }
+      return false;
     } catch {
       return false;
     }

@@ -5,14 +5,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { apiClient } from "@/lib/api-client";
-import { calculateTotalPrice } from '@/lib/pricingUtils';
+import { calculateTotalPrice, PricingData } from '@/lib/pricingUtils';
 import { Check, Clock, CreditCard, UserPlus } from 'lucide-react';
 import { localOrders } from '@/lib/localOrders';
 
+type WizardDataLite = {
+  siteType: 'personal' | 'business' | '';
+  userInfo?: { domain?: string; name?: string };
+  modules?: Array<Record<string, unknown>>;
+  branding?: Record<string, unknown>;
+  pricing?: { additionalServices?: Record<string, boolean> };
+  websiteFramework?: unknown;
+};
+
 interface FinalStepButtonProps {
-  wizardData: any;
+  wizardData: WizardDataLite;
   isStepValid: boolean;
-  updateWizardData: (data: any) => void;
+  updateWizardData: (data: Partial<WizardDataLite> & Record<string, unknown>) => void;
 }
 
 const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalStepButtonProps) => {
@@ -22,7 +31,14 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const pricingBreakdown = calculateTotalPrice(wizardData);
+  const pricingInput: PricingData = {
+    siteType: wizardData.siteType,
+    websiteFramework: (wizardData as unknown as PricingData).websiteFramework,
+    branding: (wizardData as unknown as PricingData).branding,
+    userInfo: (wizardData as unknown as PricingData).userInfo,
+    additionalServices: wizardData.pricing?.additionalServices,
+  };
+  const pricingBreakdown = calculateTotalPrice(pricingInput);
   const totalCost = pricingBreakdown.totalPrice;
 
   const saveProjectLater = async () => {
@@ -38,8 +54,18 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
 
     setIsProcessing(true);
 
+    let orderData: {
+      title: string;
+      description: string;
+      price: number;
+      comments: string;
+      siteType: string;
+      sessionId: string;
+      wizardData: Record<string, unknown>;
+    } | null = null;
+
     try {
-      const orderData = {
+      orderData = {
         title: `وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${wizardData.userInfo?.domain || 'mywebsite'}`,
         description: 'پروژه ذخیره شده',
         price: totalCost,
@@ -51,10 +77,10 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
           branding: wizardData.branding,
           userInfo: wizardData.userInfo,
           pricing: wizardData.pricing,
-          moduleLayout: wizardData.modules?.map((m: any, index: number) => ({
+          moduleLayout: (wizardData.modules || []).map((m: { [key: string]: unknown }, index: number) => ({
             ...m,
-            position: index
-          }))
+            position: index,
+          })),
         }
       };
 
@@ -64,9 +90,7 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
       if (wizardData.userInfo) {
         await apiClient.updateProfile({
           full_name: wizardData.userInfo.name,
-          phone: undefined,
-          address: undefined,
-        } as any);
+        });
       }
 
       toast({
@@ -76,28 +100,41 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
 
       navigate('/dashboard');
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Save project error:', error);
       try {
-        const draft = localOrders.save({
-          title: orderData.title,
-          description: orderData.description,
-          price: orderData.price,
-          comments: orderData.comments,
-          siteType: orderData.siteType,
-          sessionId: orderData.sessionId,
-          wizardData: orderData.wizardData,
-        });
+        const fallback = orderData ?? {
+          title: `وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${wizardData.userInfo?.domain || 'mywebsite'}`,
+          description: 'پروژه ذخیره شده',
+          price: totalCost,
+          comments: `پروژه ذخیره شده - دامنه: ${wizardData.userInfo?.domain || 'mywebsite'}.ir`,
+          siteType: wizardData.siteType,
+          sessionId: `wizard_${Date.now()}`,
+          wizardData: {
+            modules: wizardData.modules,
+            branding: wizardData.branding,
+            userInfo: wizardData.userInfo,
+            pricing: wizardData.pricing,
+            moduleLayout: (wizardData.modules || []).map((m: Record<string, unknown>, index: number) => ({
+              ...m,
+              position: index,
+            })),
+          },
+        };
+
+        const draft = localOrders.save(fallback);
         toast({
           title: 'پروژه به صورت پیش‌نویس ذخیره شد',
           description: 'می‌توانید از داشبورد پرداخت را تکمیل کنید',
         });
         navigate('/dashboard');
         return;
-      } catch {}
+      } catch (e) {
+        // ignore
+      }
       toast({
         title: "خطا در ذخیره پروژه",
-        description: error.message || "مشکلی در ذخیره پروژه پیش آمد. لطفاً دوباره تلاش کنید",
+        description: error instanceof Error ? error.message : "مشکلی در ذخیره پروژه پیش آمد. لطفاً دوباره تلاش کنید",
         variant: "destructive",
       });
     } finally {
@@ -146,12 +183,12 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
   if (!showPaymentChoice) {
     return (
       <Card className="mb-4">
-        <CardHeader>
+        {/* <CardHeader>
           <CardTitle className="text-center">انتخاب نحوه پرداخت</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </CardHeader> */}
+        {/* <CardContent className="space-y-4"> */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Button
+            {/* <Button
               onClick={payNow}
               disabled={!isStepValid || isProcessing}
               className="btn-gradient flex items-center gap-2 h-16 flex-col"
@@ -161,7 +198,7 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
                 <div className="font-medium">پرداخت فوری</div>
                 <div className="text-xs opacity-80">پرداخت امن و شروع فوری پروژه</div>
               </div>
-            </Button>
+            </Button> */}
             
             <Button
               onClick={saveProjectLater}
@@ -183,7 +220,7 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
               در حال پردازش...
             </div>
           )}
-        </CardContent>
+        {/* </CardContent> */}
       </Card>
     );
   }

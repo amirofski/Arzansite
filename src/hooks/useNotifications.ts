@@ -14,10 +14,21 @@ export function useNotifications() {
     async function subscribe() {
       if (!user?.id) return;
       setError(null);
+      // Prevent repeated subscription calls (e.g., React strict mode) and after success
+      const flagKey = `notif_sub_${user.id}`;
+      if (localStorage.getItem(flagKey) === '1') {
+        if (!active) return;
+        setSubscribed(true);
+        return;
+      }
       const ok = await NotificationsService.subscribeToTopic(`user:${user.id}`);
       if (!active) return;
       setSubscribed(ok);
-      if (!ok) setError('خطا در اتصال به اعلان‌ها');
+      if (!ok) {
+        setError('خطا در اتصال به اعلان‌ها');
+      } else {
+        try { localStorage.setItem(flagKey, '1'); } catch (e) { /* ignore quota errors */ }
+      }
     }
     subscribe();
     return () => {

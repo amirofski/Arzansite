@@ -486,7 +486,7 @@ class ApiClient {
   }
 
   async forgotPassword(email: string): Promise<{ message: string }> {
-    return this.request('/auth/forgot-password', {
+    return this.request('/auth/password-reset', {
       method: 'POST',
       body: JSON.stringify({ email }),
     });

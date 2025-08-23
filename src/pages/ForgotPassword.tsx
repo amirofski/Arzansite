@@ -3,11 +3,12 @@ import { motion } from "framer-motion";
 import { Mail, ArrowLeft, Loader2, CheckCircle } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Client, Account } from "appwrite";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -15,20 +16,31 @@ const ForgotPassword = () => {
   const [emailSent, setEmailSent] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { forgotPassword } = useAuth();
+
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      await forgotPassword(email);
+      // Use Appwrite's createRecovery method to initiate password reset
+      const client = new Client()
+        .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
+        .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || '');
+      
+      const account = new Account(client);
+      
+      // Create recovery email with redirect to our reset password page
+      const recoveryUrl = `${window.location.origin}/reset-password`;
+      await account.createRecovery(email, recoveryUrl);
+      
       setEmailSent(true);
       toast({
         title: "ایمیل ارسال شد",
         description: "ایمیل بازنشانی رمز عبور به آدرس شما ارسال شد",
       });
     } catch (error) {
+      console.error('Password recovery error:', error);
       toast({
         title: "خطا در ارسال ایمیل",
         description: "مشکلی در ارسال ایمیل بازنشانی رمز عبور پیش آمد. لطفاً دوباره تلاش کنید",

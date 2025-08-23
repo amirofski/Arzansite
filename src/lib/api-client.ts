@@ -493,9 +493,28 @@ class ApiClient {
   }
 
   async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
-    return this.request('/auth/reset-password', {
+    // First validate the token with our backend
+    const validationResult = await this.request<{ valid: boolean; userId?: string; email?: string }>('/auth/validate-reset-token', {
       method: 'POST',
-      body: JSON.stringify({ token, new_password: newPassword }),
+      body: JSON.stringify({ token }),
+    });
+
+    if (!validationResult.valid) {
+      throw new Error('Invalid or expired reset token');
+    }
+
+    // If token is valid, complete the password reset through Appwrite
+    // This should be handled by the frontend using Appwrite's updateRecovery method
+    // The backend validation ensures the token is legitimate before allowing the frontend to proceed
+    
+    return { message: 'Password reset token validated successfully. Please complete the password change in the frontend.' };
+  }
+
+  // New method to validate reset token without changing password
+  async validateResetToken(token: string): Promise<{ valid: boolean; userId?: string; email?: string }> {
+    return this.request('/auth/validate-reset-token', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
     });
   }
 

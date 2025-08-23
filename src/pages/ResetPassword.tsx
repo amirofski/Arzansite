@@ -3,11 +3,12 @@ import { motion } from "framer-motion";
 import { Lock, Eye, EyeOff, ArrowRight, Loader2, CheckCircle } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Client, Account } from "appwrite";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -19,12 +20,14 @@ const ResetPassword = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { resetPassword } = useAuth();
+
 
   useEffect(() => {
-    // Accept backend token param; Supabase flow removed
-    const token = searchParams.get('token');
-    if (!token) {
+    // Appwrite sends 'secret' and 'userId' as query parameters
+    const secret = searchParams.get('secret');
+    const userId = searchParams.get('userId');
+    
+    if (!secret || !userId) {
       setError("لینک بازنشانی رمز عبور نامعتبر است");
     }
   }, [searchParams]);
@@ -53,9 +56,24 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const token = searchParams.get('token');
-      if (!token) throw new Error('Reset token is missing');
-      await resetPassword(token, password);
+      const secret = searchParams.get('secret');
+      const userId = searchParams.get('userId');
+      
+      if (!secret || !userId) throw new Error('Reset parameters are missing');
+
+      // Complete password reset directly through Appwrite
+      const client = new Client()
+        .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
+        .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || '');
+      
+      const account = new Account(client);
+      
+      // Use Appwrite's updateRecovery method to complete the password reset
+      await account.updateRecovery(
+        userId, // userId from URL parameters
+        secret, // The secret token from URL parameters
+        password // New password
+      );
 
       setSuccess(true);
       toast({
@@ -68,6 +86,7 @@ const ResetPassword = () => {
         navigate("/auth");
       }, 3000);
     } catch (error) {
+      console.error('Password reset error:', error);
       toast({
         title: "خطا در بازنشانی رمز عبور",
         description: "مشکلی در بازنشانی رمز عبور پیش آمد. لطفاً دوباره تلاش کنید",

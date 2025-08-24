@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Client, Account } from "appwrite";
+import { authManager } from "@/lib/authManager";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -23,11 +23,10 @@ const ResetPassword = () => {
 
 
   useEffect(() => {
-    // Appwrite sends 'secret' and 'userId' as query parameters
-    const secret = searchParams.get('secret');
-    const userId = searchParams.get('userId');
+    // NestJS backend sends 'token' as query parameter
+    const token = searchParams.get('token');
     
-    if (!secret || !userId) {
+    if (!token) {
       setError("لینک بازنشانی رمز عبور نامعتبر است");
     }
   }, [searchParams]);
@@ -56,24 +55,16 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const secret = searchParams.get('secret');
-      const userId = searchParams.get('userId');
+      const token = searchParams.get('token');
       
-      if (!secret || !userId) throw new Error('Reset parameters are missing');
+      if (!token) throw new Error('Reset token is missing');
 
-      // Complete password reset directly through Appwrite
-      const client = new Client()
-        .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
-        .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || '');
+      // Complete password reset through auth manager
+      const result = await authManager.resetPassword(token, password);
       
-      const account = new Account(client);
-      
-      // Use Appwrite's updateRecovery method to complete the password reset
-      await account.updateRecovery(
-        userId, // userId from URL parameters
-        secret, // The secret token from URL parameters
-        password // New password
-      );
+      if (!result.success) {
+        throw new Error(result.data?.message || 'Failed to reset password');
+      }
 
       setSuccess(true);
       toast({

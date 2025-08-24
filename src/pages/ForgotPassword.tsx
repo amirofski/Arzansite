@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Client, Account } from "appwrite";
+import { authManager } from "@/lib/authManager";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -23,22 +23,18 @@ const ForgotPassword = () => {
     setLoading(true);
 
     try {
-      // Use Appwrite's createRecovery method to initiate password reset
-      const client = new Client()
-        .setEndpoint(import.meta.env.VITE_APPWRITE_ENDPOINT || 'https://cloud.appwrite.io/v1')
-        .setProject(import.meta.env.VITE_APPWRITE_PROJECT_ID || '');
+      // Use auth manager to request password reset
+      const result = await authManager.requestPasswordReset(email);
       
-      const account = new Account(client);
-      
-      // Create recovery email with redirect to our reset password page
-      const recoveryUrl = `${window.location.origin}/reset-password`;
-      await account.createRecovery(email, recoveryUrl);
-      
-      setEmailSent(true);
-      toast({
-        title: "ایمیل ارسال شد",
-        description: "ایمیل بازنشانی رمز عبور به آدرس شما ارسال شد",
-      });
+      if (result.success) {
+        setEmailSent(true);
+        toast({
+          title: "ایمیل ارسال شد",
+          description: "ایمیل بازنشانی رمز عبور به آدرس شما ارسال شد",
+        });
+      } else {
+        throw new Error(result.data?.message || 'Failed to send password reset email');
+      }
     } catch (error) {
       console.error('Password recovery error:', error);
       toast({

@@ -85,21 +85,24 @@ export function PaginationControls({
             />
           </PaginationItem>
 
-          {getVisiblePages().map((page, index) => (
-            <PaginationItem key={index}>
-              {page === '...' ? (
-                <PaginationEllipsis />
-              ) : (
-                <PaginationLink
-                  onClick={() => onPageChange(page as number)}
-                  isActive={currentPage === page}
-                  className="cursor-pointer"
-                >
-                  {page}
-                </PaginationLink>
-              )}
-            </PaginationItem>
-          ))}
+          {getVisiblePages().map((page, index) => {
+            const key = typeof page === 'number' ? `page-${page}` : `ellipsis-${index}-${currentPage}-${totalPages}`;
+            return (
+              <PaginationItem key={key}>
+                {page === '...' ? (
+                  <PaginationEllipsis />
+                ) : (
+                  <PaginationLink
+                    onClick={() => onPageChange(page as number)}
+                    isActive={currentPage === page}
+                    className="cursor-pointer"
+                  >
+                    {page}
+                  </PaginationLink>
+                )}
+              </PaginationItem>
+            );
+          })}
 
           <PaginationItem>
             <PaginationNext 

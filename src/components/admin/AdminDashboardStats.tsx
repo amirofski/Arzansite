@@ -20,8 +20,12 @@ const AdminDashboardStats: React.FC = () => {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const data = await apiClient.getAdminDashboardStats();
-      setStats(data);
+      const [dashboardStats, systemMetrics] = await Promise.all([
+        apiClient.getAdminDashboardStats(),
+        apiClient.getSystemMetrics()
+      ]);
+      setStats(dashboardStats);
+      // You can also use systemMetrics here if needed
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
       toast({

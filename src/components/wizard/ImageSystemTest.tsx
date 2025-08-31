@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { discoverAllImages, getCategoryStats, DiscoveredCategory } from '@/lib/imageDiscovery';
 import { SECTION_NAMES, getSectionCategories, SectionCategory, getImageCacheStatus, clearAllImageCaches, getEfficientDiscoveryStats, getCategoryImageInfo } from '@/lib/imageLoader';
-import { getImageTemplatesByCategory, SkeletonTemplate } from './templates';
+import { getImageTemplatesByCategory, SkeletonTemplate } from './templates-del';
 
 const ImageSystemTest = () => {
   const [discoveredCategories, setDiscoveredCategories] = useState<DiscoveredCategory[]>([]);

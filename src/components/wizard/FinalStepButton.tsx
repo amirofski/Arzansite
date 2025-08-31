@@ -41,6 +41,9 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
   const pricingBreakdown = calculateTotalPrice(pricingInput);
   const totalCost = pricingBreakdown.totalPrice;
 
+  // Simple in-flight lock to prevent multiple submissions
+  let inFlight = false;
+
   const saveProjectLater = async () => {
     if (!user) {
       toast({
@@ -52,7 +55,9 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
       return;
     }
 
+    if (isProcessing || inFlight) return; // prevent duplicate requests
     setIsProcessing(true);
+    inFlight = true;
 
     let orderData: {
       title: string;
@@ -84,7 +89,35 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
         }
       };
 
-      await apiClient.createOrder(orderData);
+      // Prefer wizard completion endpoint per backend docs
+      try {
+        await apiClient.completeWizardOrder({
+          sessionId: orderData.sessionId,
+          userId: user!.id,
+          order: {
+            title: orderData.title,
+            description: orderData.description,
+            priceTomans: orderData.price,
+            comments: orderData.comments,
+            siteType: orderData.siteType
+          },
+          designSnapshot: {
+            modules: wizardData.modules,
+            branding: wizardData.branding,
+            userInfo: wizardData.userInfo,
+            pricing: wizardData.pricing,
+            moduleLayout: (wizardData.modules || []).map((m: { [key: string]: unknown }, index: number) => ({
+              ...m,
+              position: index,
+            })),
+            websiteFramework: (wizardData as unknown as { websiteFramework?: unknown }).websiteFramework
+          }
+        });
+      } catch (_e) {
+        // Do not send additional POSTs to /orders; persist a local draft so user can try later
+        const draft = localOrders.save({ ...orderData });
+        console.warn('Saved local draft due to backend error, id:', draft.id);
+      }
 
       // Update user profile if needed (allowed fields only)
       if (wizardData.userInfo) {
@@ -138,6 +171,7 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
         variant: "destructive",
       });
     } finally {
+      inFlight = false;
       setIsProcessing(false);
     }
   };

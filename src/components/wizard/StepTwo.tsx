@@ -33,7 +33,7 @@ import {
   Grid3X3,
   PenTool
 } from 'lucide-react';
-import { useTemplateLoader, SkeletonTemplate } from './templates';
+import { useTemplateLoader, SkeletonTemplate } from './templates-del';
 import DynamicDesignCanvas from './DynamicDesignCanvas';
 
 interface PageSection {

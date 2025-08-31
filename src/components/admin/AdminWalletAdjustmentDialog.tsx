@@ -79,7 +79,7 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
       if (result.success) {
         toast({
           title: 'عملیات موفق',
-          description: `موجودی کیف پول ${userName} با موفقیت تنظیم شد`,
+          description: `موجودی کیف پول ${userName} با موفقیت تنظیم شد. موجودی قبلی: ${WalletService.formatAmount(result.balanceBefore)}، موجودی جدید: ${WalletService.formatAmount(result.balanceAfter)}`,
         });
         
         // Reset form

@@ -19,7 +19,8 @@ import {
   Calculator,
   AlertCircle,
   LogIn,
-  Shield
+  Shield,
+  Wallet
 } from 'lucide-react';
 import { calculateTotalPrice } from '@/lib/pricingUtils';
 import { formatPriceWithUnit } from '@/lib/pricingUtils';
@@ -28,6 +29,7 @@ import { apiClient } from '@/lib/api-client';
 import { DesignService } from '@/lib/designService';
 import { mockApiClient } from '@/lib/wizardApiClient';
 import { localOrders } from '@/lib/localOrders';
+import { WalletService } from '@/lib/walletService';
 
 interface OrderSubmissionStepProps {
   data: WizardData;
@@ -102,6 +104,9 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
   const [paymentCycle, setPaymentCycle] = useState<'monthly' | 'annual'>('monthly');
   const [autoRenewal, setAutoRenewal] = useState(false);
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'zarinpal'>('zarinpal');
+  const [walletBalance, setWalletBalance] = useState<number>(0);
+  const [walletLoading, setWalletLoading] = useState(false);
 
   // Check authentication status when component mounts
   useEffect(() => {
@@ -109,6 +114,28 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
       setShowAuthPrompt(true);
     }
   }, [isAuthenticated, authLoading]);
+
+  // Fetch wallet balance when authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      fetchWalletBalance();
+    }
+  }, [isAuthenticated, user]);
+
+  const fetchWalletBalance = async () => {
+    if (!user?.id) return;
+    
+    setWalletLoading(true);
+    try {
+      const balance = await WalletService.getWalletBalance(user.id);
+      setWalletBalance(balance);
+    } catch (error) {
+      console.error('Error fetching wallet balance:', error);
+      // Don't show error toast, just log it
+    } finally {
+      setWalletLoading(false);
+    }
+  };
 
   // Calculate pricing based on current selections
   const pricingBreakdown = calculateTotalPrice({
@@ -176,6 +203,62 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
     } catch (error) {
       console.error('ZarrinPal payment initiation error:', error);
       throw error;
+    }
+  };
+
+  // Handle wallet payment
+  const handleWalletPayment = async (orderData: { id?: string; order_id?: string; title?: string }) => {
+    try {
+      if (walletBalance < totalCost) {
+        toast({
+          title: "موجودی ناکافی",
+          description: `موجودی کیف پول شما ${WalletService.formatAmount(walletBalance)} است. برای تکمیل سفارش نیاز به ${WalletService.formatAmount(totalCost)} دارید.`,
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      // Process wallet payment
+      const transactionId = await WalletService.payForOrder(
+        user!.id,
+        orderData.id || orderData.order_id,
+        totalCost,
+        orderData.title || 'سفارش وب‌سایت'
+      );
+
+      if (transactionId) {
+        // Update order payment status
+        await apiClient.updateOrder(
+          orderData.id || orderData.order_id,
+          { 
+            payment_status: 'succeeded',
+            status: 'in_progress'
+          }
+        );
+
+        toast({
+          title: "پرداخت موفق",
+          description: `سفارش شما با موفقیت از کیف پول پرداخت شد. شناسه تراکنش: ${transactionId}`,
+          variant: "default",
+        });
+
+        // Refresh wallet balance
+        await fetchWalletBalance();
+        
+        // Navigate to success page or dashboard
+        navigate('/dashboard?tab=orders&payment_success=true');
+        return true;
+      } else {
+        throw new Error('Failed to process wallet payment');
+      }
+    } catch (error) {
+      console.error('Wallet payment error:', error);
+      toast({
+        title: "خطا در پرداخت کیف پول",
+        description: "مشکلی در پرداخت از کیف پول پیش آمد. لطفاً دوباره تلاش کنید.",
+        variant: "destructive",
+      });
+      return false;
     }
   };
 
@@ -280,15 +363,24 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
       // Show success message
       toast({
         title: "سفارش ثبت شد",
-        description: "سفارش شما با موفقیت ثبت شد. در حال انتقال به درگاه پرداخت...",
+        description: "سفارش شما با موفقیت ثبت شد. در حال پردازش پرداخت...",
         variant: "default",
       });
 
-      // Initiate payment; if order is a local draft, continue to payment and create order after callback
-      if (newOrder.id.startsWith('local_')) {
-        await initiateZarrinPalPayment({ ...newOrder }, apiOrderData);
+      // Process payment based on selected method
+      if (paymentMethod === 'wallet') {
+        const walletSuccess = await handleWalletPayment(newOrder);
+        if (!walletSuccess) {
+          setIsProcessing(false);
+          return;
+        }
       } else {
-        await initiateZarrinPalPayment({ ...newOrder, order_id: newOrder.id });
+        // ZarinPal payment
+        if (newOrder.id.startsWith('local_')) {
+          await initiateZarrinPalPayment({ ...newOrder }, apiOrderData);
+        } else {
+          await initiateZarrinPalPayment({ ...newOrder, order_id: newOrder.id });
+        }
       }
 
     } catch (error) {
@@ -422,6 +514,104 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Payment Method Selection */}
+          <div className="space-y-4">
+            <Label className="text-base font-semibold">روش پرداخت</Label>
+            <RadioGroup
+              value={paymentMethod}
+              onValueChange={(value: 'wallet' | 'zarinpal') => setPaymentMethod(value)}
+              className="grid grid-cols-2 gap-4"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="wallet" id="wallet" />
+                <Label htmlFor="wallet" className="cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-4 h-4" />
+                    <span className="text-sm font-medium">پرداخت از کیف پول</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    موجودی: {walletLoading ? (
+                      <Loader2 className="w-3 h-3 animate-spin inline" />
+                    ) : (
+                      WalletService.formatAmount(walletBalance)
+                    )}
+                  </div>
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="zarinpal" id="zarinpal" />
+                <Label htmlFor="zarinpal" className="cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4" />
+                    <span className="text-sm font-medium">پرداخت آنلاین</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    از طریق درگاه زرین‌پال
+                  </div>
+                </Label>
+              </div>
+            </RadioGroup>
+
+            {/* Wallet Payment Info */}
+            {paymentMethod === 'wallet' && (
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Wallet className="w-4 h-4 text-green-600" />
+                  <span className="font-medium text-green-800">اطلاعات پرداخت کیف پول</span>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>موجودی فعلی:</span>
+                    <span className="font-medium">{WalletService.formatAmount(walletBalance)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>مبلغ سفارش:</span>
+                    <span className="font-medium">{formatPriceWithUnit(totalCost)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>موجودی پس از پرداخت:</span>
+                    <span className={`font-medium ${walletBalance >= totalCost ? 'text-green-600' : 'text-red-600'}`}>
+                      {WalletService.formatAmount(walletBalance - totalCost)}
+                    </span>
+                  </div>
+                </div>
+                {walletBalance < totalCost && (
+                  <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <div className="flex items-center gap-2 text-yellow-800">
+                      <AlertCircle className="w-4 h-4" />
+                      <span className="text-sm font-medium">موجودی ناکافی</span>
+                    </div>
+                    <p className="text-xs text-yellow-700 mt-1">
+                      برای تکمیل این سفارش نیاز به شارژ کیف پول دارید.
+                    </p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 text-xs"
+                      onClick={() => navigate('/dashboard?tab=wallet')}
+                    >
+                      شارژ کیف پول
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ZarinPal Payment Info */}
+            {paymentMethod === 'zarinpal' && (
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <CreditCard className="w-4 h-4 text-blue-600" />
+                  <span className="font-medium text-blue-800">اطلاعات پرداخت آنلاین</span>
+                </div>
+                <p className="text-sm text-blue-700">
+                  پرداخت شما از طریق درگاه امن زرین‌پال انجام می‌شود. 
+                  پس از تکمیل پرداخت، به این صفحه بازخواهید گشت.
+                </p>
+              </div>
+            )}
+          </div>
+
           {/* Payment Cycle Selection */}
           <div className="space-y-4">
             <Label className="text-base font-semibold">دوره پرداخت</Label>
@@ -497,7 +687,7 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
       <div className="flex justify-center">
         <Button
           onClick={submitOrder}
-          disabled={isProcessing || !user}
+          disabled={isProcessing || !user || (paymentMethod === 'wallet' && walletBalance < totalCost)}
           size="lg"
           className="btn-gradient px-8 py-3"
         >
@@ -508,8 +698,12 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
             </>
           ) : (
             <>
-              <CreditCard className="w-4 h-4 mr-2" />
-              پرداخت و تکمیل سفارش
+              {paymentMethod === 'wallet' ? (
+                <Wallet className="w-4 h-4 mr-2" />
+              ) : (
+                <CreditCard className="w-4 h-4 mr-2" />
+              )}
+              {paymentMethod === 'wallet' ? 'پرداخت از کیف پول' : 'پرداخت و تکمیل سفارش'}
             </>
           )}
         </Button>

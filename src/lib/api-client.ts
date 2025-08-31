@@ -175,6 +175,86 @@ export interface WalletAdjustmentDto {
   notes?: string;
 }
 
+export interface DomainExtension {
+  id: string;
+  extension: string;
+  price: number;
+  available: boolean;
+  description: string;
+  isDefault: boolean;
+  category: 'country' | 'generic' | 'specialized';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SystemMetrics {
+  system: {
+    uptime: number;
+    memoryUsage: number;
+    cpuUsage: number;
+    diskUsage: number;
+    activeConnections: number;
+    loadAverage: number[];
+  };
+  database: {
+    status: 'healthy' | 'warning' | 'critical';
+    responseTime: number;
+    activeQueries: number;
+    connectionPool: {
+      active: number;
+      idle: number;
+      max: number;
+    };
+    slowQueries: number;
+  };
+  services: {
+    email: ServiceStatus;
+    payment: ServiceStatus;
+    storage: ServiceStatus;
+    appwrite: ServiceStatus;
+  };
+  performance: {
+    averageResponseTime: number;
+    requestsPerMinute: number;
+    errorRate: number;
+    lastUpdated: string;
+  };
+  security: {
+    failedLoginAttempts: number;
+    blockedIPs: number;
+    lastSecurityScan: string;
+  };
+}
+
+export interface ServiceStatus {
+  status: 'healthy' | 'warning' | 'critical';
+  lastCheck: string;
+  queueSize?: number;
+  gatewayStatus?: string;
+  usedSpace?: string;
+  totalSpace?: string;
+  errorCount?: number;
+}
+
+export interface WalletAdjustment {
+  id: string;
+  walletId: string;
+  adminId: string;
+  adminName: string;
+  type: 'credit' | 'debit' | 'correction';
+  amount: number;
+  reason: string;
+  notes?: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  createdAt: string;
+  metadata?: {
+    orderId?: string;
+    invoiceId?: string;
+    refundReason?: string;
+  };
+}
+
 // Create invoice DTO
 export interface CreateInvoiceDto {
   orderId: string;
@@ -523,7 +603,8 @@ class ApiClient {
   }
 
   async getAllProfiles(): Promise<BackendUserProfile[]> {
-    return this.request('/profiles');
+    const result = await this.request<unknown>('/profiles');
+    return this.extractList<BackendUserProfile>(result);
   }
 
   // Orders endpoints
@@ -558,36 +639,55 @@ class ApiClient {
     sessionId?: string;
     wizardData?: unknown;
     payment_status?: string;
-  }): Promise<Order> {
+  }, options?: { noRetry?: boolean }): Promise<Order> {
     // Whitelist only backend-accepted fields to avoid Appwrite schema rejections
     const basePayload: Record<string, unknown> = {
       payment_status: orderData.payment_status || 'pending',
+      status: 'pending',
       title: orderData.title,
       description: orderData.description,
       price: orderData.price,
       ...(typeof orderData.comments === 'string' ? { comments: orderData.comments } : {}),
       ...(typeof orderData.total_pages === 'number' ? { total_pages: orderData.total_pages } : {}),
       ...(typeof orderData.total_sections === 'number' ? { total_sections: orderData.total_sections } : {}),
+      // Include enhanced wizard fields when present
+      ...(typeof orderData.siteType === 'string' && orderData.siteType
+        ? { siteType: orderData.siteType }
+        : {}),
+      ...(typeof orderData.sessionId === 'string' && orderData.sessionId
+        ? { sessionId: orderData.sessionId }
+        : {}),
+      ...(orderData.wizardData && typeof orderData.wizardData === 'object'
+        ? { wizardData: orderData.wizardData }
+        : {}),
     };
 
+    // Attempt enhanced payload; optionally skip internal retry to avoid duplicate requests
     let result: unknown;
-    try {
+    if (options?.noRetry) {
       result = await this.request<unknown>('/orders', {
         method: 'POST',
         body: JSON.stringify(basePayload),
       });
-    } catch (e) {
-      // As a fallback, try the absolute minimal payload if server rejects extra fields
-      const minimalPayload = {
-        payment_status: 'pending',
-        title: orderData.title,
-        description: orderData.description,
-        price: orderData.price,
-      };
-      result = await this.request<unknown>('/orders', {
-        method: 'POST',
-        body: JSON.stringify(minimalPayload),
-      });
+    } else {
+      try {
+        result = await this.request<unknown>('/orders', {
+          method: 'POST',
+          body: JSON.stringify(basePayload),
+        });
+      } catch (e) {
+        const minimalPayload = {
+          payment_status: 'pending',
+          status: 'pending',
+          title: orderData.title,
+          description: orderData.description,
+          price: orderData.price,
+        };
+        result = await this.request<unknown>('/orders', {
+          method: 'POST',
+          body: JSON.stringify(minimalPayload),
+        });
+      }
     }
     // Handle possible wrapped response
     if (result && typeof result === 'object') {
@@ -638,6 +738,56 @@ class ApiClient {
       }
     }
     throw new Error('Invalid order response from server');
+  }
+
+  // Wizard: complete order in one call (new DTO: order + designSnapshot)
+  async completeWizardOrder(payload: {
+    sessionId: string;
+    userId: string;
+    order: {
+      title: string;
+      description: string;
+      priceTomans: number;
+      comments?: string;
+      siteType?: 'personal' | 'business' | string;
+    };
+    designSnapshot: Record<string, unknown>;
+  }): Promise<{
+    id: string;
+    status?: string;
+    payment_status?: string;
+    preview_url?: string;
+    invoice_id?: string;
+    amount?: number;
+    title?: string;
+    description?: string;
+    created_at?: string;
+  }> {
+    const result = await this.request<unknown>('/wizard/complete-order', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    if (result && typeof result === 'object') {
+      const obj = result as Record<string, unknown>;
+      if ('data' in obj && obj.data && typeof obj.data === 'object') {
+        const data = obj.data as Record<string, unknown>;
+        if (typeof data.id === 'string') {
+          return data as unknown as {
+            id: string;
+            status?: string;
+            payment_status?: string;
+            preview_url?: string;
+            invoice_id?: string;
+            amount?: number;
+            title?: string;
+            description?: string;
+            created_at?: string;
+          };
+        }
+      }
+    }
+    throw new Error('Invalid response from /wizard/complete-order');
   }
 
   async getOrder(orderId: string): Promise<Order> {
@@ -1065,13 +1215,88 @@ class ApiClient {
   }
 
   async getSiteConfigHistory(): Promise<SiteConfig[]> {
-    return this.request('/site-config/history');
+    return this.request<SiteConfig[]>('/site-config/history');
   }
 
-  // Email endpoints
+  // New Admin Endpoints
+
+  // User Management
+  async deleteUser(userId: string): Promise<{ success: boolean; message: string; data?: unknown }> {
+    return this.request(`/admin/users/${userId}`, { method: 'DELETE' });
+  }
+
+  // Domain Management
+  async getDomainPrices(): Promise<DomainExtension[]> {
+    const result = await this.request<unknown>('/admin/domains/prices');
+    return this.extractList<DomainExtension>(result);
+  }
+
+  async updateDomainPrice(extensionId: string, data: { price: number; available?: boolean; description?: string }): Promise<DomainExtension> {
+    return this.request(`/admin/domains/prices/${extensionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async createDomainExtension(data: { extension: string; price: number; description: string; available: boolean; category: string }): Promise<DomainExtension> {
+    return this.request('/admin/domains/extensions', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async checkDomainAvailability(data: { domain: string; extension: string }): Promise<{ domain: string; available: boolean; price: number; checkedAt: string }> {
+    return this.request('/admin/domains/check-availability', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  // System Health Metrics
+  async getSystemMetrics(): Promise<SystemMetrics> {
+    const result = await this.request<unknown>('/admin/system/metrics');
+    if (result && typeof result === 'object') {
+      const maybe = result as { data?: unknown };
+      if (maybe.data && typeof maybe.data === 'object') {
+        return maybe.data as SystemMetrics;
+      }
+      if ('system' in (result as Record<string, unknown>)) {
+        return result as SystemMetrics;
+      }
+    }
+    throw new Error('Invalid system metrics response');
+  }
+
+  // Wallet Adjustment History
+  async getWalletAdjustmentHistory(
+    walletId: string,
+    params?: { page?: number; limit?: number; type?: string; from?: string; to?: string }
+  ): Promise<{ adjustments: WalletAdjustment[]; pagination: { page: number; limit: number; total: number; pages: number }; summary: Record<string, unknown> } > {
+    const qs = new URLSearchParams();
+    if (params?.page) qs.append('page', params.page.toString());
+    if (params?.limit) qs.append('limit', params.limit.toString());
+    if (params?.type) qs.append('type', params.type);
+    if (params?.from) qs.append('from', params.from);
+    if (params?.to) qs.append('to', params.to);
+    
+    const queryString = qs.toString();
+    return this.request(`/admin/wallets/${walletId}/adjustments${queryString ? `?${queryString}` : ''}`);
+  }
+
+  // Enhanced Email Service Test
+  async testEmailService(data: { testType: string; recipient: string; testOptions?: Record<string, unknown> }): Promise<{ success: boolean; data: unknown }> {
+    return this.request('/admin/emails/test-service', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  // NOTE: Duplicate block removed (was repeated below). The canonical implementations are above.
+
   async getEmailLogs(limit = 50, offset = 0): Promise<EmailLog[]> {
     const qs = `?limit=${limit}&offset=${offset}`;
-    return this.request(`/emails/logs${qs}`);
+    const result = await this.request<unknown>(`/emails/logs${qs}`);
+    return this.extractList<EmailLog>(result);
   }
 
   async sendEmail(payload: {

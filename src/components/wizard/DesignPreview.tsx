@@ -19,7 +19,7 @@ import {
   BarChart3,
   Monitor
 } from 'lucide-react';
-import { useTemplateLoader, getImageTemplatesByCategory } from './templates';
+import { useTemplateLoader, getImageTemplatesByCategory } from './templates-del';
 import { getAdjacentImage, SECTION_NAMES } from '@/lib/imageLoader';
 import LazyImage from '@/components/ui/lazy-image';
 

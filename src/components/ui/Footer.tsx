@@ -30,7 +30,7 @@ const Footer: React.FC = () => {
           </div>
           <div className="flex flex-col rtl:text-right ltr:text-left">
             <span className="text-xl font-extrabold text-primary leading-tight">ارزان سایت</span>
-            <span className="text-xs text-accent font-semibold tracking-wide mt-0.5">Arzan Site - بهترین سایت‌ساز ایران</span>
+            <span className="text-xs text-accent font-semibold tracking-wide mt-0.5">ارزان سایت - انسان + هوش مصنوعی</span>
           </div>
         </div>
         {/* Socials */}
@@ -50,7 +50,7 @@ const Footer: React.FC = () => {
         </div>
         {/* Contact */}
         <div className="flex flex-col items-center md:items-end gap-1 text-sm text-muted-foreground">
-          <a href="tel:+989123456789" className="flex items-center gap-1 hover:text-primary transition-colors">
+          <a href="tel:+9802191030981" className="flex items-center gap-1 hover:text-primary transition-colors">
             <Phone className="w-4 h-4" /> ۰۲۱-۹۱۰۳-۰۹۸۱
           </a>
           <a href="mailto:info@arzansite.com" className="flex items-center gap-1 hover:text-primary transition-colors">
@@ -58,9 +58,9 @@ const Footer: React.FC = () => {
           </a>
         </div>
       </div>
-      <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 pb-6 flex flex-col md:flex-row items-center justify-between gap-2 border-t border-white/10 pt-4">
+      <div dir="ltr" className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 pb-6 flex flex-col md:flex-row items-center justify-between gap-2 border-t border-white/10 pt-4 ltr:text-right">
         <span className="text-xs text-muted-foreground">© {new Date().getFullYear()} ارزان سایت | Arzan Site. همه حقوق محفوظ است.</span>
-        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1 text-xs text-muted-foreground ltr">
           Made with <Heart className="w-4 h-4 text-red-500" /> in Iran
         </span>
       </div>

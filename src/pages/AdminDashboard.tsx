@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '@/hooks/useAuth';
-import { apiClient, Order, BackendUserProfile, EmailLog } from '@/lib/api-client';
+import { apiClient, Order, BackendUserProfile, EmailLog, DomainExtension, SystemMetrics } from '@/lib/api-client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,12 @@ import {
   AlertCircle,
   CheckCircle,
   Clock,
-  Calendar
+  Calendar,
+  Globe,
+  Activity,
+  Server,
+  RefreshCw,
+  Database
 } from 'lucide-react';
 import Layout from '@/components/ui/Layout';
 import { useToast } from '@/hooks/use-toast';
@@ -42,6 +47,9 @@ import AdminReceiptManager from '@/components/admin/AdminReceiptManager';
 import AdminPaymentLogs from '@/components/admin/AdminPaymentLogs';
 import AdminDashboardStats from '@/components/admin/AdminDashboardStats';
 import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 const AdminDashboard = () => {
@@ -75,34 +83,23 @@ const AdminDashboard = () => {
     averageOrderValue: 0
   });
 
-  useEffect(() => {
-    if (user?.role === 'admin') {
-      fetchAllData();
-    }
-  }, [user]);
+  // New state for enhanced features
+  const [domainPrices, setDomainPrices] = useState<DomainExtension[]>([]);
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null);
+  const [domainCheckDialog, setDomainCheckDialog] = useState(false);
+  const [newDomainDialog, setNewDomainDialog] = useState(false);
+  const [deleteUserDialog, setDeleteUserDialog] = useState<{ open: boolean; user: BackendUserProfile | null }>({ open: false, user: null });
+  const [domainToCheck, setDomainToCheck] = useState({ domain: '', extension: '.ir' });
+  const [newDomainData, setNewDomainData] = useState({ extension: '', price: '', description: '', category: 'generic' as 'generic' | 'country' | 'specialized' });
+  const [deleteUserReason, setDeleteUserReason] = useState('');
+  const [loadingDomains, setLoadingDomains] = useState(false);
+  const [loadingSystemMetrics, setLoadingSystemMetrics] = useState(false);
 
-  const fetchAllData = async () => {
-    setLoading(true);
-    try {
-      await Promise.all([
-        fetchOrders(),
-        fetchUsers(),
-        fetchEmailLogs(),
-        calculateStats()
-      ]);
-    } catch (error) {
-      console.error('Error fetching admin data:', error);
-      toast({
-        title: 'خطا در بارگیری اطلاعات',
-        description: 'مشکلی در دریافت اطلاعات پیش آمد',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // useEffect to load data (placed after callbacks to avoid temporal dead zone)
 
-  const fetchOrders = async () => {
+  
+
+  const fetchOrders = useCallback(async () => {
     setOrdersLoading(true);
     try {
       const ordersData = await apiClient.getOrders({ admin: true });
@@ -112,9 +109,9 @@ const AdminDashboard = () => {
     } finally {
       setOrdersLoading(false);
     }
-  };
+  }, []);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     setUsersLoading(true);
     try {
       const usersData = await apiClient.getAllProfiles();
@@ -124,9 +121,9 @@ const AdminDashboard = () => {
     } finally {
       setUsersLoading(false);
     }
-  };
+  }, []);
 
-  const fetchEmailLogs = async () => {
+  const fetchEmailLogs = useCallback(async () => {
     setEmailLogsLoading(true);
     try {
       const logsData = await apiClient.getEmailLogs(100, 0);
@@ -136,14 +133,15 @@ const AdminDashboard = () => {
     } finally {
       setEmailLogsLoading(false);
     }
-  };
+  }, []);
 
-  const calculateStats = async () => {
+  const calculateStats = useCallback(async () => {
     try {
       const allOrders = await apiClient.getOrders({ admin: true });
-      const allUsers = await apiClient.getAllProfiles();
+      const allUsersRaw = await apiClient.getAllProfiles();
+      const allUsers = Array.isArray(allUsersRaw) ? allUsersRaw : [];
       
-      const totalOrders = allOrders.length;
+      const totalOrders = Array.isArray(allOrders) ? allOrders.length : 0;
       const totalUsers = allUsers.length;
       const totalRevenue = allOrders.reduce((sum, order) => sum + (order.price || 0), 0);
       const pendingOrders = allOrders.filter(order => order.status === 'pending').length;
@@ -153,7 +151,8 @@ const AdminDashboard = () => {
       // Calculate email sent today
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const emailSentToday = emailLogs.filter(log => {
+      const emailLogsArray = Array.isArray(emailLogs) ? emailLogs : [];
+      const emailSentToday = emailLogsArray.filter(log => {
         const logDate = new Date(log.created_at);
         return logDate >= today;
       }).length;
@@ -173,7 +172,28 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error calculating stats:', error);
     }
-  };
+  }, [emailLogs]);
+
+  const fetchAllData = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        fetchOrders(),
+        fetchUsers(),
+        fetchEmailLogs(),
+        calculateStats()
+      ]);
+    } catch (error) {
+      console.error('Error fetching admin data:', error);
+      toast({
+        title: 'خطا در بارگیری اطلاعات',
+        description: 'مشکلی در دریافت اطلاعات پیش آمد',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchOrders, fetchUsers, fetchEmailLogs, calculateStats, toast]);
 
   const handleOrderStatusUpdate = async (orderId: string, newStatus: string) => {
     try {
@@ -209,36 +229,196 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteUser = async (userId: string) => {
+
+
+  const testEmailService = async () => {
     try {
-      // Note: User deletion endpoint might not exist in the API yet
-      // await apiClient.deleteUser(userId);
-      await fetchUsers();
-      toast({
-        title: 'کاربر حذف شد',
-        description: 'کاربر با موفقیت حذف شد',
+      const result = await apiClient.testEmailService({
+        testType: 'comprehensive',
+        recipient: user?.email || 'admin@arzansite.com',
+        testOptions: {
+          smtp: true,
+          templates: true,
+          delivery: true
+        }
       });
+      
+      if (result.success) {
+        const dataObj = (result.data && typeof result.data === 'object') ? (result.data as Record<string, unknown>) : undefined;
+        const message = typeof dataObj?.message === 'string' ? (dataObj.message as string) : 'تست سرویس ایمیل با موفقیت انجام شد';
+        toast({
+          title: 'تست موفق',
+          description: message,
+          variant: 'default',
+        });
+      } else {
+        toast({
+          title: 'تست ناموفق',
+          description: 'مشکلی در تست سرویس ایمیل پیش آمد',
+          variant: 'destructive',
+        });
+      }
     } catch (error) {
       toast({
-        title: 'خطا در حذف کاربر',
-        description: 'مشکلی در حذف کاربر پیش آمد',
+        title: 'خطا در تست سرویس ایمیل',
+        description: 'مشکلی در تست سرویس ایمیل پیش آمد',
         variant: 'destructive',
       });
     }
   };
 
-  const testEmailService = async () => {
+  // New enhanced functions
+  const fetchDomainPrices = useCallback(async () => {
+    setLoadingDomains(true);
     try {
-      const result = await EmailService.testEmailService();
+      const data = await apiClient.getDomainPrices();
+      setDomainPrices(data);
+    } catch (error) {
+      console.error('Error fetching domain prices:', error);
       toast({
-        title: result.success ? 'تست موفق' : 'تست ناموفق',
-        description: result.message,
-        variant: result.success ? 'default' : 'destructive',
+        title: 'خطا در دریافت قیمت دامنه‌ها',
+        description: 'مشکلی در دریافت اطلاعات دامنه‌ها پیش آمد',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingDomains(false);
+    }
+  }, [toast]);
+
+  const fetchSystemMetrics = useCallback(async () => {
+    setLoadingSystemMetrics(true);
+    try {
+      const data = await apiClient.getSystemMetrics();
+      setSystemMetrics(data);
+    } catch (error) {
+      console.error('Error fetching system metrics:', error);
+      toast({
+        title: 'خطا در دریافت آمار سیستم',
+        description: 'مشکلی در دریافت آمار سیستم پیش آمد',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingSystemMetrics(false);
+    }
+  }, [toast]);
+
+  // useEffect to load data (placed after callbacks to avoid temporal dead zone)
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      fetchAllData();
+      fetchDomainPrices();
+      fetchSystemMetrics();
+    }
+  }, [user, fetchAllData, fetchDomainPrices, fetchSystemMetrics]);
+
+  const updateDomainPrice = async (extensionId: string, newPrice: number) => {
+    try {
+      await apiClient.updateDomainPrice(extensionId, { price: newPrice });
+      await fetchDomainPrices();
+      toast({
+        title: 'قیمت بروزرسانی شد',
+        description: 'قیمت دامنه با موفقیت تغییر یافت',
       });
     } catch (error) {
       toast({
-        title: 'خطا در تست سرویس ایمیل',
-        description: 'مشکلی در تست سرویس ایمیل پیش آمد',
+        title: 'خطا در بروزرسانی قیمت',
+        description: 'مشکلی در تغییر قیمت دامنه پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const createNewDomainExtension = async () => {
+    if (!newDomainData.extension || !newDomainData.price || !newDomainData.description) {
+      toast({
+        title: 'خطا',
+        description: 'لطفاً تمام فیلدها را پر کنید',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      await apiClient.createDomainExtension({
+        extension: newDomainData.extension,
+        price: parseInt(newDomainData.price),
+        description: newDomainData.description,
+        available: true,
+        category: newDomainData.category
+      });
+      
+      await fetchDomainPrices();
+      setNewDomainDialog(false);
+      setNewDomainData({ extension: '', price: '', description: '', category: 'generic' });
+      
+      toast({
+        title: 'دامنه جدید اضافه شد',
+        description: 'پسوند دامنه جدید با موفقیت اضافه شد',
+      });
+    } catch (error) {
+      toast({
+        title: 'خطا در افزودن دامنه',
+        description: 'مشکلی در افزودن پسوند دامنه پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const checkDomainAvailability = async () => {
+    if (!domainToCheck.domain) {
+      toast({
+        title: 'خطا',
+        description: 'لطفاً نام دامنه را وارد کنید',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const result = await apiClient.checkDomainAvailability(domainToCheck);
+      toast({
+        title: result.available ? 'دامنه در دسترس است' : 'دامنه در دسترس نیست',
+        description: `${domainToCheck.domain}${domainToCheck.extension} ${result.available ? 'قابل ثبت است' : 'قبلاً ثبت شده است'}`,
+        variant: result.available ? 'default' : 'destructive',
+      });
+    } catch (error) {
+      toast({
+        title: 'خطا در بررسی دامنه',
+        description: 'مشکلی در بررسی در دسترس بودن دامنه پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteUser = async (userToDelete: BackendUserProfile) => {
+    if (!deleteUserReason.trim()) {
+      toast({
+        title: 'خطا',
+        description: 'لطفاً دلیل حذف کاربر را وارد کنید',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const result = await apiClient.deleteUser(userToDelete.id);
+      
+      if (result.success) {
+        toast({
+          title: 'کاربر حذف شد',
+          description: result.message,
+        });
+        setDeleteUserDialog({ open: false, user: null });
+        setDeleteUserReason('');
+        await fetchUsers();
+      } else {
+        throw new Error(result.message || 'عملیات ناموفق بود');
+      }
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'مشکلی در حذف کاربر پیش آمد';
+      toast({
+        title: 'خطا در حذف کاربر',
+        description: errorMessage,
         variant: 'destructive',
       });
     }
@@ -447,11 +627,12 @@ const AdminDashboard = () => {
           </Card>
 
           <Tabs defaultValue="orders" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-9">
+            <TabsList className="grid w-full grid-cols-10">
               <TabsTrigger value="orders">سفارشات</TabsTrigger>
               <TabsTrigger value="users">کاربران</TabsTrigger>
               <TabsTrigger value="emails">ایمیل‌ها</TabsTrigger>
               <TabsTrigger value="stats">آمار</TabsTrigger>
+              <TabsTrigger value="system-health">وضعیت سیستم</TabsTrigger>
               <TabsTrigger value="invoices">فاکتورها</TabsTrigger>
               <TabsTrigger value="receipts">رسیدها</TabsTrigger>
               <TabsTrigger value="payments">پرداخت‌ها</TabsTrigger>
@@ -633,7 +814,7 @@ const AdminDashboard = () => {
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => handleDeleteUser(user.id)}
+                              onClick={() => setDeleteUserDialog({ open: true, user })}
                             >
                               <Trash2 className="w-4 h-4" />
                             </Button>
@@ -759,8 +940,119 @@ const AdminDashboard = () => {
             <TabsContent value="stats" className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">آمار سیستم</h2>
+                <Button onClick={fetchSystemMetrics} variant="outline" size="sm">
+                  <RefreshCw className="w-4 h-4 ml-2" />
+                  بروزرسانی
+                </Button>
               </div>
               <AdminDashboardStats />
+            </TabsContent>
+
+            <TabsContent value="system-health" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold">وضعیت سیستم</h2>
+                <Button onClick={fetchSystemMetrics} variant="outline" size="sm">
+                  <RefreshCw className="w-4 h-4 ml-2" />
+                  بروزرسانی
+                </Button>
+              </div>
+              
+              {loadingSystemMetrics ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                  <p className="mt-2 text-muted-foreground">در حال دریافت آمار سیستم...</p>
+                </div>
+              ) : systemMetrics ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* System Status */}
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">وضعیت سیستم</CardTitle>
+                      <Server className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{Math.floor((systemMetrics?.system?.uptime || 0) / 3600)} ساعت</div>
+                      <p className="text-xs text-muted-foreground">آپتایم</p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Memory Usage */}
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">استفاده از حافظه</CardTitle>
+                      <Activity className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{Number(systemMetrics?.system?.memoryUsage || 0).toFixed(1)}%</div>
+                      <p className="text-xs text-muted-foreground">حافظه استفاده شده</p>
+                    </CardContent>
+                  </Card>
+
+                  {/* CPU Usage */}
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">استفاده از CPU</CardTitle>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{Number(systemMetrics?.system?.cpuUsage || 0).toFixed(1)}%</div>
+                      <p className="text-xs text-muted-foreground">CPU استفاده شده</p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Database Status */}
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">وضعیت دیتابیس</CardTitle>
+                      <Database className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{systemMetrics?.database?.responseTime ?? 0}ms</div>
+                      <p className="text-xs text-muted-foreground">زمان پاسخ</p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Email Service */}
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">سرویس ایمیل</CardTitle>
+                      <Mail className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{systemMetrics?.services?.email?.status || '—'}</div>
+                      <p className="text-xs text-muted-foreground">وضعیت سرویس</p>
+                    </CardContent>
+                  </Card>
+
+                  {/* Payment Service */}
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">سرویس پرداخت</CardTitle>
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">{systemMetrics?.services?.payment?.status || '—'}</div>
+                      <p className="text-xs text-muted-foreground">وضعیت سرویس</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="text-center py-8">
+                      <AlertCircle className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">خطا در بارگیری آمار سیستم</h3>
+                      <p className="text-muted-foreground mb-4">
+                        آمار سیستم در دسترس نیست
+                      </p>
+                      <Button onClick={fetchSystemMetrics} variant="outline">
+                        <RefreshCw className="w-4 h-4 ml-2" />
+                        تلاش مجدد
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </TabsContent>
 
             <TabsContent value="invoices" className="space-y-6">
@@ -787,7 +1079,7 @@ const AdminDashboard = () => {
             <TabsContent value="domains" className="space-y-6">
               <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">مدیریت قیمت دامنه‌ها</h2>
-                <Button onClick={() => {}} variant="outline">
+                <Button onClick={() => setNewDomainDialog(true)} variant="outline">
                   <Plus className="w-4 h-4 ml-2" />
                   افزودن دامنه جدید
                 </Button>
@@ -802,112 +1094,87 @@ const AdminDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-6">
-                    {/* .ir Domain - Fixed Price */}
-                    <div className="p-4 border rounded-lg">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-semibold">دامنه .ir</h4>
-                          <p className="text-sm text-muted-foreground">قیمت ثابت برای دامنه‌های ایرانی</p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-bold">رایگان</div>
-                          <div className="text-sm text-muted-foreground">شامل در سفارش</div>
-                        </div>
+                    {loadingDomains ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                        <p className="mt-2 text-muted-foreground">در حال بارگیری دامنه‌ها...</p>
                       </div>
-                    </div>
+                    ) : (
+                      <>
+                        {/* Domain Extensions List */}
+                        <div className="space-y-4">
+                          <h4 className="font-semibold">پسوندهای دامنه</h4>
+                          
+                          {(Array.isArray(domainPrices) ? domainPrices : []).map((domain) => (
+                            <div key={domain.id} className="flex items-center justify-between p-4 border rounded-lg">
+                              <div>
+                                <h5 className="font-medium">دامنه {domain.extension}</h5>
+                                <p className="text-sm text-muted-foreground">{domain.description}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <Badge variant={domain.available ? 'default' : 'secondary'}>
+                                    {domain.available ? 'فعال' : 'غیرفعال'}
+                                  </Badge>
+                                  <Badge variant="outline">{domain.category}</Badge>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <Input 
+                                  type="number" 
+                                  placeholder="قیمت به تومان"
+                                  className="w-32"
+                                  defaultValue={domain.price}
+                                  onChange={(e) => {
+                                    const newPrice = parseInt(e.target.value);
+                                    if (!isNaN(newPrice) && newPrice >= 0) {
+                                      updateDomainPrice(domain.id, newPrice);
+                                    }
+                                  }}
+                                />
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => fetchDomainPrices()}
+                                >
+                                  بروزرسانی
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
 
-                    {/* Other Domain Extensions */}
-                    <div className="space-y-4">
-                      <h4 className="font-semibold">سایر پسوندهای دامنه</h4>
-                      
-                      {/* .com Domain */}
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <h5 className="font-medium">دامنه .com</h5>
-                          <p className="text-sm text-muted-foreground">پسوند بین‌المللی محبوب</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Input 
-                            type="number" 
-                            placeholder="قیمت به تومان"
-                            className="w-32"
-                            defaultValue="500000"
-                          />
-                          <Button size="sm" variant="outline">ذخیره</Button>
-                        </div>
-                      </div>
-
-                      {/* .net Domain */}
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <h5 className="font-medium">دامنه .net</h5>
-                          <p className="text-sm text-muted-foreground">پسوند شبکه و فناوری</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Input 
-                            type="number" 
-                            placeholder="قیمت به تومان"
-                            className="w-32"
-                            defaultValue="450000"
-                          />
-                          <Button size="sm" variant="outline">ذخیره</Button>
-                        </div>
-                      </div>
-
-                      {/* .org Domain */}
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <h5 className="font-medium">دامنه .org</h5>
-                          <p className="text-sm text-muted-foreground">پسوند سازمان‌ها و موسسات</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <Input 
-                            type="number" 
-                            placeholder="قیمت به تومان"
-                            className="w-32"
-                            defaultValue="400000"
-                          />
-                          <Button size="sm" variant="outline">ذخیره</Button>
-                        </div>
-                      </div>
-
-                      {/* Custom Domain Extension */}
-                      <div className="p-4 border-2 border-dashed border-muted-foreground/25 rounded-lg">
-                        <div className="text-center">
-                          <Plus className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                          <h5 className="font-medium mb-2">افزودن پسوند جدید</h5>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            پسوند دامنه جدید و قیمت آن را اضافه کنید
-                          </p>
-                          <div className="flex gap-3 justify-center">
+                        {/* Domain Availability Check */}
+                        <div className="p-4 bg-muted/50 rounded-lg">
+                          <h4 className="font-semibold mb-3">بررسی در دسترس بودن دامنه</h4>
+                          <div className="flex gap-3">
                             <Input 
                               type="text" 
-                              placeholder="مثال: .io"
-                              className="w-24"
+                              placeholder="نام دامنه مورد نظر"
+                              className="flex-1"
+                              value={domainToCheck.domain}
+                              onChange={(e) => setDomainToCheck(prev => ({ ...prev, domain: e.target.value }))}
                             />
-                            <Input 
-                              type="number" 
-                              placeholder="قیمت"
-                              className="w-32"
-                            />
-                            <Button size="sm">افزودن</Button>
+                            <Select 
+                              value={domainToCheck.extension} 
+                              onValueChange={(value) => setDomainToCheck(prev => ({ ...prev, extension: value }))}
+                            >
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(Array.isArray(domainPrices) ? domainPrices : []).map((domain) => (
+                                  <SelectItem key={domain.id} value={domain.extension}>
+                                    {domain.extension}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Button variant="outline" onClick={checkDomainAvailability}>
+                              بررسی
+                            </Button>
                           </div>
                         </div>
-                      </div>
-                    </div>
-
-                    {/* Domain Availability Check */}
-                    <div className="p-4 bg-muted/50 rounded-lg">
-                      <h4 className="font-semibold mb-3">بررسی در دسترس بودن دامنه</h4>
-                      <div className="flex gap-3">
-                        <Input 
-                          type="text" 
-                          placeholder="نام دامنه مورد نظر"
-                          className="flex-1"
-                        />
-                        <Button variant="outline">بررسی</Button>
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -987,6 +1254,127 @@ const AdminDashboard = () => {
           </Tabs>
         </motion.div>
       </div>
+
+      {/* New Domain Extension Dialog */}
+      <Dialog open={newDomainDialog} onOpenChange={setNewDomainDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>افزودن پسوند دامنه جدید</DialogTitle>
+            <DialogDescription>
+              پسوند دامنه جدید و قیمت آن را اضافه کنید
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="extension">پسوند دامنه</Label>
+              <Input
+                id="extension"
+                placeholder="مثال: .io"
+                value={newDomainData.extension}
+                onChange={(e) => setNewDomainData(prev => ({ ...prev, extension: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="price">قیمت (تومان)</Label>
+              <Input
+                id="price"
+                type="number"
+                placeholder="مثال: 800000"
+                value={newDomainData.price}
+                onChange={(e) => setNewDomainData(prev => ({ ...prev, price: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="description">توضیحات</Label>
+              <Input
+                id="description"
+                placeholder="توضیحات پسوند دامنه"
+                value={newDomainData.description}
+                onChange={(e) => setNewDomainData(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="category">دسته‌بندی</Label>
+              <Select 
+                value={newDomainData.category} 
+                onValueChange={(value: 'country' | 'generic' | 'specialized') => 
+                  setNewDomainData(prev => ({ ...prev, category: value }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="country">کشوری</SelectItem>
+                  <SelectItem value="generic">عمومی</SelectItem>
+                  <SelectItem value="specialized">تخصصی</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setNewDomainDialog(false)}
+            >
+              انصراف
+            </Button>
+            <Button onClick={createNewDomainExtension}>
+              افزودن دامنه
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <Dialog open={deleteUserDialog.open} onOpenChange={(open) => setDeleteUserDialog({ open, user: null })}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>حذف کاربر</DialogTitle>
+            <DialogDescription>
+              آیا از حذف کاربر "{deleteUserDialog.user?.full_name || deleteUserDialog.user?.email}" اطمینان دارید؟
+              این عملیات غیرقابل بازگشت است.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="delete-reason">دلیل حذف *</Label>
+              <Textarea
+                id="delete-reason"
+                placeholder="دلیل حذف کاربر را وارد کنید..."
+                value={deleteUserReason}
+                onChange={(e) => setDeleteUserReason(e.target.value)}
+                rows={3}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteUserDialog({ open: false, user: null })}
+            >
+              انصراف
+            </Button>
+            <Button 
+              variant="destructive"
+              onClick={() => deleteUserDialog.user && handleDeleteUser(deleteUserDialog.user)}
+              disabled={!deleteUserReason.trim()}
+            >
+              حذف کاربر
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

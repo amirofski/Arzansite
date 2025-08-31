@@ -6,12 +6,14 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Wallet as WalletIcon, Plus, Minus, History, Search, Settings } from 'lucide-react';
+import { Wallet as WalletIcon, Plus, Minus, History, Search, Settings, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { WalletService } from '@/lib/walletService';
-import { apiClient, AdminWalletSummary } from '@/lib/api-client';
+import { apiClient, AdminWalletSummary, WalletAdjustment } from '@/lib/api-client';
 import AdminWalletAdjustmentDialog from './AdminWalletAdjustmentDialog';
 import type { Wallet, Transaction } from '@/lib/walletService';
+import { usePagination } from '@/hooks/usePagination';
+import { PaginationControls } from '@/components/ui/PaginationControls';
 
 interface AdminWalletManagerProps {
   userId: string;
@@ -22,12 +24,33 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
   const { toast } = useToast();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [adjustments, setAdjustments] = useState<WalletAdjustment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingAdjustments, setLoadingAdjustments] = useState(false);
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [adjustmentFilter, setAdjustmentFilter] = useState<string>('all');
+
+  // Pagination for adjustments
+  const {
+    currentItems: currentAdjustments,
+    totalPages: adjustmentsTotalPages,
+    currentPage: adjustmentsCurrentPage,
+    setCurrentPage: setAdjustmentsCurrentPage,
+    totalItems: adjustmentsTotalItems
+  } = usePagination({
+    data: adjustments,
+    itemsPerPage: 10,
+    searchTerm: '',
+    filterFunction: (adjustment: WalletAdjustment) => {
+      if (adjustmentFilter === 'all') return true;
+      return adjustment.type === adjustmentFilter;
+    }
+  });
 
   useEffect(() => {
     fetchWalletData();
+    fetchAdjustmentHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
@@ -53,12 +76,52 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
     }
   };
 
+  const fetchAdjustmentHistory = async () => {
+    setLoadingAdjustments(true);
+    try {
+      const result = await apiClient.getWalletAdjustmentHistory(userId, {
+        page: 1,
+        limit: 100,
+        type: adjustmentFilter !== 'all' ? adjustmentFilter : undefined
+      });
+      setAdjustments(result.adjustments || []);
+    } catch (error) {
+      console.error('Error fetching adjustment history:', error);
+      toast({
+        title: 'خطا در بارگیری تاریخچه تنظیمات',
+        description: 'مشکلی در دریافت تاریخچه تنظیمات پیش آمد',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingAdjustments(false);
+    }
+  };
+
   const handleAdjustmentComplete = () => {
     fetchWalletData();
+    fetchAdjustmentHistory();
   };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('fa-IR');
+  };
+
+  const getAdjustmentTypeText = (type: string) => {
+    switch (type) {
+      case 'credit': return 'افزایش موجودی';
+      case 'debit': return 'کاهش موجودی';
+      case 'correction': return 'تصحیح موجودی';
+      default: return type;
+    }
+  };
+
+  const getAdjustmentTypeColor = (type: string) => {
+    switch (type) {
+      case 'credit': return 'text-green-600';
+      case 'debit': return 'text-red-600';
+      case 'correction': return 'text-blue-600';
+      default: return 'text-gray-600';
+    }
   };
 
   if (loading) {
@@ -159,6 +222,95 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Adjustment History */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Settings className="w-4 h-4" />
+                  <h4 className="font-medium">تاریخچه تنظیمات</h4>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select value={adjustmentFilter} onValueChange={setAdjustmentFilter}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">همه</SelectItem>
+                      <SelectItem value="credit">افزایش</SelectItem>
+                      <SelectItem value="debit">کاهش</SelectItem>
+                      <SelectItem value="correction">تصحیح</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={fetchAdjustmentHistory}
+                    disabled={loadingAdjustments}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingAdjustments ? 'animate-spin' : ''}`} />
+                  </Button>
+                </div>
+              </div>
+              
+              {loadingAdjustments ? (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  در حال بارگیری...
+                </div>
+              ) : currentAdjustments.length === 0 ? (
+                <div className="text-center py-4 text-muted-foreground text-sm">
+                  هیچ تنظیمی یافت نشد
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {currentAdjustments.map((adjustment) => (
+                    <div
+                      key={adjustment.id}
+                      className="flex items-center justify-between p-3 bg-background border rounded-lg"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium text-sm ${getAdjustmentTypeColor(adjustment.type)}`}>
+                            {getAdjustmentTypeText(adjustment.type)}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {adjustment.adminName}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {adjustment.reason}
+                        </div>
+                        {adjustment.notes && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {adjustment.notes}
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {formatDate(adjustment.createdAt)}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={`font-medium ${getAdjustmentTypeColor(adjustment.type)}`}>
+                          {adjustment.type === 'credit' ? '+' : adjustment.type === 'debit' ? '-' : '='}
+                          {WalletService.formatAmount(adjustment.amount)}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {WalletService.formatAmount(adjustment.balanceBefore)} → {WalletService.formatAmount(adjustment.balanceAfter)}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  <PaginationControls
+                    currentPage={adjustmentsCurrentPage}
+                    totalPages={adjustmentsTotalPages}
+                    onPageChange={setAdjustmentsCurrentPage}
+                    totalItems={adjustmentsTotalItems}
+                    itemsPerPage={10}
+                  />
                 </div>
               )}
             </div>

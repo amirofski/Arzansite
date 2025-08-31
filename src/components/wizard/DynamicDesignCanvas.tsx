@@ -31,7 +31,7 @@ import {
   BarChart3,
   Share2
 } from 'lucide-react';
-import { useTemplateLoader, SkeletonTemplate, getImageTemplatesByCategory } from './templates';
+import { useTemplateLoader, SkeletonTemplate, getImageTemplatesByCategory } from './templates-del';
 import { getAdjacentImage, SECTION_NAMES } from '@/lib/imageLoader';
 import LazyImage from '@/components/ui/lazy-image';
 import CacheClearButton from '@/components/ui/cache-clear-button';

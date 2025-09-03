@@ -7,20 +7,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Image, FileIcon, Trash2, Download } from 'lucide-react';
-import { apiClient } from "@/lib/api-client";
+import { fileManagementService, type UploadedFile } from "@/lib/services";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
-interface UploadedFile {
-  id: string;
-  file_name: string;
-  file_path: string;
-  file_type: string;
-  file_size: number;
-  category: string;
-  description?: string;
-  created_at: string;
-}
+
 
 type StorageFile = {
   id?: string;
@@ -71,9 +62,9 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
       // Prefer new unified uploads endpoint, fallback to legacy storage listing
       try {
-        list = await apiClient.listUploads({ orderId, bucketType: 'uploads' });
+        list = await fileManagementService.listUploads({ orderId, bucketType: 'uploads' });
       } catch (e) {
-        list = await apiClient.listStorageFiles('uploads');
+        list = await fileManagementService.listStorageFiles('uploads');
       }
 
       if (list && typeof list === 'object' && 'files' in (list as Record<string, unknown>)) {
@@ -154,7 +145,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const handleDeleteFile = async (fileId: string) => {
     try {
-      await apiClient.deleteStorageFile('uploads', fileId);
+      await fileManagementService.deleteStorageFile('uploads', fileId);
       toast.success('فایل حذف شد');
       await loadUploadedFiles();
     } catch (error) {
@@ -204,7 +195,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
         ? ((data as Record<string, unknown>)?.orderId as string)
         : undefined;
       for (const f of fileArray) {
-        await apiClient.uploadStorageFile('uploads', f, {
+        await fileManagementService.uploadProjectFile(f, {
           category: selectedCategory,
           description: fileDescription || undefined,
           orderId,
@@ -247,7 +238,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const getSignedUrl = async (fileId: string) => {
     try {
-      const res = (await apiClient.getStorageFileUrl('uploads', fileId)) as unknown as { url?: string; fileId?: string };
+      const res = (await fileManagementService.getProjectFile(fileId)) as unknown as { url?: string; fileId?: string };
       if (res && typeof res.url === 'string') return res.url;
       return null;
     } catch (error) {

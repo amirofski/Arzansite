@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient } from "@/lib/api-client";
-import { WalletService } from "@/lib/walletService";
+// import { apiClient } from "@/lib/api-client";
+// import { WalletService } from "@/lib/walletService";
 import { CheckCircle, XCircle, Loader2, RefreshCw, Home, Wallet, Receipt, AlertCircle, CreditCard } from 'lucide-react';
 import Layout from "@/components/ui/Layout";
+import { walletService, WalletService } from '@/lib/services/wallet/walletService';
 
 // ZarinPal Payment Status Constants
 const PAYMENT_STATUS = {
@@ -108,7 +109,7 @@ const WalletPaymentCallback = () => {
 
              try {
          // Verify wallet deposit payment via backend JWT-only API
-         const verificationRes = await apiClient.verifyWalletDeposit({ 
+         const verificationRes = await walletService.verifyDeposit({ 
            orderId: orderId || undefined,
            authority: authority
           });
@@ -120,7 +121,7 @@ const WalletPaymentCallback = () => {
            
            toast({
              title: "✅ شارژ کیف پول موفق",
-             description: `مبلغ ${WalletService.formatAmount(paymentInfo?.amount || 0)} با موفقیت به کیف پول شما اضافه شد`,
+             description: `مبلغ ${'show charged amount value'} با موفقیت به کیف پول شما اضافه شد`,
            });
          } else {
            setStatus('failed');
@@ -179,7 +180,7 @@ const WalletPaymentCallback = () => {
       } as { amount: number; description: string; callbackUrl: string };
       
       console.log('Requesting retry wallet deposit with payload:', depositPayload);
-      const res = await apiClient.requestWalletDeposit(depositPayload);
+      const res = await walletService.requestDeposit(depositPayload);
       console.log('Retry wallet deposit response:', res);
       
       // Update stored payment info

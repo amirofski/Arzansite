@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { apiClient, AdminDashboardStats } from '@/lib/api-client';
+import { adminService, type AdminStats, type SystemMetrics } from '@/lib/services';
 import { 
   Users, 
   DollarSign, 
@@ -14,18 +14,19 @@ import {
 
 const AdminDashboardStats: React.FC = () => {
   const { toast } = useToast();
-  const [stats, setStats] = useState<AdminDashboardStats | null>(null);
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchStats = async () => {
     setLoading(true);
     try {
-      const [dashboardStats, systemMetrics] = await Promise.all([
-        apiClient.getAdminDashboardStats(),
-        apiClient.getSystemMetrics()
+      const [dashboardStats, metrics] = await Promise.all([
+        adminService.getAdminStats(),
+        adminService.getSystemMetrics()
       ]);
       setStats(dashboardStats);
-      // You can also use systemMetrics here if needed
+      setSystemMetrics(metrics);
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
       toast({

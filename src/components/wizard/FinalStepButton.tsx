@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { apiClient } from "@/lib/api-client";
+import { wizardService, authService, useApi } from '@/lib/services';
 import { calculateTotalPrice, PricingData } from '@/lib/pricingUtils';
 import { Check, Clock, CreditCard, UserPlus } from 'lucide-react';
 import { localOrders } from '@/lib/localOrders';
@@ -30,6 +30,37 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  // New API hooks for wizard completion and profile update
+  const { execute: completeWizardOrder } = useApi(
+    wizardService.completeOrder.bind(wizardService),
+    { 
+      onSuccess: handleWizardOrderSuccess,
+      onError: handleWizardOrderError
+    }
+  );
+
+  const { execute: updateProfile } = useApi(
+    authService.updateProfile.bind(authService),
+    { 
+      onError: (error) => console.warn('Profile update warning:', error)
+    }
+  );
+
+  // Handle successful wizard order completion
+  function handleWizardOrderSuccess() {
+    toast({
+      title: "پروژه ذخیره شد",
+      description: "پروژه شما با موفقیت ذخیره شد. می‌توانید از داشبورد خود پرداخت را تکمیل کنید.",
+    });
+    navigate('/dashboard');
+  }
+
+  // Handle wizard order completion error
+  function handleWizardOrderError(error: Error) {
+    console.warn('Wizard order completion failed, saving as local draft:', error);
+    // This will be handled in the saveProjectLater function
+  }
 
   const pricingInput: PricingData = {
     siteType: wizardData.siteType,
@@ -89,9 +120,9 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
         }
       };
 
-      // Prefer wizard completion endpoint per backend docs
+      // Use wizard completion endpoint
       try {
-        await apiClient.completeWizardOrder({
+        await completeWizardOrder({
           sessionId: orderData.sessionId,
           userId: user!.id,
           order: {
@@ -99,18 +130,18 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
             description: orderData.description,
             priceTomans: orderData.price,
             comments: orderData.comments,
-            siteType: orderData.siteType
+            siteType: orderData.siteType as 'personal' | 'business'
           },
           designSnapshot: {
-            modules: wizardData.modules,
+            websiteFramework: wizardData.websiteFramework,
             branding: wizardData.branding,
-            userInfo: wizardData.userInfo,
-            pricing: wizardData.pricing,
-            moduleLayout: (wizardData.modules || []).map((m: { [key: string]: unknown }, index: number) => ({
-              ...m,
-              position: index,
-            })),
-            websiteFramework: (wizardData as unknown as { websiteFramework?: unknown }).websiteFramework
+            additionalServices: wizardData.pricing?.additionalServices || {},
+            domains: {
+              primary_domain: wizardData.userInfo?.domain || 'mywebsite',
+              additional_domains: []
+            },
+            pricing: wizardData.pricing || {},
+            paymentOptions: {}
           }
         });
       } catch (_e) {
@@ -120,18 +151,13 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
       }
 
       // Update user profile if needed (allowed fields only)
-      if (wizardData.userInfo) {
-        await apiClient.updateProfile({
-          full_name: wizardData.userInfo.name,
+      if (wizardData.userInfo?.name) {
+        await updateProfile({
+          fullName: wizardData.userInfo.name,
         });
       }
 
-      toast({
-        title: "پروژه ذخیره شد",
-        description: "پروژه شما با موفقیت ذخیره شد. می‌توانید از داشبورد خود پرداخت را تکمیل کنید.",
-      });
-
-      navigate('/dashboard');
+      // Success handling is done in handleWizardOrderSuccess
 
     } catch (error: unknown) {
       console.error('Save project error:', error);

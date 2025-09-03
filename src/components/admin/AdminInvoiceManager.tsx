@@ -5,10 +5,20 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { apiClient, Invoice } from '@/lib/api-client';
+import { adminService } from '@/lib/services';
 import { RefreshCw, Search } from 'lucide-react';
 
-const statusBadge = (status: Invoice['status']) => {
+type AdminInvoice = {
+  id: string;
+  service_name?: string;
+  user_id: string;
+  status: string;
+  due_date?: string;
+  amount: number;
+  created_at: string;
+};
+
+const statusBadge = (status: AdminInvoice['status']) => {
 	switch (status) {
 		case 'paid': return 'bg-green-100 text-green-800';
 		case 'pending': return 'bg-yellow-100 text-yellow-800';
@@ -25,7 +35,7 @@ const formatDate = (d?: string) => (d ? new Date(d).toLocaleDateString('fa-IR') 
 
 const AdminInvoiceManager: React.FC = () => {
 	const { toast } = useToast();
-	const [invoices, setInvoices] = useState<Invoice[]>([]);
+	const [invoices, setInvoices] = useState<AdminInvoice[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [statusFilter, setStatusFilter] = useState<string>('all');
 	const [search, setSearch] = useState('');
@@ -33,8 +43,8 @@ const AdminInvoiceManager: React.FC = () => {
 	const load = async () => {
 		setLoading(true);
 		try {
-			const data = await apiClient.getAdminInvoices(statusFilter !== 'all' ? { status: statusFilter } : undefined);
-			setInvoices(data);
+			const data = await adminService.getAdminInvoices(statusFilter !== 'all' ? { status: statusFilter } : undefined);
+			setInvoices(data.invoices || []);
 		} catch (e) {
 			toast({ title: 'خطا در دریافت فاکتورها', variant: 'destructive' });
 		} finally {

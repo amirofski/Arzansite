@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { apiClient, WalletAdjustmentDto } from '@/lib/api-client';
+import { adminService } from '@/lib/services';
 import { WalletService } from '@/lib/walletService';
 
 interface AdminWalletAdjustmentDialogProps {
@@ -67,14 +67,12 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
 
     setProcessing(true);
     try {
-      const payload: WalletAdjustmentDto = {
+      const result = await adminService.adjustWalletBalance(walletId, {
         amount: adjustmentAmount,
         type,
         reason: reason.trim(),
         notes: notes.trim() || undefined,
-      };
-
-      const result = await apiClient.adjustWalletBalance(walletId, payload);
+      });
       
       if (result.success) {
         toast({

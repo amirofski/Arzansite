@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { apiClient } from '@/lib/api-client';
+import { adminService } from '@/lib/services';
 import { RefreshCw, Search, AlertTriangle } from 'lucide-react';
 
 type PaymentLog = { id: string; user_id: string; status: string; ref_id?: string; amount: number; created_at: string };
@@ -35,8 +35,8 @@ const AdminPaymentLogs: React.FC = () => {
 	const load = async () => {
 		setLoading(true);
 		try {
-			const data = await apiClient.getAdminPayments();
-			setLogs(data);
+			const data = await adminService.getAdminPayments();
+			setLogs(data.payments || []);
 		} catch (e) {
 			toast({ title: 'خطا در دریافت پرداخت‌ها', variant: 'destructive' });
 		} finally {

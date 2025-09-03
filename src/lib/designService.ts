@@ -1,4 +1,4 @@
-import { apiClient, DesignData, DesignOptions } from '@/lib/api-client';
+import { ordersService } from '@/lib/services';
 
 export interface PageSection {
   id: string;
@@ -27,19 +27,20 @@ export interface DynamicDesign {
   currentPageId: string;
 }
 
+export interface DesignOptions {
+  theme?: string;
+  font?: string;
+  spacing?: string;
+  customCss?: string;
+}
+
 export class DesignService {
   /**
    * Save design data to database
    */
   static async saveDesign(orderId: string, design: DynamicDesign, options?: DesignOptions): Promise<void> {
     try {
-      // Convert DynamicDesign to DesignData format
-      const designData: DesignData = {
-        pages: design.pages,
-        currentPageId: design.currentPageId,
-      };
-
-      await apiClient.saveDesign(orderId, designData, options);
+      await ordersService.saveDesign(orderId, design as unknown as Record<string, unknown>, options as unknown as Record<string, unknown>);
     } catch (error) {
       console.error('Error saving design:', error);
       throw error;
@@ -51,14 +52,13 @@ export class DesignService {
    */
   static async loadDesign(orderId: string): Promise<DynamicDesign | null> {
     try {
-      const response = await apiClient.getDesign(orderId);
+      const response = await ordersService.getDesign(orderId);
       if (!response?.design) return null;
 
-      // Convert DesignData back to DynamicDesign format
-      const designData = response.design;
+      const design = response.design as Record<string, unknown>;
       return {
-        pages: designData.pages || [],
-        currentPageId: designData.currentPageId || '',
+        pages: (design.pages as PageDesign[]) || [],
+        currentPageId: (design.currentPageId as string) || '',
       };
     } catch (error) {
       console.error('Error loading design:', error);
@@ -71,7 +71,7 @@ export class DesignService {
    */
   static async getDesignOptions(orderId: string): Promise<DesignOptions | null> {
     try {
-      return await apiClient.getDesignOptions(orderId);
+      return await ordersService.getDesignOptions(orderId);
     } catch (error) {
       console.error('Error loading design options:', error);
       return null;
@@ -83,7 +83,7 @@ export class DesignService {
    */
   static async updateDesignOptions(orderId: string, options: DesignOptions): Promise<void> {
     try {
-      await apiClient.updateDesignOptions(orderId, options);
+      await ordersService.updateDesignOptions(orderId, options as Record<string, unknown>);
     } catch (error) {
       console.error('Error updating design options:', error);
       throw error;
@@ -104,7 +104,7 @@ export class DesignService {
    */
   static async updatePreviewUrl(orderId: string, previewUrl: string): Promise<void> {
     try {
-      await apiClient.updatePreviewUrl(orderId, previewUrl);
+      await ordersService.updatePreviewUrl(orderId, previewUrl);
     } catch (error) {
       console.error('Error updating preview URL:', error);
       throw error;

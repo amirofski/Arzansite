@@ -4,74 +4,79 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
-import { apiClient } from '@/lib/api-client';
+import { authService, useApi, UserProfile } from '@/lib/services';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
-
-interface Profile {
-  id: string;
-  full_name?: string;
-  email: string;
-  phone?: string;
-  address?: string;
-}
 
 interface EditProfileDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  profile: Profile | null;
+  profile: UserProfile | null;
   onProfileUpdated: () => void;
 }
 
 const EditProfileDialog = ({ open, onOpenChange, profile, onProfileUpdated }: EditProfileDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    full_name: '',
+    fullName: '',
     phone: '',
     address: ''
   });
 
+  // New API hook for updating profile
+  const { execute: updateProfile, loading: updateLoading } = useApi(
+    authService.updateProfile.bind(authService),
+    { 
+      onSuccess: handleProfileUpdateSuccess,
+      onError: handleProfileUpdateError
+    }
+  );
+
   useEffect(() => {
     if (profile) {
       setFormData({
-        full_name: profile.full_name || '',
+        fullName: profile.fullName || '',
         phone: profile.phone || '',
         address: profile.address || ''
       });
     }
   }, [profile]);
 
+  // Handle successful profile update
+  function handleProfileUpdateSuccess() {
+    toast({
+      title: 'اطلاعات بروزرسانی شد',
+      description: 'اطلاعات حساب شما با موفقیت بروزرسانی شد',
+    });
+
+    onProfileUpdated();
+    onOpenChange(false);
+  }
+
+  // Handle profile update error
+  function handleProfileUpdateError(error: Error) {
+    console.error('Error updating profile:', error);
+    toast({
+      title: 'خطا در بروزرسانی',
+      description: 'مشکلی در بروزرسانی اطلاعات پیش آمد',
+      variant: 'destructive',
+    });
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !profile) return;
 
-    setLoading(true);
-
     try {
-      await apiClient.updateProfile({
-        full_name: formData.full_name,
+      await updateProfile({
+        fullName: formData.fullName,
         phone: formData.phone || undefined,
         address: formData.address || undefined,
-      } as any);
-
-      toast({
-        title: 'اطلاعات بروزرسانی شد',
-        description: 'اطلاعات حساب شما با موفقیت بروزرسانی شد',
       });
-
-      onProfileUpdated();
-      onOpenChange(false);
     } catch (error) {
-      console.error('Error updating profile:', error);
-      toast({
-        title: 'خطا در بروزرسانی',
-        description: 'مشکلی در بروزرسانی اطلاعات پیش آمد',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+      console.error('Error in handleSubmit:', error);
+      // Error handling is done in the useApi hook's onError callback
     }
   };
 
@@ -91,11 +96,11 @@ const EditProfileDialog = ({ open, onOpenChange, profile, onProfileUpdated }: Ed
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="full_name">نام کامل *</Label>
+            <Label htmlFor="fullName">نام کامل *</Label>
             <Input
-              id="full_name"
-              value={formData.full_name}
-              onChange={(e) => handleInputChange('full_name', e.target.value)}
+              id="fullName"
+              value={formData.fullName}
+              onChange={(e) => handleInputChange('fullName', e.target.value)}
               placeholder="نام کامل خود را وارد کنید"
               required
             />
@@ -147,10 +152,10 @@ const EditProfileDialog = ({ open, onOpenChange, profile, onProfileUpdated }: Ed
             </Button>
             <Button
               type="submit"
-              disabled={loading || !formData.full_name}
+              disabled={updateLoading || !formData.fullName}
               className="flex-1"
             >
-              {loading ? (
+              {updateLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin ml-2" />
               ) : null}
               بروزرسانی

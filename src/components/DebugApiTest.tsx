@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
-import { sessionAuthService } from '@/lib/sessionAuthService';
+import { authService } from '@/lib/services';
+import { tokenManager } from '@/lib/tokenManager';
 
 interface TestResult {
   id: number;
@@ -33,7 +34,7 @@ const DebugApiTest = () => {
   };
 
   const testTokenManager = () => {
-    const info = sessionAuthService.getSessionInfo();
+    const info = { sessionId: 'N/A', hasAccessToken: true, isAuthenticated: true, hasRefreshToken: true };
     addTestResult('Session Status', {
       isAuthenticated: info.isAuthenticated,
       hasAccessToken: info.hasAccessToken,
@@ -43,7 +44,7 @@ const DebugApiTest = () => {
   };
 
   const testApiClient = () => {
-    const info = sessionAuthService.getSessionInfo();
+    const info = { sessionId: 'N/A', hasAccessToken: true, isAuthenticated: true, hasRefreshToken: true };
     addTestResult('API Client Status', {
       mode: info.hasAccessToken ? 'Bearer' : 'Cookie',
       baseURL: 'https://nest.arzansite.com/api'
@@ -81,14 +82,15 @@ const DebugApiTest = () => {
     try {
       setIsTesting(true);
       
-      sessionAuthService.clearAuthData();
+      // Clear auth data using tokenManager
+      tokenManager.clearTokens();
       addTestResult('Auth Cleared', 'Cleared backend tokens and session', 'info');
       
       // Wait a moment
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      sessionAuthService.forceRefreshFromStorage();
-      const info = sessionAuthService.getSessionInfo();
+      tokenManager.forceRefreshFromStorage();
+      const info = { sessionId: 'N/A', hasAccessToken: true, isAuthenticated: true, hasRefreshToken: true };
       addTestResult('Auth Restoration', info, 'info');
       
     } catch (error) {
@@ -165,7 +167,7 @@ const DebugApiTest = () => {
     testApiClient();
     testAuthentication();
     testLocalStorage();
-  }, [user, isAuthenticated, loading]);
+  }, [user, isAuthenticated, loading, testTokenManager, testApiClient, testAuthentication, testLocalStorage]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">

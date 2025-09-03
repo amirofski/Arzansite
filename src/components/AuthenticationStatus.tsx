@@ -4,7 +4,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { tokenManager } from '@/lib/tokenManager';
-import { apiClient } from '@/lib/api-client';
 import { RefreshCw, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
 const AuthenticationStatus = () => {

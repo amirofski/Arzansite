@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { apiClient } from '../lib/api-client';
+import { paymentService } from '@/lib/services';
 import { SafeTransactionDescription } from './SafeTransactionDescription';
 
 export interface PaymentCallbackData {
@@ -31,6 +31,11 @@ export interface PaymentError {
   retryable: boolean;
   supportRequired: boolean;
   action?: string;
+}
+
+export interface PaymentCallbackHandlerProps {
+  onPaymentSuccess?: (result: PaymentVerificationResult) => void;
+  onPaymentFailure?: (result: PaymentVerificationResult) => void;
 }
 
 // Payment error definitions
@@ -117,7 +122,10 @@ const PAYMENT_ERRORS: Record<string, PaymentError> = {
   }
 };
 
-export const PaymentCallbackHandler: React.FC = () => {
+export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({ 
+  onPaymentSuccess, 
+  onPaymentFailure 
+}) => {
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
   const [verificationResult, setVerificationResult] = useState<PaymentVerificationResult | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -174,56 +182,59 @@ export const PaymentCallbackHandler: React.FC = () => {
       }
 
       // Verify payment with backend
-      const response = await apiClient.verifyWalletDeposit({
+      const response = await paymentService.verifyPayment({
         authority: data.authority,
         orderId: data.orderId
       });
 
-      if (response.success) {
-        return {
-          success: true,
-          refId: response.refId,
-          orderId: response.orderId,
-          amount: response.amount,
-          description: response.description
-        };
-      } else {
-        return {
-          success: false,
-          error: response.error || 'Payment verification failed',
-          errorCode: response.errorCode || 'VERIFICATION_FAILED',
-          errorDetails: response.errorDetails,
-          retryable: response.retryable !== false,
-          supportRequired: response.supportRequired === true
-        };
-      }
-    } catch (error: any) {
+             if (response.success) {
+         return {
+           success: true,
+           refId: response.refId,
+           orderId: response.orderId,
+           amount: response.amount,
+           description: response.description,
+           retryable: false,
+           supportRequired: false
+         };
+       } else {
+         return {
+           success: false,
+           error: response.error || 'Payment verification failed',
+           errorCode: response.errorCode || 'VERIFICATION_FAILED',
+           errorDetails: response.errorDetails,
+           retryable: response.retryable !== false,
+           supportRequired: response.supportRequired === true
+         };
+       }
+    } catch (error: unknown) {
       console.error('Payment verification error:', error);
       
       // Determine error type based on error details
       let errorCode = 'UNKNOWN_ERROR';
       let retryable = false;
-      
-      if (error.name === 'TypeError' || error.message?.includes('fetch')) {
+      const err = error as { name?: string; message?: string; status?: number };
+
+      if (err.name === 'TypeError' || err.message?.includes('fetch')) {
         errorCode = 'NETWORK_ERROR';
         retryable = true;
-      } else if (error.message?.includes('timeout')) {
+      } else if (err.message?.includes('timeout')) {
         errorCode = 'TIMEOUT_ERROR';
         retryable = true;
-      } else if (error.status === 400) {
+      } else if (err.status === 400) {
         errorCode = 'INVALID_AUTHORITY';
         retryable = false;
-      } else if (error.status === 409) {
+      } else if (err.status === 409) {
         errorCode = 'DUPLICATE_PAYMENT';
         retryable = false;
-      } else if (error.status >= 500) {
+      } else if (typeof err.status === 'number' && err.status >= 500) {
         errorCode = 'GATEWAY_ERROR';
         retryable = true;
       }
 
       return {
         success: false,
-        error: error.message || 'Network error during verification',
+        error: err.message || 'Network error during verification',
         errorCode,
         retryable,
         supportRequired: errorCode === 'UNKNOWN_ERROR' || errorCode === 'GATEWAY_ERROR'
@@ -247,20 +258,23 @@ export const PaymentCallbackHandler: React.FC = () => {
 
       if (result.success) {
         setStatus('success');
+        onPaymentSuccess?.(result);
       } else {
         setStatus('failed');
         const errorDetails = getErrorDetails(result.errorCode!, result.error);
         setErrorDetails(errorDetails);
+        onPaymentFailure?.(result);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Verification handler error:', error);
       setStatus('failed');
-      const errorDetails = getErrorDetails('UNKNOWN_ERROR', error.message);
+      const err = error as { message?: string };
+      const errorDetails = getErrorDetails('UNKNOWN_ERROR', err.message);
       setErrorDetails(errorDetails);
     } finally {
       setIsRetrying(false);
     }
-  }, [parseCallbackParams, verifyPayment, getErrorDetails]);
+  }, [parseCallbackParams, verifyPayment, getErrorDetails, onPaymentSuccess, onPaymentFailure]);
 
   // Retry verification
   const handleRetry = useCallback(async () => {
@@ -511,16 +525,29 @@ export const usePaymentCallback = () => {
   const processCallback = useCallback(async (callbackData: PaymentCallbackData) => {
     setIsProcessing(true);
     try {
-      const response = await apiClient.verifyWalletDeposit({
+      const response = await paymentService.verifyPayment({
         authority: callbackData.authority,
         orderId: callbackData.orderId
       });
-      setResult(response);
-      return response;
-    } catch (error: any) {
+      
+      // Transform response to match PaymentVerificationResult interface
+      const result: PaymentVerificationResult = {
+        success: response.success,
+        refId: response.refId,
+        orderId: response.orderId,
+        amount: response.amount,
+        description: response.description,
+        retryable: response.retryable || false,
+        supportRequired: response.supportRequired || false
+      };
+      
+      setResult(result);
+      return result;
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       const errorResult: PaymentVerificationResult = {
         success: false,
-        error: error.message || 'Verification failed',
+        error: err.message || 'Verification failed',
         errorCode: 'UNKNOWN_ERROR',
         retryable: false,
         supportRequired: true

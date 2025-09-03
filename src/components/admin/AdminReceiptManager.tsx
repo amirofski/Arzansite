@@ -3,15 +3,24 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { apiClient, Receipt } from '@/lib/api-client';
+import { adminService } from '@/lib/services';
 import { Download, RefreshCw, Search, FileText } from 'lucide-react';
+
+type AdminReceipt = {
+  id: string;
+  service?: string;
+  user_id: string;
+  ref_id?: string;
+  amount: number;
+  created_at: string;
+};
 
 const formatAmount = (amount: number) => new Intl.NumberFormat('fa-IR').format(amount) + ' تومان';
 const formatDate = (d?: string) => (d ? new Date(d).toLocaleDateString('fa-IR') : '—');
 
 const AdminReceiptManager: React.FC = () => {
 	const { toast } = useToast();
-	const [receipts, setReceipts] = useState<Receipt[]>([]);
+	const [receipts, setReceipts] = useState<AdminReceipt[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [search, setSearch] = useState('');
 	const [downloading, setDownloading] = useState<string | null>(null);
@@ -19,8 +28,8 @@ const AdminReceiptManager: React.FC = () => {
 	const load = async () => {
 		setLoading(true);
 		try {
-			const data = await apiClient.getAdminReceipts();
-			setReceipts(data);
+			const data = await adminService.getAdminReceipts();
+			setReceipts(data.receipts || []);
 		} catch (e) {
 			toast({ title: 'خطا در دریافت رسیدها', variant: 'destructive' });
 		} finally {
@@ -44,7 +53,7 @@ const AdminReceiptManager: React.FC = () => {
 	const download = async (id: string, format: 'pdf' | 'html') => {
 		setDownloading(id);
 		try {
-			const blob = await apiClient.downloadReceipt(id, format);
+			const blob = await adminService.downloadReceipt(id, format);
 			const url = window.URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;

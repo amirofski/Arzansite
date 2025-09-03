@@ -2,15 +2,33 @@ import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { apiClient } from "@/lib/api-client";
+import { authService, useApi } from "@/lib/services";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Mail, ExternalLink } from "lucide-react";
 
 const EmailVerificationTest = () => {
   const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState(false);
   const [testType, setTestType] = useState<"signup" | "magiclink">("signup");
   const { toast } = useToast();
+
+  const { execute: signUp, loading } = useApi(
+    authService.signUp.bind(authService),
+    { 
+      onSuccess: () => {
+        toast({
+          title: "ایمیل ارسال شد",
+          description: "درخواست ثبت‌نام به بک‌اند ارسال شد. ایمیل تایید باید برسد.",
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: "خطا",
+          description: "مشکلی در ارسال ایمیل پیش آمد",
+          variant: "destructive",
+        });
+      }
+    }
+  );
 
   const handleTestEmail = async () => {
     if (!email) {
@@ -22,30 +40,14 @@ const EmailVerificationTest = () => {
       return;
     }
 
-    setLoading(true);
-
-    try {
-      if (testType === "signup") {
-        await apiClient.signUp(email, "test-password-123");
-        toast({
-          title: "ایمیل ارسال شد",
-          description: "درخواست ثبت‌نام به بک‌اند ارسال شد. ایمیل تایید باید برسد.",
-        });
-      } else if (testType === "magiclink") {
-        toast({
-          title: "غیرفعال",
-          description: "تست Magic Link در فرانت حذف شده است. از جریان بک‌اند استفاده کنید.",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
+    if (testType === "signup") {
+      await signUp({ email, password: "test-password-123" });
+    } else if (testType === "magiclink") {
       toast({
-        title: "خطا",
-        description: "مشکلی در ارسال ایمیل پیش آمد",
+        title: "غیرفعال",
+        description: "تست Magic Link در فرانت حذف شده است. از جریان بک‌اند استفاده کنید.",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
   };
 

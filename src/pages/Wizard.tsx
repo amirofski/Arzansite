@@ -14,8 +14,7 @@ import OrderSubmissionStep from '@/components/wizard/OrderSubmissionStep';
 import FinalStepButton from '@/components/wizard/FinalStepButton';
 import Layout from "@/components/ui/Layout";
 import { useToast } from '@/hooks/use-toast';
-import { wizardErrorHandler, WizardErrorHandler } from '@/lib/wizardErrorHandler';
-import { mockApiClient } from '@/lib/wizardApiClient';
+import { wizardService } from '@/lib/services';
 
 interface WizardData {
   siteType: 'personal' | 'business' | '';
@@ -151,11 +150,8 @@ const Wizard = () => {
     try {
       setIsAutoSaving(true);
       
-      // Use mock API client for now (replace with real API when backend is ready)
-      const response = await mockApiClient.saveWizardProgress({
-        sessionId,
-        ...data
-      });
+      // Use new wizard service for saving progress
+      const response = await wizardService.saveProgress(sessionId, data);
       
       // Also save to localStorage as backup
       localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify(data));
@@ -174,12 +170,12 @@ const Wizard = () => {
     } catch (error) {
       console.error('Failed to save wizard progress:', error);
       
-      // Use error handler for better error management
-      const wizardError = WizardErrorHandler.handle(error, 'saveWizardProgress');
+      // Handle error with user-friendly message
+      const errorMessage = error instanceof Error ? error.message : 'خطا در ذخیره‌سازی پیشرفت';
       
       toast({
         title: 'خطا در ذخیره‌سازی',
-        description: wizardError.message,
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -201,13 +197,13 @@ const Wizard = () => {
   // Recover wizard progress from backend
   const recoverWizardProgress = useCallback(async (sessionId: string) => {
     try {
-      // Use mock API client for now (replace with real API when backend is ready)
-      const progress = await mockApiClient.getWizardProgress(sessionId);
+      // Use new wizard service for loading progress
+      const progress = await wizardService.loadProgress(sessionId);
       
       // Map API response to WizardData format
       // Use partial typing with fallbacks to satisfy strict typing
       const mappedProgress: WizardData = {
-        siteType: progress.siteType,
+        siteType: progress.siteType || '',
         pageMode: '',
         modules: [],
         websiteFramework: (progress as unknown as { websiteFramework?: WizardData['websiteFramework'] }).websiteFramework || {
@@ -254,12 +250,12 @@ const Wizard = () => {
     } catch (error) {
       console.error('Failed to recover wizard progress:', error);
       
-      // Use error handler for better error management
-      const wizardError = WizardErrorHandler.handle(error, 'recoverWizardProgress');
+      // Handle error with user-friendly message
+      const errorMessage = error instanceof Error ? error.message : 'خطا در بازیابی پیشرفت';
       
       toast({
         title: 'خطا در بازیابی',
-        description: wizardError.message,
+        description: errorMessage,
         variant: 'destructive',
       });
     }

@@ -6,6 +6,7 @@ import BackendConnectionTest from '@/components/BackendConnectionTest';
 import DebugApiTest from '@/components/DebugApiTest';
 import AuthenticationStatus from '@/components/AuthenticationStatus';
 import SimplePingTest from '@/components/SimplePingTest';
+import AuthDebugger from '@/components/debug/AuthDebugger';
  
 
 const Debug = () => {
@@ -23,7 +24,9 @@ const Debug = () => {
           <SimplePingTest />
         </div>
 
-        
+        <div className="grid grid-cols-1 gap-6">
+          <AuthDebugger />
+        </div>
 
         <div className="grid grid-cols-1 gap-6">
           <AuthFlowTest />

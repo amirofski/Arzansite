@@ -6,9 +6,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { User, Mail, Globe, Shield, Clock, Check, X, Loader2, DollarSign, Plus, Trash2, LogIn, UserPlus } from 'lucide-react';
-import { apiClient } from "@/lib/api-client";
+import { wizardService, type DomainAvailabilityResponse } from "@/lib/services";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+
+// Extend Window interface to include our custom navigation function
+declare global {
+  interface Window {
+    __APP_NAVIGATE__?: (path: string) => void;
+  }
+}
 
 interface StepFiveProps {
   data: {
@@ -63,16 +70,8 @@ interface StepFiveProps {
   }>) => void;
 }
 
-interface DomainAvailability {
-  available: boolean;
-  domain: string;
-  extension: string;
-  price: number;
-  description: string;
-  message: string;
-  error?: string;
-  checkedAt?: string;
-}
+// Use the imported type
+type DomainAvailability = DomainAvailabilityResponse;
 
 const DOMAIN_EXTENSIONS = [
   { value: '.ir', label: '.ir', price: 0, description: 'دامنه ایرانی - یک سال رایگان' },
@@ -290,11 +289,8 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
 
     setIsChecking(true);
     try {
-      const result = await (apiClient as any).request('/domains/check', {
-        method: 'POST',
-        body: JSON.stringify({ domain, extension }),
-      });
-      setDomainCheck(result as DomainAvailability);
+      const result = await wizardService.checkDomainAvailability({ domain, extension });
+      setDomainCheck(result);
     } catch (error) {
       console.error('Domain check failed:', error);
       toast({
@@ -361,10 +357,7 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
     // Check domain availability
     setIsChecking(true);
     try {
-      const result = await (apiClient as any).request('/domains/check', {
-        method: 'POST',
-        body: JSON.stringify({ domain: additionalDomain, extension: additionalExtension }),
-      }) as DomainAvailability;
+      const result = await wizardService.checkDomainAvailability({ domain: additionalDomain, extension: additionalExtension });
 
       if (result?.available) {
         const extension = DOMAIN_EXTENSIONS.find(ext => ext.value === additionalExtension);
@@ -464,11 +457,14 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                   className="flex-1"
                   onClick={() => {
                     try {
-                      (window as any).__APP_NAVIGATE__?.('/auth?redirect=wizard');
+                      const navigate = window.__APP_NAVIGATE__;
+                      if (navigate) {
+                        navigate('/auth?redirect=wizard');
+                      } else {
+                        window.location.href = '/auth?redirect=wizard';
+                      }
                     } catch {
                       // Fallback to window.location if navigation fails
-                    }
-                    if (!((window as any).__APP_NAVIGATE__)) {
                       window.location.href = '/auth?redirect=wizard';
                     }
                   }}
@@ -481,11 +477,14 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                   className="flex-1"
                   onClick={() => {
                     try {
-                      (window as any).__APP_NAVIGATE__?.('/auth?redirect=wizard&mode=signup');
+                      const navigate = window.__APP_NAVIGATE__;
+                      if (navigate) {
+                        navigate('/auth?redirect=wizard&mode=signup');
+                      } else {
+                        window.location.href = '/auth?redirect=wizard&mode=signup';
+                      }
                     } catch {
                       // Fallback to window.location if navigation fails
-                    }
-                    if (!((window as any).__APP_NAVIGATE__)) {
                       window.location.href = '/auth?redirect=wizard&mode=signup';
                     }
                   }}

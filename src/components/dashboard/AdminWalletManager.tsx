@@ -8,17 +8,24 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Wallet as WalletIcon, Plus, Minus, History, Search } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { WalletService } from '@/lib/walletService';
-import type { Wallet, Transaction } from '@/lib/walletService';
+import { walletService, adminService } from '@/lib/services';
+import type { WalletTransaction as Transaction } from '@/lib/services';
+import { formatAmount } from '@/lib/currencyUtils';
 
 interface AdminWalletManagerProps {
   userId: string;
   userName: string;
 }
 
+const allowedTypes = ['deposit','withdrawal','refund','credit','debit'] as const;
+type TxnType = typeof allowedTypes[number];
+function toTxnType(t: string): TxnType {
+  return (allowedTypes as ReadonlyArray<string>).includes(t) ? (t as TxnType) : 'deposit';
+}
+
 const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userName }) => {
   const { toast } = useToast();
-  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [balance, setBalance] = useState<number>(0);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [creditDialogOpen, setCreditDialogOpen] = useState(false);
@@ -35,13 +42,10 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
   const fetchWalletData = async () => {
     setLoading(true);
     try {
-      const [walletData, transactionsData] = await Promise.all([
-        WalletService.getWallet(userId),
-        WalletService.getTransactions(userId, 20)
-      ]);
-      
-      setWallet(walletData);
-      setTransactions(transactionsData);
+      const txResp = await walletService.getTransactions({ limit: 20 });
+      const balResp = await walletService.getBalance();
+      setTransactions(txResp.transactions || []);
+      setBalance(balResp.balance || 0);
     } catch (error) {
       console.error('Error fetching wallet data:', error);
       toast({
@@ -67,21 +71,17 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
 
     setProcessing(true);
     try {
-      const transactionId = await WalletService.creditUser(
-        userId,
-        creditAmount,
-        description || `اعتبار ادمین: ${description}`
-      );
+      const result = await adminService.adjustWalletBalance(userId, { amount: creditAmount, type: 'credit', reason: description || 'اعتبار ادمین' });
 
-      if (transactionId) {
+      if (result.success) {
         toast({
           title: 'اعتبار موفق',
-          description: `${WalletService.formatAmount(creditAmount)} با موفقیت به کیف پول کاربر اضافه شد`,
+          description: `${formatAmount(creditAmount, 'RIAL')} با موفقیت به کیف پول کاربر اضافه شد`,
         });
         setCreditDialogOpen(false);
         setAmount('');
         setDescription('');
-        fetchWalletData(); // Refresh data
+        fetchWalletData();
       } else {
         throw new Error('Failed to process credit');
       }
@@ -108,7 +108,7 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
       return;
     }
 
-    if (wallet && debitAmount > wallet.balance) {
+    if (debitAmount > balance) {
       toast({
         title: 'موجودی ناکافی',
         description: 'موجودی کیف پول کاربر کمتر از مبلغ درخواستی است',
@@ -119,21 +119,17 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
 
     setProcessing(true);
     try {
-      const transactionId = await WalletService.debitUser(
-        userId,
-        debitAmount,
-        description || `کسر ادمین: ${description}`
-      );
+      const result = await adminService.adjustWalletBalance(userId, { amount: debitAmount, type: 'debit', reason: description || 'کسر ادمین' });
 
-      if (transactionId) {
+      if (result.success) {
         toast({
           title: 'کسر موفق',
-          description: `${WalletService.formatAmount(debitAmount)} با موفقیت از کیف پول کاربر کسر شد`,
+          description: `${formatAmount(debitAmount, 'RIAL')} با موفقیت از کیف پول کاربر کسر شد`,
         });
         setDebitDialogOpen(false);
         setAmount('');
         setDescription('');
-        fetchWalletData(); // Refresh data
+        fetchWalletData();
       } else {
         throw new Error('Failed to process debit');
       }
@@ -211,7 +207,7 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
             {/* Balance Display */}
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <div className="text-2xl font-bold text-primary">
-                {wallet ? WalletService.formatAmount(wallet.balance) : '0 تومان'}
+                {formatAmount(balance, 'RIAL')}
               </div>
               <div className="text-sm text-muted-foreground mt-1">
                 موجودی فعلی
@@ -239,13 +235,13 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-sm">
-                            {WalletService.getTransactionTypeText(transaction.type as unknown as 'deposit' | 'withdrawal' | 'refund' | 'credit' | 'debit' | 'payment')}
+{transaction.type}
                           </span>
                           <Badge
                             variant="outline"
-                            className={`text-xs ${WalletService.getTransactionStatusColor(transaction.status)}`}
+className={`text-xs ${transaction.status === 'completed' ? 'bg-green-100 text-green-800' : transaction.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : transaction.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}
                           >
-                            {WalletService.getTransactionStatusText(transaction.status)}
+{transaction.status === 'completed' ? 'موفق' : transaction.status === 'pending' ? 'در انتظار' : transaction.status === 'failed' ? 'ناموفق' : 'لغو شده'}
                           </Badge>
                         </div>
                         {transaction.description && (
@@ -254,12 +250,12 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
                           </div>
                         )}
                         <div className="text-xs text-muted-foreground mt-1">
-                          {formatDate(transaction.created_at)}
+                          {formatDate(transaction.createdAt)}
                         </div>
                       </div>
-                      <div className={`font-medium ${WalletService.getTransactionTypeColor(transaction.type as unknown as 'deposit' | 'withdrawal' | 'refund' | 'credit' | 'debit' | 'payment')}`}>
+<div className={`font-medium ${transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
                         {transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? '+' : '-'}
-                        {WalletService.formatAmount(transaction.amount)}
+{formatAmount(transaction.amount, 'RIAL')}
                       </div>
                     </div>
                   ))}

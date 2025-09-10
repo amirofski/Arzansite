@@ -80,12 +80,25 @@ export class PaymentService extends BaseApiService {
     try {
       const snakeCaseRequest = FieldMapper.transformRequest(request);
       
-      const response = await withRetry(() =>
-        this.request<PaymentResponse>('/payments', {
-          method: 'POST',
-          body: JSON.stringify(snakeCaseRequest),
-        })
-      );
+      // Primary per integration guide: /payments/request
+      try {
+        const primary = await withRetry(() =>
+          this.request<PaymentResponse>('/payments/request', {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (e) {
+        // Fallback to legacy route /payments
+        const fallback = await withRetry(() =>
+          this.request<PaymentResponse>('/payments', {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
 
       return FieldMapper.transformResponse(response);
     } catch (error) {
@@ -141,11 +154,20 @@ export class PaymentService extends BaseApiService {
    */
   async getPaymentStatus(request: PaymentStatusRequest): Promise<PaymentStatusResponse> {
     try {
-      const response = await withRetry(() =>
-        this.request<PaymentStatusResponse>(`/payments/${request.paymentId}`)
-      );
-
-      return FieldMapper.transformResponse(response);
+      // Primary per integration guide: GET /payments/status?payment_id=...
+      try {
+        const query = new URLSearchParams({ payment_id: request.paymentId }).toString();
+        const primary = await withRetry(() =>
+          this.request<PaymentStatusResponse>(`/payments/status?${query}`)
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (e) {
+        // Fallback to legacy path /payments/:id
+        const fallback = await withRetry(() =>
+          this.request<PaymentStatusResponse>(`/payments/${request.paymentId}`)
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'PaymentService.getPaymentStatus');
       throw error;
@@ -247,13 +269,24 @@ export class PaymentService extends BaseApiService {
    */
   async cancelPayment(paymentId: string): Promise<{ success: boolean }> {
     try {
-      const response = await withRetry(() =>
-        this.request<{ success: boolean }>(`/payments/${paymentId}/cancel`, {
-          method: 'POST',
-        })
-      );
-
-      return response;
+      // Primary per integration guide: POST /payments/cancel
+      try {
+        const primary = await withRetry(() =>
+          this.request<{ success: boolean }>(`/payments/cancel`, {
+            method: 'POST',
+            body: JSON.stringify({ payment_id: paymentId }),
+          })
+        );
+        return primary;
+      } catch (e) {
+        // Fallback to legacy path /payments/:id/cancel
+        const fallback = await withRetry(() =>
+          this.request<{ success: boolean }>(`/payments/${paymentId}/cancel`, {
+            method: 'POST',
+          })
+        );
+        return fallback;
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'PaymentService.cancelPayment');
       throw error;
@@ -272,18 +305,33 @@ export class PaymentService extends BaseApiService {
       const request = amount ? { amount } : {};
       const snakeCaseRequest = FieldMapper.transformRequest(request);
       
-      const response = await withRetry(() =>
-        this.request<{
-          success: boolean;
-          refundId?: string;
-          amount?: number;
-        }>(`/payments/${paymentId}/refund`, {
-          method: 'POST',
-          body: JSON.stringify(snakeCaseRequest),
-        })
-      );
-
-      return FieldMapper.transformResponse(response);
+      // Primary per integration guide: POST /payments/refund
+      try {
+        const primary = await withRetry(() =>
+          this.request<{
+            success: boolean;
+            refundId?: string;
+            amount?: number;
+          }>(`/payments/refund`, {
+            method: 'POST',
+            body: JSON.stringify({ payment_id: paymentId, ...snakeCaseRequest }),
+          })
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (e) {
+        // Fallback to legacy path /payments/:id/refund
+        const fallback = await withRetry(() =>
+          this.request<{
+            success: boolean;
+            refundId?: string;
+            amount?: number;
+          }>(`/payments/${paymentId}/refund`, {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'PaymentService.refundPayment');
       throw error;

@@ -123,13 +123,18 @@ export class SupportService extends BaseApiService {
       if (params?.category) queryParams.append('category', params.category);
       
       const queryString = queryParams.toString();
-      const endpoint = `/support/tickets${queryString ? `?${queryString}` : ''}`;
-      
-      const response = await withRetry(() =>
-        this.request<TicketListResponse>(endpoint)
-      );
-
-      return FieldMapper.transformResponse(response);
+      try {
+        const primary = await withRetry(() =>
+          this.request<TicketListResponse>(`/support/tickets${queryString ? `?${queryString}` : ''}`)
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (e) {
+        // Fallback: older naming is the same; keep as-is
+        const fallback = await withRetry(() =>
+          this.request<TicketListResponse>(`/support/tickets${queryString ? `?${queryString}` : ''}`)
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'SupportService.getTickets');
       throw error;
@@ -141,11 +146,18 @@ export class SupportService extends BaseApiService {
    */
   async getTicket(ticketId: string): Promise<{ success: boolean; ticket: SupportTicket }> {
     try {
-      const response = await withRetry(() =>
-        this.request<{ success: boolean; ticket: SupportTicket }>(`/support/tickets/${ticketId}`)
-      );
-
-      return FieldMapper.transformResponse(response);
+      // Primary per integration guide: singular path
+      try {
+        const primary = await withRetry(() =>
+          this.request<{ success: boolean; ticket: SupportTicket }>(`/support/ticket/${ticketId}`)
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (_) {
+        const fallback = await withRetry(() =>
+          this.request<{ success: boolean; ticket: SupportTicket }>(`/support/tickets/${ticketId}`)
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'SupportService.getTicket');
       throw error;
@@ -158,15 +170,25 @@ export class SupportService extends BaseApiService {
   async createTicket(request: CreateTicketRequest): Promise<CreateTicketResponse> {
     try {
       const snakeCaseRequest = FieldMapper.transformRequest(request);
-      
-      const response = await withRetry(() =>
-        this.request<CreateTicketResponse>('/support/tickets', {
-          method: 'POST',
-          body: JSON.stringify(snakeCaseRequest),
-        })
-      );
 
-      return FieldMapper.transformResponse(response);
+      // Primary per integration guide: /support/report-issue
+      try {
+        const primary = await withRetry(() =>
+          this.request<CreateTicketResponse>('/support/report-issue', {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (_) {
+        const fallback = await withRetry(() =>
+          this.request<CreateTicketResponse>('/support/tickets', {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'SupportService.createTicket');
       throw error;
@@ -200,15 +222,25 @@ export class SupportService extends BaseApiService {
   async addMessage(ticketId: string, request: AddMessageRequest): Promise<AddMessageResponse> {
     try {
       const snakeCaseRequest = FieldMapper.transformRequest(request);
-      
-      const response = await withRetry(() =>
-        this.request<AddMessageResponse>(`/support/tickets/${ticketId}/messages`, {
-          method: 'POST',
-          body: JSON.stringify(snakeCaseRequest),
-        })
-      );
 
-      return FieldMapper.transformResponse(response);
+      // Primary per integration guide: singular message endpoint
+      try {
+        const primary = await withRetry(() =>
+          this.request<AddMessageResponse>(`/support/ticket/${ticketId}/message`, {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (_) {
+        const fallback = await withRetry(() =>
+          this.request<AddMessageResponse>(`/support/tickets/${ticketId}/messages`, {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'SupportService.addMessage');
       throw error;

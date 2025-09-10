@@ -62,13 +62,18 @@ export class NotificationsService extends BaseApiService {
       if (params?.unreadOnly) queryParams.append('unread_only', 'true');
       
       const queryString = queryParams.toString();
-      const endpoint = `/notifications${queryString ? `?${queryString}` : ''}`;
-      
-      const response = await withRetry(() =>
-        this.request<NotificationListResponse>(endpoint)
-      );
-
-      return FieldMapper.transformResponse(response);
+      // Primary per integration guide: /notifications/history
+      try {
+        const primary = await withRetry(() =>
+          this.request<NotificationListResponse>(`/notifications/history${queryString ? `?${queryString}` : ''}`)
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (e) {
+        const fallback = await withRetry(() =>
+          this.request<NotificationListResponse>(`/notifications${queryString ? `?${queryString}` : ''}`)
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'NotificationsService.getNotifications');
       throw error;
@@ -80,13 +85,22 @@ export class NotificationsService extends BaseApiService {
    */
   async markAsRead(notificationId: string): Promise<MarkNotificationReadResponse> {
     try {
-      const response = await withRetry(() =>
-        this.request<MarkNotificationReadResponse>(`/notifications/${notificationId}/read`, {
-          method: 'PATCH',
-        })
-      );
-
-      return FieldMapper.transformResponse(response);
+      // Primary per integration guide uses PUT
+      try {
+        const primary = await withRetry(() =>
+          this.request<MarkNotificationReadResponse>(`/notifications/${notificationId}/read`, {
+            method: 'PUT',
+          })
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (_) {
+        const fallback = await withRetry(() =>
+          this.request<MarkNotificationReadResponse>(`/notifications/${notificationId}/read`, {
+            method: 'PATCH',
+          })
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'NotificationsService.markAsRead');
       throw error;
@@ -98,13 +112,22 @@ export class NotificationsService extends BaseApiService {
    */
   async markAllAsRead(): Promise<MarkNotificationReadResponse> {
     try {
-      const response = await withRetry(() =>
-        this.request<MarkNotificationReadResponse>('/notifications/read-all', {
-          method: 'PATCH',
-        })
-      );
-
-      return FieldMapper.transformResponse(response);
+      // Primary per integration guide uses PUT
+      try {
+        const primary = await withRetry(() =>
+          this.request<MarkNotificationReadResponse>('/notifications/read-all', {
+            method: 'PUT',
+          })
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (_) {
+        const fallback = await withRetry(() =>
+          this.request<MarkNotificationReadResponse>('/notifications/read-all', {
+            method: 'PATCH',
+          })
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'NotificationsService.markAllAsRead');
       throw error;
@@ -116,11 +139,18 @@ export class NotificationsService extends BaseApiService {
    */
   async getUnreadCount(): Promise<{ success: boolean; count: number }> {
     try {
-      const response = await withRetry(() =>
-        this.request<{ success: boolean; count: number }>('/notifications/count')
-      );
-
-      return FieldMapper.transformResponse(response);
+      // Primary per integration guide
+      try {
+        const primary = await withRetry(() =>
+          this.request<{ success: boolean; count: number }>('/notifications/unread-count')
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (_) {
+        const fallback = await withRetry(() =>
+          this.request<{ success: boolean; count: number }>('/notifications/count')
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'NotificationsService.getUnreadCount');
       throw error;

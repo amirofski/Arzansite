@@ -117,6 +117,50 @@ export interface AdminStats {
 
 export class AdminService extends BaseApiService {
   /**
+   * Get admin payments
+   */
+  async getPayments(params: { page?: number; limit?: number; status?: string; user_id?: string } = {}): Promise<{
+    success: boolean;
+    payments: Array<{
+      id: string;
+      user_id: string;
+      status: string;
+      ref_id?: string;
+      amount: number;
+      created_at: string;
+    }>;
+    pagination?: { page: number; limit: number; total: number; pages: number };
+  }> {
+    try {
+      const query = new URLSearchParams();
+      if (params.page) query.append('page', String(params.page));
+      if (params.limit) query.append('limit', String(params.limit));
+      if (params.status) query.append('status', params.status);
+      if (params.user_id) query.append('user_id', params.user_id);
+      const endpoint = `/admin/payments${query.toString() ? `?${query.toString()}` : ''}`;
+
+      const response = await withRetry(() =>
+        this.request<{
+          success: boolean;
+          payments: Array<{
+            id: string;
+            user_id: string;
+            status: string;
+            ref_id?: string;
+            amount: number;
+            created_at: string;
+          }>;
+          pagination?: { page: number; limit: number; total: number; pages: number };
+        }>(endpoint)
+      );
+
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'AdminService.getPayments');
+      throw error;
+    }
+  }
+  /**
    * Get orders for admin
    */
   async getOrders(request: GetOrdersRequest = {}): Promise<{

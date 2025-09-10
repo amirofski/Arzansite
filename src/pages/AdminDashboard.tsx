@@ -38,9 +38,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useSiteMode } from '@/hooks/useSiteMode';
 import SiteModeDisplay from '@/components/ui/SiteModeDisplay';
 // Removed unused frontend email templating utilities; keep only adminService usage for emails
-import { WalletService } from '@/lib/walletService';
-import { PaymentService } from '@/lib/paymentService';
-import { DesignService } from '@/lib/designService';
+// Removed legacy service imports; using consolidated services via '@/lib/services'
 import AdminInvoiceManager from '@/components/admin/AdminInvoiceManager';
 import AdminReceiptManager from '@/components/admin/AdminReceiptManager';
 import AdminPaymentLogs from '@/components/admin/AdminPaymentLogs';

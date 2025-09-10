@@ -11,7 +11,7 @@ export function useSiteConfigSocket() {
   const [connected, setConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<SiteConfigMessage | null>(null);
   const listenersAttached = useRef(false);
-  const { addMessage } = useNotifications();
+  const { refresh } = useNotifications();
 
   useEffect(() => {
     const socket = socketClient.connect();
@@ -20,14 +20,14 @@ export function useSiteConfigSocket() {
     const onDisconnect = () => setConnected(false);
     const onConfigUpdate = (data: unknown) => {
       setLastMessage({ type: 'config_update', payload: data });
-      addMessage('تغییر پیکربندی سایت');
+      refresh();
     };
     const onModeUpdated = (data: unknown) => {
       setLastMessage({ type: 'mode_updated', payload: data });
       const mode = data && typeof data === 'object' && 'mode' in (data as Record<string, unknown>)
         ? String((data as Record<string, unknown>).mode)
         : 'نامشخص';
-      addMessage('حالت سایت بروزرسانی شد', `حالت جدید: ${mode}`);
+      refresh();
     };
 
     if (!listenersAttached.current) {
@@ -47,7 +47,7 @@ export function useSiteConfigSocket() {
         listenersAttached.current = false;
       }
     };
-  }, [addMessage]);
+  }, [refresh]);
 
   return { connected, lastMessage };
 }

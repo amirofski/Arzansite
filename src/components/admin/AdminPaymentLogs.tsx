@@ -35,7 +35,7 @@ const AdminPaymentLogs: React.FC = () => {
 	const load = async () => {
 		setLoading(true);
 		try {
-			const data = await adminService.getAdminPayments();
+			const data = await adminService.getPayments({ limit: 100 });
 			setLogs(data.payments || []);
 		} catch (e) {
 			toast({ title: 'خطا در دریافت پرداخت‌ها', variant: 'destructive' });

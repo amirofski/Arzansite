@@ -218,15 +218,26 @@ export class WizardService extends BaseApiService {
         design_snapshot: request.design_snapshot,
       };
       const snakeCaseRequest = FieldMapper.transformRequest(payload);
-      
-      const response = await withRetry(() =>
-        this.request<OrderResponse>('/wizard/complete-order', {
-          method: 'POST',
-          body: JSON.stringify(snakeCaseRequest),
-        })
-      );
 
-      return FieldMapper.transformResponse(response);
+      // Primary per integration guide: /wizard/complete-order
+      try {
+        const primary = await withRetry(() =>
+          this.request<OrderResponse>('/wizard/complete-order', {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (e) {
+        // Fallback: alternate route
+        const fallback = await withRetry(() =>
+          this.request<OrderResponse>('/wizard/complete', {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'WizardService.completeOrder');
       throw error;
@@ -264,7 +275,7 @@ export class WizardService extends BaseApiService {
       const snakeCaseRequest = FieldMapper.transformRequest(request);
       
       const response = await withRetry(() =>
-        this.request<{ success: boolean }>('/wizard/save-design', {
+        this.request<{ success: boolean }>('/wizard/designs', {
           method: 'POST',
           body: JSON.stringify(snakeCaseRequest),
         })
@@ -283,7 +294,7 @@ export class WizardService extends BaseApiService {
   async getDesign(orderId: string): Promise<DesignResponse> {
     try {
       const response = await withRetry(() =>
-        this.request<DesignResponse>(`/wizard/design/${orderId}`)
+        this.request<DesignResponse>(`/wizard/designs/${orderId}`)
       );
 
       return FieldMapper.transformResponse(response);
@@ -303,25 +314,37 @@ export class WizardService extends BaseApiService {
         wizard_data: data,
       };
       const snakeCaseRequest = FieldMapper.transformRequest(payload);
-      let response: SaveProgressResponse;
+
+      // Primary per integration guide: POST /wizard/progress
       try {
-        response = await withRetry(() =>
-          this.request<SaveProgressResponse>('/wizard/save-session', {
+        const primary = await withRetry(() =>
+          this.request<SaveProgressResponse>('/wizard/progress', {
             method: 'POST',
             body: JSON.stringify(snakeCaseRequest),
           })
         );
+        return FieldMapper.transformResponse(primary);
       } catch (err) {
-        // If endpoint not found (404), fallback to local storage
         const message = err instanceof Error ? err.message : String(err);
         if (message.includes('404') || message.toLowerCase().includes('not found')) {
-          localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify({ data }));
-          localStorage.setItem('wizard_session_id', sessionId);
-          return { success: false, sessionId, message: 'Saved locally (backend endpoint missing)' };
+          // Fallback to legacy: /wizard/save-session
+          try {
+            const fallback = await withRetry(() =>
+              this.request<SaveProgressResponse>('/wizard/save-session', {
+                method: 'POST',
+                body: JSON.stringify(snakeCaseRequest),
+              })
+            );
+            return FieldMapper.transformResponse(fallback);
+          } catch (e2) {
+            // As final fallback, store locally
+            localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify({ data }));
+            localStorage.setItem('wizard_session_id', sessionId);
+            return { success: false, sessionId, message: 'Saved locally (backend endpoint missing)' };
+          }
         }
         throw err;
       }
-      return FieldMapper.transformResponse(response);
     } catch (error) {
       ErrorHandler.logError(error, 'WizardService.saveProgress');
       throw error;
@@ -333,14 +356,41 @@ export class WizardService extends BaseApiService {
    */
   async loadProgress(sessionId: string): Promise<Record<string, unknown>> {
     try {
-      // Since the backend endpoint doesn't exist, we'll use localStorage as fallback
+      // Try server endpoints first
+      try {
+        // Option A: GET /wizard/progress?session_id=...
+        const query = new URLSearchParams({ session_id: sessionId }).toString();
+        const primary = await withRetry(() =>
+          this.request<{ data?: Record<string, unknown> }>(`/wizard/progress?${query}`)
+        );
+        const normalized = FieldMapper.transformResponse(primary);
+        if (normalized && typeof normalized === 'object' && 'data' in normalized) {
+          return (normalized as { data?: Record<string, unknown> }).data || {};
+        }
+      } catch (e1) {
+        const msg = e1 instanceof Error ? e1.message : String(e1);
+        if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
+          // Option B: GET /wizard/load-progress/{sessionId}
+          try {
+            const fallback = await withRetry(() =>
+              this.request<{ data?: Record<string, unknown> }>(`/wizard/load-progress/${encodeURIComponent(sessionId)}`)
+            );
+            const normalized = FieldMapper.transformResponse(fallback);
+            if (normalized && typeof normalized === 'object' && 'data' in normalized) {
+              return (normalized as { data?: Record<string, unknown> }).data || {};
+            }
+          } catch (_) {
+            // ignore and use local storage fallback
+          }
+        }
+      }
+
+      // LocalStorage fallback
       const savedProgress = localStorage.getItem(`wizard_progress_${sessionId}`);
-      
       if (savedProgress) {
         const progressData = JSON.parse(savedProgress);
         return progressData.data || {};
       }
-      
       return {};
     } catch (error) {
       ErrorHandler.logError(error, 'WizardService.loadProgress');
@@ -434,21 +484,34 @@ export class WizardService extends BaseApiService {
   }
 
   /**
-   * Check domain availability - Note: This endpoint doesn't exist on the backend
-   * Domain checking should be handled by the admin service or a different endpoint
+   * Check domain availability
+   * Primary per integration guide: POST /wizard/domains/check-availability
+   * Fallback: POST /domains/check-availability
    */
   async checkDomainAvailability(request: CheckDomainRequest): Promise<DomainAvailabilityResponse> {
-    // Since the endpoint doesn't exist, we'll return a mock response
-    // In production, this should be implemented with the correct endpoint
-    console.warn('Domain checking endpoint /wizard/check-domain does not exist');
-    
-    return {
-      available: false,
-      message: 'Domain checking not available',
-      domain: request.domain,
-      extension: request.extension,
-      price: 0,
-    } as unknown as DomainAvailabilityResponse;
+    try {
+      const snakeCaseRequest = FieldMapper.transformRequest(request);
+      try {
+        const primary = await withRetry(() =>
+          this.request<DomainAvailabilityResponse>('/wizard/domains/check-availability', {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (err) {
+        const fallback = await withRetry(() =>
+          this.request<DomainAvailabilityResponse>('/domains/check-availability', {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
+    } catch (error) {
+      ErrorHandler.logError(error, 'WizardService.checkDomainAvailability');
+      throw error;
+    }
   }
 }
 

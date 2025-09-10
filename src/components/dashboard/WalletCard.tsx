@@ -8,12 +8,21 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet as WalletIcon, Plus, ArrowUpDown, History, CreditCard, AlertCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { WalletService } from '@/lib/walletService';
+import { formatAmount } from '@/lib/currencyUtils';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/ui/PaginationControls';
 // New API services
 import { walletService, useApi } from '@/lib/services';
 import type { Transaction } from '@/lib/walletService';
+
+function getBalanceAfter(tx: Transaction & Partial<{ balanceAfter: number; balance_after: number }>): number {
+  if (typeof tx.balanceAfter === 'number') return tx.balanceAfter;
+  if ('balance_after' in tx) {
+    const legacy = (tx as unknown as { balance_after?: number }).balance_after;
+    if (typeof legacy === 'number') return legacy;
+  }
+  return 0;
+}
 
 interface WalletCardProps {
   userId: string;
@@ -148,18 +157,24 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
   };
 
   // Handle successful balance fetch
-  function handleBalanceSuccess(balanceData: number) {
+  function handleBalanceSuccess(balanceData: any) {
     const previousBalance = balance;
-    setBalance(balanceData);
+    let value = 0;
+    if (typeof balanceData === 'number') value = balanceData;
+    else if (balanceData && typeof balanceData === 'object') {
+      if (typeof balanceData.balance === 'number') value = balanceData.balance;
+      else if (balanceData.data && typeof balanceData.data.balance === 'number') value = balanceData.data.balance;
+    }
+    setBalance(value);
     
     // Show success message if balance increased (for payment success scenarios)
     const urlParams = new URLSearchParams(window.location.search);
     const paymentSuccess = urlParams.get('payment_success');
-    if (paymentSuccess === 'true' && balanceData > previousBalance) {
-      const increase = balanceData - previousBalance;
+    if (paymentSuccess === 'true' && value > previousBalance) {
+      const increase = value - previousBalance;
       toast({
         title: 'شارژ کیف پول موفق',
-        description: `مبلغ ${WalletService.formatAmount(increase)} با موفقیت به کیف پول شما اضافه شد`,
+        description: `مبلغ ${formatAmount(increase, 'RIAL')} با موفقیت به کیف پول شما اضافه شد`,
       });
     }
   }
@@ -211,7 +226,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
       type: 'wallet_deposit',
       userId,
       timestamp: Date.now(),
-      description: depositDescription || `شارژ کیف پول - ${WalletService.formatAmount(amount)}`
+      description: depositDescription || `شارژ کیف پول - ${formatAmount(amount, 'RIAL')}`
     };
     
     // Store in session storage for callback handling
@@ -306,11 +321,11 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
       console.log('Requesting wallet deposit for amount:', amount);
       
       // Use the new wallet service
-      const depositPayload = {
-        amount: Math.floor(amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
-        description: depositDescription || `شارژ کیف پول - ${WalletService.formatAmount(amount)}`,
-        callbackUrl: `${window.location.origin}/wallet-payment-callback`
-      };
+        const depositPayload = {
+          amount: Math.floor(amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
+          description: depositDescription || `شارژ کیف پول - ${formatAmount(amount, 'RIAL')}`,
+          callbackUrl: `${window.location.origin}/wallet-payment-callback`
+        };
       
       await requestDeposit(depositPayload);
     } catch (error) {
@@ -397,7 +412,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
             {/* Balance Display */}
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <div className="text-2xl font-bold text-primary">
-                {WalletService.formatAmount(balance)}
+                {formatAmount(balance, 'RIAL')}
               </div>
               <div className="text-sm text-muted-foreground mt-1">
                 موجودی فعلی
@@ -434,7 +449,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                   <span className="font-medium text-yellow-800">پرداخت در انتظار</span>
                 </div>
                 <p className="text-sm text-yellow-700 mb-2">
-                  {pendingPayment.description} - {WalletService.formatAmount(pendingPayment.amount)}
+                  {pendingPayment.description} - {formatAmount(pendingPayment.amount, 'RIAL')}
                 </p>
                 <p className="text-xs text-yellow-600 mb-3">
                   تاریخ: {new Date(pendingPayment.timestamp).toLocaleDateString('fa-IR')}
@@ -593,13 +608,13 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-medium text-sm truncate">
-                                {WalletService.getTransactionTypeText(transaction.type as import('@/lib/walletService').TransactionType)}
+                                {transaction.type}
                               </span>
                               <Badge
                                 variant="outline"
-                                className={`text-xs ${WalletService.getTransactionStatusColor(transaction.status)}`}
+                                className={`text-xs ${transaction.status === 'completed' ? 'bg-green-100 text-green-800' : transaction.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : transaction.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}
                               >
-                                {WalletService.getTransactionStatusText(transaction.status)}
+                                {transaction.status === 'completed' ? 'موفق' : transaction.status === 'pending' ? 'در انتظار' : transaction.status === 'failed' ? 'ناموفق' : 'لغو شده'}
                               </Badge>
                             </div>
                             {transaction.description && (
@@ -608,17 +623,17 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                               </div>
                             )}
                             <div className="text-xs text-muted-foreground">
-                              {formatDate(transaction.created_at)}
+                              {formatDate(transaction.createdAt)}
                             </div>
                           </div>
                         </div>
-                        <div className={`font-medium text-right ml-3 ${WalletService.getTransactionTypeColor(transaction.type as import('@/lib/walletService').TransactionType)}`}>
+                        <div className={`font-medium text-right ml-3 ${transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
                           <div className="text-sm">
                             {transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? '+' : '-'}
-                            {WalletService.formatAmount(transaction.amount)}
+                            {formatAmount(transaction.amount, 'RIAL')}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            موجودی: {WalletService.formatAmount(transaction.balance_after || 0)}
+                            موجودی: {formatAmount(getBalanceAfter(transaction), 'RIAL')}
                           </div>
                         </div>
                       </div>
@@ -673,9 +688,9 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
               <div className="text-xs text-muted-foreground mt-1">
                 حداقل مبلغ: ۱۰۰,۰۰۰ تومان (۱,۰۰۰,۰۰۰ ریال)
               </div>
-              {depositAmount && parseFloat(depositAmount) >= 100000 && (
+                  {depositAmount && parseFloat(depositAmount) >= 100000 && (
                 <div className="text-xs text-green-600 mt-1 font-medium">
-                  معادل: {WalletService.formatAmount(parseFloat(depositAmount))} تومان
+                  معادل: {formatAmount(parseFloat(depositAmount), 'RIAL')}
                 </div>
               )}
             </div>

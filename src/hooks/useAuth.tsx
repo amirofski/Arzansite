@@ -52,7 +52,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
 
   const userRole = useMemo(() => user ? { role: normalizeRole(user.role) } : null, [user]);
-  const isAuthenticated = useMemo(() => !!tokenManager.getAccessToken(), [user]);
+  const isAuthenticated = useMemo(() => {
+    // Consider authenticated if we have a user (cookie-based OAuth) or an access token
+    return !!user || !!tokenManager.getAccessToken();
+  }, [user]);
 
   const clearError = () => setError(null);
 
@@ -79,15 +82,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn: AuthContextType['signIn'] = async (email, password) => {
     setError(null);
+    // Optional pre-check; do not block if endpoint fails
+    try {
+      const verify = await authService.checkEmailVerification(email);
+      if (verify && verify.emailVerified === false) {
+        throw new Error('برای ورود ابتدا باید ایمیل خود را تأیید کنید. لطفاً ایمیل خود را بررسی کنید یا لینک تأیید را دوباره ارسال کنید.');
+      }
+    } catch {
+      // proceed to login
+    }
+
     const res = await authService.signIn({ email, password });
     if (!res.success) throw new Error(res.message || 'Login failed');
-    await loadUser();
-    return user ? { user } : (async () => { const me = await authService.getMe(); if (!me) throw new Error('No user'); return { user: me }; })();
+
+    // Prefer user from login payload for immediate return
+    const u: any = (res as any).data?.user || {};
+    const normalizedUser: UserProfile = {
+      id: String(u.id || ''),
+      email: String(u.email || ''),
+      role: (String(u.role || 'user') as any),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    if (!normalizedUser.id) {
+      // Fallback to /auth/me if login payload lacks id
+      const me = await authService.getMe();
+      setUser(me || null);
+      return { user: me };
+    }
+
+    setUser(normalizedUser);
+    return { user: normalizedUser, redirect: (res as any).data?.redirect };
   };
 
-  const signUp: AuthContextType['signUp'] = async (email, password, metadata) => {
+  const signUp: AuthContextType['signUp'] = async (email, password) => {
     setError(null);
-    const res = await authService.signUp({ email, password, metadata });
+    // Backend expects only email and password; do not send phone/metadata
+    const res = await authService.signUp({ email, password });
     return {
       requiresFrontendVerification: res.requiresFrontendVerification,
       verificationEmailSent: res.verificationEmailSent,
@@ -95,7 +126,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   };
 
-  const requestVerification = async () => { /* no-op placeholder */ };
+  const requestVerification = async (email: string, password: string) => {
+    await authService.requestVerification(email, password);
+  };
 
   const checkEmailVerification: AuthContextType['checkEmailVerification'] = async (email) => {
     return authService.checkEmailVerification(email);
@@ -113,7 +146,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!rt) throw new Error('No refresh token');
     const r = await authService.refreshAccessToken(rt);
     if (!r.success) throw new Error('Token refresh failed');
-    await loadUser();
+    // Refresh user info
+    try {
+      const me = await authService.getMe();
+      setUser(me || null);
+    } catch {
+      setUser(null);
+    }
   };
 
   const refreshUserRole = async () => {
@@ -133,8 +172,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await authService.verifyEmail({ token });
   };
 
-  const verifyEmailWithUserId = async (token: string) => {
-    await authService.verifyEmail({ token });
+  const verifyEmailWithUserId = async (token: string, userId: string) => {
+    await authService.verifyEmail({ token, userId });
     return { message: 'Email verified successfully' };
   };
 
@@ -158,8 +197,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const handleOAuthCallback = async () => {
-    const me = await authService.oauthMe();
-    tokenManager.setTokens({ access_token: 'oauth_token', refresh_token: 'oauth_refresh', user_info: me });
+    // OAuth now uses backend session (httpOnly cookies). Just fetch the user and proceed.
     await loadUser();
     const current = await authService.getMe();
     if (!current) throw new Error('OAuth login failed');

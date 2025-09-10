@@ -12,8 +12,8 @@ import {
   Loader2,
   ArrowRight
 } from 'lucide-react';
-import { WalletService } from '@/lib/walletService';
 import { formatPriceWithUnit } from '@/lib/pricingUtils';
+import { formatAmount } from '@/lib/currencyUtils';
 
 interface PaymentMethodSelectorProps {
   selectedMethod: 'wallet' | 'zarinpal';
@@ -67,7 +67,7 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                       موجودی: {walletLoading ? (
                         <Loader2 className="w-3 h-3 animate-spin inline" />
                       ) : (
-                        WalletService.formatAmount(walletBalance)
+                        formatAmount(walletBalance, 'RIAL')
                       )}
                     </div>
                   </div>
@@ -111,7 +111,7 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span>موجودی فعلی:</span>
-                  <span className="font-medium">{WalletService.formatAmount(walletBalance)}</span>
+<span className="font-medium">{formatAmount(walletBalance, 'RIAL')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>مبلغ سفارش:</span>
@@ -120,7 +120,7 @@ const PaymentMethodSelector: React.FC<PaymentMethodSelectorProps> = ({
                 <div className="flex justify-between">
                   <span>موجودی پس از پرداخت:</span>
                   <span className={`font-medium ${canPayWithWallet ? 'text-green-600' : 'text-red-600'}`}>
-                    {WalletService.formatAmount(balanceAfterPayment)}
+{formatAmount(balanceAfterPayment, 'RIAL')}
                   </span>
                 </div>
               </div>

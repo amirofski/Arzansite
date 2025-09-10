@@ -141,7 +141,9 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         try {
           localStorage.removeItem(`wizard_progress_${sessionId}`);
           localStorage.removeItem('wizard_session_id');
-        } catch {}
+        } catch (e) {
+          // ignore
+        }
         toast({
           title: 'سفارش با موفقیت ایجاد شد',
           description: `شناسه سفارش: ${response.order_id}`,
@@ -205,7 +207,9 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         try {
           localStorage.removeItem(`wizard_progress_${sessionId}`);
           localStorage.removeItem('wizard_session_id');
-        } catch {}
+        } catch (e) {
+          // ignore
+        }
         toast({
           title: 'سفارش برای بعد ذخیره شد',
           description: `شناسه سفارش: ${order.id}`,

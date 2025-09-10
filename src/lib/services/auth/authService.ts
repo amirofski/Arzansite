@@ -36,6 +36,7 @@ export interface PasswordResetRequest {
 
 export interface PasswordResetConfirmRequest {
   token: string;
+  email?: string;
   newPassword: string;
 }
 
@@ -109,16 +110,19 @@ export class AuthService extends BaseApiService {
    */
   async signUp(request: SignUpRequest): Promise<SignUpResponse> {
     try {
-      const snakeCaseRequest = FieldMapper.transformRequest(request);
-      
-      const response = await withRetry(() =>
+      // Only send required fields per guide: email, password
+      const payload = FieldMapper.transformRequest({
+        email: request.email,
+        password: request.password,
+      });
+
+      const resp = await withRetry(() =>
         this.request<SignUpResponse>('/auth/signup', {
           method: 'POST',
-          body: JSON.stringify(snakeCaseRequest),
+          body: JSON.stringify(payload),
         })
       );
-
-      return FieldMapper.transformResponse(response);
+      return FieldMapper.transformResponse(resp);
     } catch (error) {
       ErrorHandler.logError(error, 'AuthService.signUp');
       throw error;
@@ -132,26 +136,27 @@ export class AuthService extends BaseApiService {
     try {
       const snakeCaseRequest = FieldMapper.transformRequest(request);
       
-      const response = await withRetry(() =>
-        this.request<AuthResponse>('/auth/login', {
+      const raw = await withRetry(() =>
+        this.request<any>('/auth/login', {
           method: 'POST',
           body: JSON.stringify(snakeCaseRequest),
         })
       );
 
-      // Store tokens directly from the response without field mapping
-      if (response.data?.access_token && response.data?.refresh_token) {
-        // Backend returns: { data: { access_token, refresh_token, user } }
-        tokenManager.setTokens({
-          access_token: response.data.access_token,
-          refresh_token: response.data.refresh_token,
-          expires_at: response.data.expires_at,
-        });
+      // Normalize response shape (unwrap data if present, camelCase keys)
+      const response = FieldMapper.transformResponse<any>(raw);
+      const payload = 'data' in response ? response.data : response;
+
+      // Store tokens from either wrapped or flat payload
+      const accessToken = payload?.accessToken || payload?.access_token;
+      const refreshToken = payload?.refreshToken || payload?.refresh_token;
+      const expiresAt = payload?.expiresAt || payload?.expires_at;
+      if (accessToken && refreshToken) {
+        tokenManager.setTokens({ access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt });
       }
       
-      const transformedResponse = FieldMapper.transformResponse(response) as AuthResponse;
-      
-      return transformedResponse;
+      // Return unified AuthResponse-like object (preserve original wrapper if present)
+      return response as AuthResponse;
     } catch (error) {
       ErrorHandler.logError(error, 'AuthService.signIn');
       throw error;
@@ -216,11 +221,29 @@ export class AuthService extends BaseApiService {
    */
   async getMe(): Promise<UserProfile> {
     try {
+      // Backend wraps payload: { success, data: { id, role, ... } }
       const response = await withRetry(() =>
-        this.request<UserProfile>('/auth/me')
+        this.request<{ success: boolean; data: Partial<UserProfile> }>('/auth/me')
       );
 
-      return FieldMapper.transformResponse(response);
+      const user = FieldMapper.transformWrappedResponse<Partial<UserProfile>>(response);
+      // Ensure minimal shape
+      return {
+        id: user.id as string,
+        email: (user.email as string) || '',
+        role: (user.role as any) || 'user',
+        firstName: user.firstName,
+        lastName: user.lastName,
+        fullName: user.fullName,
+        phone: user.phone,
+        address: user.address,
+        company: user.company,
+        bio: user.bio,
+        userMetadata: user.userMetadata,
+        emailConfirmedAt: user.emailConfirmedAt ?? null,
+        createdAt: (user.createdAt as string) || new Date().toISOString(),
+        updatedAt: (user.updatedAt as string) || new Date().toISOString(),
+      };
     } catch (error) {
       ErrorHandler.logError(error, 'AuthService.getMe');
       throw error;
@@ -254,15 +277,25 @@ export class AuthService extends BaseApiService {
   async sendPasswordReset(request: PasswordResetRequest): Promise<{ success: boolean }> {
     try {
       const snakeCaseRequest = FieldMapper.transformRequest(request);
-      
-      const response = await withRetry(() =>
-        this.request<{ success: boolean }>('/auth/password-reset', {
-          method: 'POST',
-          body: JSON.stringify(snakeCaseRequest),
-        })
-      );
-
-      return response;
+      // Primary per integration guide: request reset link
+      try {
+        const primary = await withRetry(() =>
+          this.request<{ success: boolean }>('/auth/password-reset', {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return primary;
+      } catch (e) {
+        // Fallback to alternate route
+        const fallback = await withRetry(() =>
+          this.request<{ success: boolean }>('/auth/request-password-reset', {
+            method: 'POST',
+            body: JSON.stringify(snakeCaseRequest),
+          })
+        );
+        return fallback;
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'AuthService.sendPasswordReset');
       throw error;
@@ -310,6 +343,25 @@ export class AuthService extends BaseApiService {
   }
 
   /**
+   * Request email verification by userId (alternative backend flow)
+   */
+  async requestVerificationByUserId(userId: string): Promise<{ message: string; verificationEmailSent: boolean }> {
+    try {
+      const response = await withRetry(() =>
+        this.request<{ message: string; verificationEmailSent: boolean }>('/auth/request-verification', {
+          method: 'POST',
+          body: JSON.stringify({ user_id: userId }),
+        })
+      );
+
+      return response;
+    } catch (error) {
+      ErrorHandler.logError(error, 'AuthService.requestVerificationByUserId');
+      throw error;
+    }
+  }
+
+  /**
    * Check email verification status
    */
   async checkEmailVerification(email: string): Promise<{ 
@@ -319,16 +371,30 @@ export class AuthService extends BaseApiService {
     message: string; 
   }> {
     try {
-      const response = await withRetry(() =>
-        this.request<{ 
-          email: string; 
-          emailVerified: boolean; 
-          userId: string; 
-          message: string; 
-        }>(`/auth/check-verification/${encodeURIComponent(email)}`)
+      const raw = await withRetry(() =>
+        this.request<any>(`/auth/check-verification/${encodeURIComponent(email)}`)
       );
 
-      return response;
+      // Unwrap { success, data: {...} } and camelCase
+      const data = FieldMapper.transformWrappedResponse<any>(raw) as {
+        email: string;
+        emailVerified?: boolean;
+        emailVerification?: boolean;
+        userId?: string;
+        user_id?: string;
+        message: string;
+      };
+
+      const emailVerified = typeof data.emailVerified === 'boolean'
+        ? data.emailVerified
+        : (typeof data.emailVerification === 'boolean' ? data.emailVerification : false);
+
+      return {
+        email: String(data.email || email),
+        emailVerified,
+        userId: String((data.userId || data.user_id) || ''),
+        message: String(data.message || ''),
+      };
     } catch (error) {
       ErrorHandler.logError(error, 'AuthService.checkEmailVerification');
       throw error;

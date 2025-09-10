@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,8 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Eye, Layers, FileText, Palette, Settings, Loader2 } from 'lucide-react';
 import { DesignService, type DynamicDesign } from '@/lib/designService';
-import { PaymentService } from '@/lib/paymentService';
 import { useToast } from '@/hooks/use-toast';
+import { formatAmount } from '@/lib/currencyUtils';
 
 interface OrderDesignPreviewProps {
   orderId: string;
@@ -32,11 +32,7 @@ const OrderDesignPreview = ({
   const [previewOpen, setPreviewOpen] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadDesignData();
-  }, [orderId]);
-
-  const loadDesignData = async () => {
+  const loadDesignData = useCallback(async () => {
     try {
       setLoading(true);
       const designData = await DesignService.loadDesign(orderId);
@@ -46,7 +42,11 @@ const OrderDesignPreview = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [orderId]);
+
+  useEffect(() => {
+    loadDesignData();
+  }, [loadDesignData]);
 
   const renderDesignPreview = () => {
     if (!design) {
@@ -159,14 +159,14 @@ const OrderDesignPreview = ({
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">وضعیت پرداخت</label>
                           <div className="mt-1">
-                            <Badge className={PaymentService.getPaymentStatusColor(paymentStatus)}>
-                              {PaymentService.getPaymentStatusText(paymentStatus)}
+                            <Badge className={paymentStatus === 'paid' || paymentStatus === 'completed' ? 'bg-green-100 text-green-800' : paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' : paymentStatus === 'failed' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}>
+                              {paymentStatus === 'paid' || paymentStatus === 'completed' ? 'پرداخت شده' : paymentStatus === 'pending' ? 'در انتظار پرداخت' : paymentStatus === 'failed' ? 'ناموفق' : 'لغو شده'}
                             </Badge>
                           </div>
                         </div>
                         <div>
                           <label className="text-sm font-medium text-muted-foreground">مبلغ</label>
-                          <p className="mt-1 font-medium">{PaymentService.formatAmount(orderPrice)}</p>
+                          <p className="mt-1 font-medium">{formatAmount(orderPrice, 'RIAL')}</p>
                         </div>
                       </div>
 

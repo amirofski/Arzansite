@@ -77,9 +77,10 @@ const ResetPassword = () => {
 
     try {
       const token = searchParams.get('token');
+      const email = searchParams.get('email') || undefined;
       if (!token) throw new Error('Reset token is missing');
 
-      await resetPasswordApi({ token, newPassword: password });
+      await resetPasswordApi({ token, email, newPassword: password });
     } catch (error) {
       console.error('Password reset error:', error);
     } finally {

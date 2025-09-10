@@ -18,7 +18,8 @@ export class BaseApiService {
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl || import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
     this.defaultHeaders = {
-      'Content-Type': 'application/json',
+'Content-Type': 'application/json',
+      'Accept': 'application/json',
     };
   }
 
@@ -58,10 +59,12 @@ export class BaseApiService {
     // Only set Content-Type for non-FormData requests
     if (!(options.body instanceof FormData)) {
       headers['Content-Type'] = 'application/json';
+      headers['Accept'] = 'application/json';
     }
 
     const config: RequestInit = {
       headers: {
+        ...this.defaultHeaders,
         ...headers,
         ...(options.headers || {}),
       },
@@ -141,8 +144,16 @@ export class BaseApiService {
       if (body === null) {
         console.warn('API response body is null for endpoint:', endpoint);
       }
+
+      // If server returned HTML while we requested JSON, treat as error to avoid passing HTML to callers
+      if (!isJson) {
+        const looksLikeHtml = typeof body === 'string' && body.trim().startsWith('<!DOCTYPE');
+        const isHtmlContentType = contentType.includes('text/html');
+        if (looksLikeHtml || isHtmlContentType) {
+          throw new Error('Unexpected HTML response from API');
+        }
+      }
       
-      return (isJson ? (body as T) : (body as unknown as T));
     } catch (error) {
       console.error('API request failed:', error);
       console.error('Request details:', {

@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { adminService } from '@/lib/services';
-import { WalletService } from '@/lib/walletService';
+import { formatAmount } from '@/lib/currencyUtils';
 
 interface AdminWalletAdjustmentDialogProps {
   open: boolean;
@@ -77,7 +77,7 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
       if (result.success) {
         toast({
           title: 'عملیات موفق',
-          description: `موجودی کیف پول ${userName} با موفقیت تنظیم شد. موجودی قبلی: ${WalletService.formatAmount(result.balanceBefore)}، موجودی جدید: ${WalletService.formatAmount(result.balanceAfter)}`,
+description: `موجودی کیف پول ${userName} با موفقیت تنظیم شد. موجودی قبلی: ${formatAmount(result.balanceBefore, 'RIAL')}، موجودی جدید: ${formatAmount(result.balanceAfter, 'RIAL')}`
         });
         
         // Reset form
@@ -131,7 +131,7 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
             <Label htmlFor="current-balance">موجودی فعلی</Label>
             <Input
               id="current-balance"
-              value={WalletService.formatAmount(currentBalance)}
+value={formatAmount(currentBalance, 'RIAL')}
               disabled
               className="bg-muted"
             />
@@ -191,7 +191,7 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
             <div className="p-3 bg-muted rounded-lg">
               <div className="text-sm font-medium">موجودی جدید:</div>
               <div className="text-lg font-bold text-primary">
-                {WalletService.formatAmount(getNewBalance())}
+{formatAmount(getNewBalance(), 'RIAL')}
               </div>
             </div>
           )}

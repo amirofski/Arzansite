@@ -37,28 +37,19 @@ export const PaymentButton: React.FC<PaymentButtonProps> = ({
 
   const { execute: requestPayment, loading: isLoading } = useApi(
     paymentService.requestPayment.bind(paymentService),
-    { 
+    {
       onSuccess: (response) => {
         if (response.success && response.paymentUrl) {
-          // Redirect to Zarinpal payment gateway
           window.location.href = response.paymentUrl;
         } else {
           const errorMessage = response.error || 'خطا در ایجاد درخواست پرداخت';
-          toast({
-            title: 'خطا',
-            description: errorMessage,
-            variant: 'destructive',
-          });
+          toast({ title: 'خطا', description: errorMessage, variant: 'destructive' });
           onError?.(errorMessage);
         }
       },
       onError: (error) => {
         const errorMessage = error instanceof Error ? error.message : 'خطا در پرداخت';
-        toast({
-          title: 'خطا',
-          description: errorMessage,
-          variant: 'destructive',
-        });
+        toast({ title: 'خطا', description: errorMessage, variant: 'destructive' });
         onError?.(errorMessage);
       }
     }
@@ -88,7 +79,7 @@ export const PaymentButton: React.FC<PaymentButtonProps> = ({
     const cb = callbackUrl || `${window.location.origin}/payment-callback`;
     if (context === 'wallet') {
       await requestWalletDeposit({
-        amount, // Tomans
+        amount,
         description,
         callbackUrl: cb,
       });
@@ -105,113 +96,7 @@ export const PaymentButton: React.FC<PaymentButtonProps> = ({
   return (
     <Button
       onClick={handlePayment}
-      disabled={disabled || isLoading}
-      className={className}
-      variant={variant}
-      size={size}
-    >
-      {(isLoading || isWalletLoading) ? (
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-      ) : (
-        context === 'wallet' ? <Wallet className="w-4 h-4 mr-2" /> : <CreditCard className="w-4 h-4 mr-2" />
-      )}
-      {(isLoading || isWalletLoading) ? 'در حال پردازش...' : (context === 'wallet' ? 'شارژ کیف پول' : 'پرداخت با زرین‌پال')}
-    </Button>
-  );
-};
-  const handlePayment = async () => {
-    const cb = callbackUrl || `${window.location.origin}/payment-callback`;
-    if (context === 'wallet') {
-      await requestWalletDeposit({
-        amount, // Tomans
-        description,
-        callbackUrl: cb,
-      });
-      return;
-    }
-    await requestPayment({
-      amount,
-      description,
-      orderId,
-      callbackUrl: cb,
-    });
-  };
-
-  return (
-    <Button
-      onClick={handlePayment}
-      disabled={disabled || isLoading}
-      className={className}
-      variant={variant}
-      size={size}
-    >
-      {(isLoading || isWalletLoading) ? (
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-      ) : (
-        context === 'wallet' ? <Wallet className="w-4 h-4 mr-2" /> : <CreditCard className="w-4 h-4 mr-2" />
-      )}
-      {(isLoading || isWalletLoading) ? 'در حال پردازش...' : (context === 'wallet' ? 'شارژ کیف پول' : 'پرداخت با زرین‌پال')}
-    </Button>
-  );
-};
-
-  const handlePayment = async () => {
-    const cb = callbackUrl || `${window.location.origin}/payment-callback`;
-    if (context === 'wallet') {
-      await requestWalletDeposit({
-        amount, // Tomans
-        description,
-        callbackUrl: cb,
-      });
-      return;
-    }
-    await requestPayment({
-      amount,
-      description,
-      orderId,
-      callbackUrl: cb,
-    });
-  };
-
-  return (
-    <Button
-      onClick={handlePayment}
-      disabled={disabled || isLoading}
-      className={className}
-      variant={variant}
-      size={size}
-    >
-      {(isLoading || isWalletLoading) ? (
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-      ) : (
-        context === 'wallet' ? <Wallet className="w-4 h-4 mr-2" /> : <CreditCard className="w-4 h-4 mr-2" />
-      )}
-      {(isLoading || isWalletLoading) ? 'در حال پردازش...' : (context === 'wallet' ? 'شارژ کیف پول' : 'پرداخت با زرین‌پال')}
-    </Button>
-  );
-};
-  const handlePayment = async () => {
-    const cb = callbackUrl || `${window.location.origin}/payment-callback`;
-    if (context === 'wallet') {
-      await requestWalletDeposit({
-        amount, // Tomans
-        description,
-        callbackUrl: cb,
-      });
-      return;
-    }
-    await requestPayment({
-      amount,
-      description,
-      orderId,
-      callbackUrl: cb,
-    });
-  };
-
-  return (
-    <Button
-      onClick={handlePayment}
-      disabled={disabled || isLoading}
+      disabled={disabled || isLoading || isWalletLoading}
       className={className}
       variant={variant}
       size={size}

@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 // import { WalletService } from "@/lib/walletService";
 import { CheckCircle, XCircle, Loader2, RefreshCw, Home, Wallet, Receipt, AlertCircle, CreditCard } from 'lucide-react';
 import Layout from "@/components/ui/Layout";
-import { walletService, WalletService } from '@/lib/services/wallet/walletService';
+import { walletService } from '@/lib/services';
 
 // ZarinPal Payment Status Constants
 const PAYMENT_STATUS = {
@@ -119,9 +119,9 @@ const WalletPaymentCallback = () => {
            setRefId(verificationRes.refId || '');
            setNewBalance(verificationRes.newBalance || null);
            
-           toast({
+             toast({
              title: "✅ شارژ کیف پول موفق",
-             description: `مبلغ ${'show charged amount value'} با موفقیت به کیف پول شما اضافه شد`,
+             description: paymentInfo?.amount ? `مبلغ ${formatToman(paymentInfo.amount)} با موفقیت به کیف پول شما اضافه شد` : 'شارژ کیف پول با موفقیت انجام شد',
            });
          } else {
            setStatus('failed');
@@ -210,7 +210,7 @@ const WalletPaymentCallback = () => {
     }
   };
 
-  const formatAmount = (amount: number) => {
+  const formatToman = (amount: number) => {
     return new Intl.NumberFormat('fa-IR').format(amount) + ' تومان';
   };
 
@@ -252,12 +252,12 @@ const WalletPaymentCallback = () => {
                   </div>
                   {paymentInfo && (
                     <p className="text-green-700 mb-2">
-                      مبلغ {formatAmount(paymentInfo.amount)} با موفقیت به کیف پول شما اضافه شد
+                      مبلغ {formatToman(paymentInfo.amount)} با موفقیت به کیف پول شما اضافه شد
                     </p>
                   )}
                   {newBalance !== null && (
                     <p className="text-green-700">
-                      موجودی جدید: {formatAmount(newBalance)}
+                      موجودی جدید: {formatToman(newBalance)}
                     </p>
                   )}
                 </div>

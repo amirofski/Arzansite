@@ -20,7 +20,8 @@ import {
   CheckCircle,
   Loader2
 } from 'lucide-react';
-import { PaymentService, type PaymentTransaction } from '@/lib/paymentService';
+import { paymentService, adminService } from '@/lib/services';
+import { formatAmount } from '@/lib/currencyUtils';
 import { useToast } from '@/hooks/use-toast';
 
 interface AdminPaymentManagerProps {
@@ -42,6 +43,16 @@ const AdminPaymentManager = ({
   zarinpalRefId,
   onStatusUpdate
 }: AdminPaymentManagerProps) => {
+  type PaymentTransaction = {
+    id: string;
+    transaction_type: 'payment_request' | 'payment_verification' | 'refund' | 'cancellation' | string;
+    status: 'pending' | 'completed' | 'failed' | 'cancelled' | string;
+    created_at: string;
+    amount: number;
+    zarinpal_authority?: string;
+    zarinpal_ref_id?: string;
+    metadata?: Record<string, unknown>;
+  };
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -59,8 +70,18 @@ const AdminPaymentManager = ({
   const loadTransactions = async () => {
     try {
       setLoading(true);
-      const transactionData = await PaymentService.getPaymentTransactions(orderId);
-      setTransactions(transactionData);
+      const history = await paymentService.getPaymentHistory({ limit: 50 });
+      const tx = (history.payments || []).filter(p => (p as any).orderId === orderId).map(p => ({
+        id: p.id,
+        transaction_type: p.status === 'pending' ? 'payment_request' : (p.status === 'completed' || p.status === 'succeeded') ? 'payment_verification' : 'payment_verification',
+        status: (p.status as any) || 'pending',
+        created_at: (p as any).createdAt || new Date().toISOString(),
+        amount: p.amount || 0,
+        zarinpal_authority: (p as any).authority,
+        zarinpal_ref_id: (p as any).refId,
+        metadata: {},
+      })) as PaymentTransaction[];
+      setTransactions(tx);
     } catch (error) {
       console.error('Error loading transactions:', error);
       toast({
@@ -85,17 +106,23 @@ const AdminPaymentManager = ({
 
     setProcessingAction('refund');
     try {
-      const result = await PaymentService.refundPayment(orderId, refundAmount);
+      // Find a completed payment for this order to refund
+      const history = await paymentService.getPaymentHistory({ limit: 50 });
+      const orderPayments = (history.payments || []).filter(p => (p as any).orderId === orderId);
+      const completed = orderPayments.find(p => (p as any).status === 'completed' || (p as any).status === 'succeeded');
+      if (!completed) throw new Error('هیچ پرداخت تکمیل‌شده‌ای برای این سفارش یافت نشد');
+
+      const result = await paymentService.refundPayment(completed.id, refundAmount);
       
       if (result.success) {
         toast({
           title: 'بازپرداخت موفق',
-          description: `${PaymentService.formatAmount(refundAmount)} با موفقیت بازپرداخت شد`,
+          description: `${formatAmount(refundAmount, 'RIAL')} با موفقیت بازپرداخت شد`,
         });
         onStatusUpdate();
         setDialogOpen(false);
       } else {
-        throw new Error(result.error);
+        throw new Error('بازپرداخت ناموفق بود');
       }
     } catch (error: any) {
       toast({
@@ -111,18 +138,14 @@ const AdminPaymentManager = ({
   const handleCancel = async () => {
     setProcessingAction('cancel');
     try {
-      const result = await PaymentService.cancelPayment(orderId);
-      
-      if (result.success) {
-        toast({
-          title: 'لغو موفق',
-          description: 'سفارش با موفقیت لغو شد',
-        });
-        onStatusUpdate();
-        setDialogOpen(false);
-      } else {
-        throw new Error(result.error);
-      }
+      // Cancel the order via admin service
+      await adminService.updateOrder(orderId, { status: 'cancelled' });
+      toast({
+        title: 'لغو موفق',
+        description: 'سفارش با موفقیت لغو شد',
+      });
+      onStatusUpdate();
+      setDialogOpen(false);
     } catch (error: any) {
       toast({
         title: 'خطا در لغو',
@@ -199,7 +222,7 @@ const AdminPaymentManager = ({
                transaction.status === 'failed' ? 'ناموفق' : 'لغو شده'}
             </Badge>
             <p className="text-sm font-medium mt-1">
-              {PaymentService.formatAmount(transaction.amount)}
+              {formatAmount(transaction.amount, 'RIAL')}
             </p>
           </div>
         </div>
@@ -275,14 +298,14 @@ const AdminPaymentManager = ({
                           <div>
                             <Label className="text-sm font-medium text-muted-foreground">وضعیت پرداخت</Label>
                             <div className="mt-1">
-                              <Badge className={PaymentService.getPaymentStatusColor(paymentStatus)}>
-                                {PaymentService.getPaymentStatusText(paymentStatus)}
+                              <Badge className={paymentStatus === 'paid' || paymentStatus === 'completed' ? 'bg-green-100 text-green-800' : paymentStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' : paymentStatus === 'failed' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}>
+                                {paymentStatus === 'paid' || paymentStatus === 'completed' ? 'پرداخت شده' : paymentStatus === 'pending' ? 'در انتظار پرداخت' : paymentStatus === 'failed' ? 'ناموفق' : 'لغو شده'}
                               </Badge>
                             </div>
                           </div>
                           <div>
                             <Label className="text-sm font-medium text-muted-foreground">مبلغ سفارش</Label>
-                            <p className="mt-1 font-medium">{PaymentService.formatAmount(orderPrice)}</p>
+                            <p className="mt-1 font-medium">{formatAmount(orderPrice, 'RIAL')}</p>
                           </div>
                         </div>
                         
@@ -347,7 +370,7 @@ const AdminPaymentManager = ({
                               min={0}
                             />
                             <p className="text-sm text-muted-foreground mt-1">
-                              حداکثر: {PaymentService.formatAmount(orderPrice)}
+                              حداکثر: {formatAmount(orderPrice, 'RIAL')}
                             </p>
                           </div>
                           <div>

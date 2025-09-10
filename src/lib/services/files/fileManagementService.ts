@@ -80,27 +80,41 @@ export class FileManagementService extends BaseApiService {
    */
   async listUploads(request: ListUploadsRequest): Promise<FileListResponse> {
     try {
+      // Primary per integration guide: GET /uploads with order_id filter
       const queryParams = new URLSearchParams();
-      if (request.orderId) queryParams.append('orderId', request.orderId);
+      if (request.orderId) queryParams.append('order_id', request.orderId);
       if (request.bucketType) queryParams.append('bucketType', request.bucketType);
-      
+
       const queryString = queryParams.toString();
-      const endpoint = `/files/uploads${queryString ? `?${queryString}` : ''}`;
-      
-      let response: FileListResponse;
+      const primaryEndpoint = `/uploads${queryString ? `?${queryString}` : ''}`;
+
       try {
-        response = await withRetry(() => this.request<FileListResponse>(endpoint));
+        const primary = await withRetry(() => this.request<FileListResponse>(primaryEndpoint));
+        return FieldMapper.transformResponse(primary);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
-          // Fallback to legacy storage listing if unified endpoint not available
-          const legacy = await withRetry(() => this.request<FileListResponse>(`/files/storage/${request.bucketType || 'uploads'}`));
-          return FieldMapper.transformResponse(legacy);
+          // Fallback to existing endpoints
+          const legacyQuery = new URLSearchParams();
+          if (request.orderId) legacyQuery.append('orderId', request.orderId);
+          if (request.bucketType) legacyQuery.append('bucketType', request.bucketType);
+          const legacyEndpoint = `/files/uploads${legacyQuery.toString() ? `?${legacyQuery.toString()}` : ''}`;
+
+          try {
+            const legacy = await withRetry(() => this.request<FileListResponse>(legacyEndpoint));
+            return FieldMapper.transformResponse(legacy);
+          } catch (err2) {
+            const msg2 = err2 instanceof Error ? err2.message : String(err2);
+            if (msg2.includes('404') || msg2.toLowerCase().includes('not found')) {
+              // Final fallback to storage list
+              const storage = await withRetry(() => this.request<FileListResponse>(`/storage/${request.bucketType || 'uploads'}`));
+              return FieldMapper.transformResponse(storage);
+            }
+            throw err2;
+          }
         }
         throw err;
       }
-
-      return FieldMapper.transformResponse(response);
     } catch (error) {
       ErrorHandler.logError(error, 'FileManagementService.listUploads');
       throw error;
@@ -136,32 +150,45 @@ export class FileManagementService extends BaseApiService {
       formData.append('file', file);
       if (options?.description) formData.append('description', options.description);
       if (options?.category) formData.append('category', options.category);
-      if (options?.orderId) formData.append('orderId', options.orderId);
+      if (options?.orderId) formData.append('order_id', options.orderId);
 
-      let response: FileUploadResponse;
+      // Primary per integration guide: /uploads
       try {
-        response = await withRetry(() =>
-          this.request<FileUploadResponse>(`/storage/project-files`, {
+        const primary = await withRetry(() =>
+          this.request<FileUploadResponse>(`/uploads`, {
             method: 'POST',
             body: formData,
           })
         );
+        return FieldMapper.transformResponse(primary);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
-          // Fallback generic uploads endpoint
-          response = await withRetry(() =>
-            this.request<FileUploadResponse>(`/storage/uploads`, {
-              method: 'POST',
-              body: formData,
-            })
-          );
-        } else {
-          throw err;
+          // Fallback to storage endpoints
+          try {
+            const storageProject = await withRetry(() =>
+              this.request<FileUploadResponse>(`/storage/project-files`, {
+                method: 'POST',
+                body: formData,
+              })
+            );
+            return FieldMapper.transformResponse(storageProject);
+          } catch (err2) {
+            const msg2 = err2 instanceof Error ? err2.message : String(err2);
+            if (msg2.includes('404') || msg2.toLowerCase().includes('not found')) {
+              const storageUploads = await withRetry(() =>
+                this.request<FileUploadResponse>(`/storage/uploads`, {
+                  method: 'POST',
+                  body: formData,
+                })
+              );
+              return FieldMapper.transformResponse(storageUploads);
+            }
+            throw err2;
+          }
         }
+        throw err;
       }
-
-      return FieldMapper.transformResponse(response);
     } catch (error) {
       ErrorHandler.logError(error, 'FileManagementService.uploadProjectFile');
       throw error;

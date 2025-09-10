@@ -27,7 +27,7 @@ export interface DownloadReceiptRequest {
 
 export class ReceiptService extends BaseApiService {
   constructor() {
-    super('/receipts');
+    super();
   }
 
   /**
@@ -39,7 +39,7 @@ export class ReceiptService extends BaseApiService {
     if (params?.offset) queryParams?.set('offset', params.offset.toString());
     if (params?.userId) queryParams?.set('user_id', params.userId);
 
-    const endpoint = queryParams ? `?${queryParams.toString()}` : '';
+    const endpoint = `/receipts${queryParams ? `?${queryParams.toString()}` : ''}`;
     const response = await this.request<Receipt[]>(endpoint);
 
     return response;
@@ -49,13 +49,14 @@ export class ReceiptService extends BaseApiService {
    * Download a receipt in specified format
    */
   async downloadReceipt(receiptId: string, format: 'pdf' | 'html'): Promise<Blob> {
-    const endpoint = `/${receiptId}/download?format=${format}`;
+    const endpoint = `/receipts/${receiptId}/download?format=${format}`;
     const url = `${this.baseUrl}${endpoint}`;
     const token = this.getAuthToken();
     
     const response = await fetch(url, {
       method: 'GET',
       headers: {
+        Accept: format === 'pdf' ? 'application/pdf' : 'text/html',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
@@ -71,7 +72,7 @@ export class ReceiptService extends BaseApiService {
    * Get receipt details by ID
    */
   async getReceipt(receiptId: string): Promise<Receipt> {
-    const response = await this.request<Receipt>(`/${receiptId}`);
+    const response = await this.request<Receipt>(`/receipts/${receiptId}`);
 
     return response;
   }
@@ -80,7 +81,7 @@ export class ReceiptService extends BaseApiService {
    * Create a new receipt
    */
   async createReceipt(receiptData: Omit<Receipt, 'id' | 'createdAt'>): Promise<Receipt> {
-    const response = await this.request<Receipt>('', {
+    const response = await this.request<Receipt>('/receipts', {
       method: 'POST',
       body: JSON.stringify(receiptData),
     });
@@ -92,7 +93,7 @@ export class ReceiptService extends BaseApiService {
    * Generate receipt for an invoice
    */
   async generateReceipt(invoiceId: string): Promise<Receipt> {
-    const response = await this.request<Receipt>('/generate', {
+    const response = await this.request<Receipt>('/receipts/generate', {
       method: 'POST',
       body: JSON.stringify({ invoiceId }),
     });

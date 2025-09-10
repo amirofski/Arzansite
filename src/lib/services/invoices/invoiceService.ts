@@ -36,7 +36,7 @@ export interface PayInvoiceResponse {
 
 export class InvoiceService extends BaseApiService {
   constructor() {
-    super('/invoices');
+    super();
   }
 
   /**
@@ -48,7 +48,7 @@ export class InvoiceService extends BaseApiService {
     if (params?.limit) queryParams?.set('limit', params.limit.toString());
     if (params?.offset) queryParams?.set('offset', params.offset.toString());
 
-    const endpoint = queryParams ? `?${queryParams.toString()}` : '';
+    const endpoint = `/invoices${queryParams ? `?${queryParams.toString()}` : ''}`;
     const response = await this.request<Invoice[]>(endpoint);
 
     return response;
@@ -58,7 +58,7 @@ export class InvoiceService extends BaseApiService {
    * Pay an invoice using wallet or payment gateway
    */
   async payInvoice(invoiceId: string, paymentData: PayInvoiceRequest): Promise<PayInvoiceResponse> {
-    const response = await this.request<PayInvoiceResponse>(`/${invoiceId}/pay`, {
+    const response = await this.request<PayInvoiceResponse>(`/invoices/${invoiceId}/pay`, {
       method: 'POST',
       body: JSON.stringify(paymentData),
     });
@@ -70,7 +70,7 @@ export class InvoiceService extends BaseApiService {
    * Get invoice details by ID
    */
   async getInvoice(invoiceId: string): Promise<Invoice> {
-    const response = await this.request<Invoice>(`/${invoiceId}`);
+    const response = await this.request<Invoice>(`/invoices/${invoiceId}`);
 
     return response;
   }
@@ -79,7 +79,7 @@ export class InvoiceService extends BaseApiService {
    * Create a new invoice
    */
   async createInvoice(invoiceData: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt'>): Promise<Invoice> {
-    const response = await this.request<Invoice>('', {
+    const response = await this.request<Invoice>('/invoices', {
       method: 'POST',
       body: JSON.stringify(invoiceData),
     });
@@ -91,7 +91,7 @@ export class InvoiceService extends BaseApiService {
    * Update invoice status
    */
   async updateInvoiceStatus(invoiceId: string, status: Invoice['status']): Promise<Invoice> {
-    const response = await this.request<Invoice>(`/${invoiceId}/status`, {
+    const response = await this.request<Invoice>(`/invoices/${invoiceId}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
@@ -103,7 +103,7 @@ export class InvoiceService extends BaseApiService {
    * Cancel an invoice
    */
   async cancelInvoice(invoiceId: string): Promise<Invoice> {
-    const response = await this.request<Invoice>(`/${invoiceId}/cancel`, {
+    const response = await this.request<Invoice>(`/invoices/${invoiceId}/cancel`, {
       method: 'PATCH',
     });
 

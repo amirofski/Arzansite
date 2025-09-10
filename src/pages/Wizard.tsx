@@ -151,7 +151,10 @@ const Wizard = () => {
       setIsAutoSaving(true);
       
       // Use new wizard service for saving progress
-      const response = await wizardService.saveProgress(sessionId, data);
+      const response = await wizardService.saveProgress(
+        sessionId,
+        data as unknown as Record<string, unknown>
+      );
       
       // Also save to localStorage as backup
       localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify(data));
@@ -203,7 +206,7 @@ const Wizard = () => {
       // Map API response to WizardData format
       // Use partial typing with fallbacks to satisfy strict typing
       const mappedProgress: WizardData = {
-        siteType: progress.siteType || '',
+        siteType: ((progress as { siteType?: WizardData['siteType'] }).siteType) || '',
         pageMode: '',
         modules: [],
         websiteFramework: (progress as unknown as { websiteFramework?: WizardData['websiteFramework'] }).websiteFramework || {

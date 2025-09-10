@@ -22,19 +22,35 @@ export function useNotifications() {
         notificationsService.getUnreadCount()
       ]);
       
-      if (notificationsResponse.success) {
-        setNotifications(notificationsResponse.notifications);
+      // Normalize notifications
+      if (Array.isArray((notificationsResponse as any))) {
+        setNotifications((notificationsResponse as any) as Notification[]);
+      } else if (notificationsResponse && typeof notificationsResponse === 'object') {
+        const list = (notificationsResponse as any).notifications;
+        setNotifications(Array.isArray(list) ? list : []);
+      } else {
+        setNotifications([]);
       }
       
-      if (countResponse.success) {
-        setUnseenCount(countResponse.count);
+      // Normalize count
+      if (countResponse && typeof countResponse === 'object') {
+        const c = (countResponse as any).count;
+        setUnseenCount(typeof c === 'number' ? c : 0);
+      } else if (typeof (countResponse as any) === 'number') {
+        setUnseenCount(countResponse as unknown as number);
+      } else {
+        setUnseenCount(0);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطا در بارگذاری اعلان‌ها');
+      setNotifications([]);
+      setUnseenCount(0);
     } finally {
       setLoading(false);
     }
   }, [user?.id]);
+
+  // Safe getters to avoid runtime errors when shapes vary
 
   // Mark all notifications as read
   const markAllRead = async () => {
@@ -68,7 +84,8 @@ export function useNotifications() {
   }, [loadNotifications]);
 
   // Convert notifications to the format expected by NotificationsBell
-  const messages = notifications.map(n => ({
+  const safeNotifications = Array.isArray(notifications) ? notifications : [];
+  const messages = safeNotifications.map(n => ({
     id: n.id,
     title: n.title,
     body: n.message,

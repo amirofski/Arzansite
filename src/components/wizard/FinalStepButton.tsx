@@ -123,16 +123,15 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
       // Use wizard completion endpoint
       try {
         await completeWizardOrder({
-          sessionId: orderData.sessionId,
-          userId: user!.id,
+          session_id: orderData.sessionId,
           order: {
             title: orderData.title,
             description: orderData.description,
             priceTomans: orderData.price,
             comments: orderData.comments,
-            siteType: orderData.siteType as 'personal' | 'business'
+            site_type: orderData.siteType as 'personal' | 'business'
           },
-          designSnapshot: {
+          design_snapshot: {
             websiteFramework: wizardData.websiteFramework,
             branding: wizardData.branding,
             additionalServices: wizardData.pricing?.additionalServices || {},
@@ -143,7 +142,7 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
             pricing: wizardData.pricing || {},
             paymentOptions: {}
           }
-        });
+        } as unknown as Parameters<typeof wizardService.completeOrder>[0]);
       } catch (_e) {
         // Do not send additional POSTs to /orders; persist a local draft so user can try later
         const draft = localOrders.save({ ...orderData });

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { CheckCircle, XCircle, Loader2, Mail, ArrowRight } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,20 +18,15 @@ const VerifyEmail: React.FC = () => {
   const [verificationStatus, setVerificationStatus] = useState<'verifying' | 'success' | 'error' | 'idle'>('idle');
   const [message, setMessage] = useState('');
   const [isResending, setIsResending] = useState(false);
+  const [resendEmail, setResendEmail] = useState('');
+  const [resendPassword, setResendPassword] = useState('');
 
-  const token = searchParams.get('token');
-  const userId = searchParams.get('userId');
+  // Accept multiple token param names for compatibility
+  const token = searchParams.get('token_hash') || searchParams.get('token') || searchParams.get('code');
+  // Backend sends user_id, keep fallback aliases for older links/clients
+  const userId = searchParams.get('user_id') || searchParams.get('userId') || searchParams.get('uid');
 
-  useEffect(() => {
-    if (token && userId) {
-      handleVerification();
-    } else {
-      setVerificationStatus('error');
-      setMessage('Invalid verification link. Please check your email for the correct link.');
-    }
-  }, [token, userId]);
-
-  const handleVerification = async () => {
+  const handleVerification = useCallback(async () => {
     if (!token || !userId) return;
 
     setVerificationStatus('verifying');
@@ -56,33 +52,50 @@ const VerifyEmail: React.FC = () => {
       setVerificationStatus('error');
       setMessage(error instanceof Error ? error.message : 'Verification failed. Please try again or request a new verification email.');
     }
-  };
+  }, [token, userId, verifyEmailWithUserId, toast, navigate]);
+
+  useEffect(() => {
+    if (token && userId) {
+      // Call the handler inline to avoid missing-deps lint warning
+      (async () => {
+        await handleVerification();
+      })();
+    } else {
+      setVerificationStatus('error');
+      setMessage('Invalid verification link. Please check your email for the correct link.');
+      // Provide hints in console for debugging
+      console.warn('VerifyEmail: Missing parameters', { hasToken: !!token, hasUserId: !!userId, params: Object.fromEntries(searchParams.entries()) });
+    }
+  }, [token, userId, handleVerification]);
 
   const handleResendVerification = async () => {
-    if (!userId) return;
-
     setIsResending(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api'}/auth/request-verification`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId,
-        }),
-      });
-
-      if (response.ok) {
+      const { authService } = await import('@/lib/services');
+      if (resendEmail && resendPassword) {
+        await authService.requestVerification(resendEmail, resendPassword);
         toast({
           title: 'ایمیل تایید ارسال شد',
-          description: 'ایمیل تایید جدید به صندوق ورودی شما ارسال شد',
+          description: 'ایمیل تایید جدید ارسال شد. لطفاً صندوق ورودی خود را بررسی کنید',
         });
+      } else if (userId) {
+        const response = await authService.requestVerificationByUserId(userId);
+        if (response.verificationEmailSent) {
+          toast({
+            title: 'ایمیل تایید ارسال شد',
+            description: response.message || 'ایمیل تایید جدید ارسال شد',
+          });
+        } else {
+          toast({
+            title: 'خطا در ارسال ایمیل',
+            description: response.message || 'مشکلی در ارسال ایمیل تایید پیش آمد',
+            variant: 'destructive',
+          });
+        }
       } else {
-        const errorData = await response.json();
         toast({
-          title: 'خطا در ارسال ایمیل',
-          description: errorData.message || 'مشکلی در ارسال ایمیل تایید پیش آمد',
+          title: 'نیاز به اطلاعات',
+          description: 'برای ارسال مجدد ایمیل، ایمیل و رمز عبور خود را وارد کنید',
           variant: 'destructive',
         });
       }
@@ -148,33 +161,40 @@ const VerifyEmail: React.FC = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="text-center space-y-4"
+            className="space-y-4"
           >
-            <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center">
-              <XCircle className="w-8 h-8 text-red-600" />
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center">
+                <XCircle className="w-8 h-8 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">خطا در تایید ایمیل</h3>
+                <p className="text-gray-600 mt-2">{message}</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">خطا در تایید ایمیل</h3>
-              <p className="text-gray-600 mt-2">{message}</p>
+            <div className="grid gap-2 text-left">
+              <label className="text-sm">ایمیل</label>
+              <Input
+                type="email"
+                placeholder="you@example.com"
+                value={resendEmail}
+                onChange={(e) => setResendEmail(e.target.value)}
+                dir="ltr"
+              />
+              <label className="text-sm">رمز عبور</label>
+              <Input
+                type="password"
+                placeholder="رمز عبور"
+                value={resendPassword}
+                onChange={(e) => setResendPassword(e.target.value)}
+              />
             </div>
-            <div className="pt-4 space-y-3">
-              <Button
-                onClick={handleResendVerification}
-                disabled={isResending}
-                variant="outline"
-                className="w-full"
-              >
-                {isResending ? (
-                  <Loader2 className="w-4 h-4 animate-spin ml-2" />
-                ) : (
-                  <Mail className="w-4 h-4 ml-2" />
-                )}
+            <div className="grid gap-2">
+              <Button onClick={handleResendVerification} className="w-full" disabled={isResending}>
+                {isResending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mail className="w-4 h-4" />}
                 ارسال مجدد ایمیل تایید
               </Button>
-              <Button
-                onClick={() => navigate('/auth')}
-                className="w-full"
-              >
+              <Button onClick={() => navigate('/auth')} variant="outline" className="w-full">
                 بازگشت به صفحه ورود
               </Button>
             </div>

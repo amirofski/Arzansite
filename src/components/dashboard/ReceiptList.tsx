@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { receiptService, useApi, Receipt } from '@/lib/services';
+import { tokenManager } from '@/lib/tokenManager';
 import { Download, RefreshCw, Search, FileText } from 'lucide-react';
 
 interface ReceiptListProps {
@@ -74,6 +75,16 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ pageSize = 10 }) => {
 	);
 
 	const load = async () => {
+		// Ensure token exists to avoid immediate 401s after login
+		let token = tokenManager.getAccessToken();
+		if (!token) {
+			tokenManager.forceRefreshFromStorage();
+			token = tokenManager.getAccessToken();
+			if (!token) {
+				setLoading(false);
+				return;
+			}
+		}
 		setLoading(true);
 		setLoadError(null);
 		try {

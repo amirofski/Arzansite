@@ -315,10 +315,10 @@ export class WizardService extends BaseApiService {
       };
       const snakeCaseRequest = FieldMapper.transformRequest(payload);
 
-      // Primary per integration guide: POST /wizard/progress
+      // Primary: POST /wizard/save-session (per updated guide)
       try {
         const primary = await withRetry(() =>
-          this.request<SaveProgressResponse>('/wizard/progress', {
+          this.request<SaveProgressResponse>('/wizard/save-session', {
             method: 'POST',
             body: JSON.stringify(snakeCaseRequest),
           })
@@ -326,11 +326,12 @@ export class WizardService extends BaseApiService {
         return FieldMapper.transformResponse(primary);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        if (message.includes('404') || message.toLowerCase().includes('not found')) {
-          // Fallback to legacy: /wizard/save-session
+        const msgLower = message.toLowerCase();
+        if (message.includes('404') || msgLower.includes('not found') || msgLower.startsWith('cannot ')) {
+          // Fallback to previous: /wizard/progress
           try {
             const fallback = await withRetry(() =>
-              this.request<SaveProgressResponse>('/wizard/save-session', {
+              this.request<SaveProgressResponse>('/wizard/progress', {
                 method: 'POST',
                 body: JSON.stringify(snakeCaseRequest),
               })
@@ -358,10 +359,9 @@ export class WizardService extends BaseApiService {
     try {
       // Try server endpoints first
       try {
-        // Option A: GET /wizard/progress?session_id=...
-        const query = new URLSearchParams({ session_id: sessionId }).toString();
+        // Option A (primary): GET /wizard/load-progress/:session_id
         const primary = await withRetry(() =>
-          this.request<{ data?: Record<string, unknown> }>(`/wizard/progress?${query}`)
+          this.request<{ success?: boolean; data?: Record<string, unknown> }>(`/wizard/load-progress/${encodeURIComponent(sessionId)}`)
         );
         const normalized = FieldMapper.transformResponse(primary);
         if (normalized && typeof normalized === 'object' && 'data' in normalized) {
@@ -369,11 +369,13 @@ export class WizardService extends BaseApiService {
         }
       } catch (e1) {
         const msg = e1 instanceof Error ? e1.message : String(e1);
-        if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
-          // Option B: GET /wizard/load-progress/{sessionId}
+        const low = msg.toLowerCase();
+        if (msg.includes('404') || low.includes('not found') || low.startsWith('cannot ')) {
+          // Option B: GET /wizard/progress?session_id=...
           try {
+            const query = new URLSearchParams({ session_id: sessionId }).toString();
             const fallback = await withRetry(() =>
-              this.request<{ data?: Record<string, unknown> }>(`/wizard/load-progress/${encodeURIComponent(sessionId)}`)
+              this.request<{ success?: boolean; data?: Record<string, unknown> }>(`/wizard/progress?${query}`)
             );
             const normalized = FieldMapper.transformResponse(fallback);
             if (normalized && typeof normalized === 'object' && 'data' in normalized) {

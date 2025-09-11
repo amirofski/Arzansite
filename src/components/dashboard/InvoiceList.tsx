@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { invoiceService, useApi, Invoice } from '@/lib/services';
+import { tokenManager } from '@/lib/tokenManager';
 import { RefreshCw, FileText, Search } from 'lucide-react';
 
 interface InvoiceListProps {
@@ -89,6 +90,16 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 	);
 
 	const load = async () => {
+		// Wait for token presence to avoid unauthorized noise right after login
+		let token = tokenManager.getAccessToken();
+		if (!token) {
+			tokenManager.forceRefreshFromStorage();
+			token = tokenManager.getAccessToken();
+			if (!token) {
+				setLoading(false);
+				return;
+			}
+		}
 		setLoading(true);
 		setLoadError(null);
 		try {

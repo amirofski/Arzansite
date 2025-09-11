@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { wizardService, ordersService } from '@/lib/services';
+import { ordersService, paymentService } from '@/lib/services';
+import { tokenManager } from '@/lib/tokenManager';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -76,92 +77,62 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
   const handleCompleteOrder = async () => {
     setLoading(true);
     try {
-      // Create the request according to the backend guide
-      const request = {
-        session_id: sessionId,
+      // Require token for protected endpoints
+      let token = tokenManager.getAccessToken();
+      if (!token) {
+        tokenManager.forceRefreshFromStorage();
+        token = tokenManager.getAccessToken();
+        if (!token) {
+          toast({ title: 'لطفاً ابتدا وارد شوید', variant: 'destructive' });
+          return;
+        }
+      }
+
+      // Build wizard data snapshot (used in order metadata)
+      const wizardDataPayload = {
+        websiteFramework: wizardData.websiteFramework,
+        branding: wizardData.branding,
+        additionalServices: wizardData.pricing.additionalServices,
+        domains: {
+          primary_domain: wizardData.userInfo.domain,
+          additional_domains: [] as string[],
+        },
+        pricing: {
+          ...wizardData.pricing,
+        },
+      } as Record<string, unknown>;
+
+      // Create order via /orders
+      const order = await ordersService.createOrderFromWizard({
+        sessionId: sessionId,
         order: {
           title: orderData.title,
           description: orderData.description,
-          priceTomans: orderData.priceTomans,
+          totalAmountTomans: orderData.priceTomans,
           comments: orderData.comments,
-          site_type: orderData.site_type
+          siteType: orderData.site_type,
         },
-        design_snapshot: {
-          websiteFramework: {
-            dynamicDesign: {
-              pages: wizardData.websiteFramework?.dynamicDesign?.pages.map(page => ({
-                id: page.id,
-                name: page.name,
-                sections: page.sections.map(section => ({
-                  id: section.id,
-                  section_type: section.sectionType,
-                  layout_id: section.layoutId,
-                  order: section.order,
-                  custom_data: section.customData || {}
-                })),
-                canvas_dimensions: {
-                  width: page.canvasDimensions.width,
-                  height: page.canvasDimensions.height
-                }
-              })) || [],
-              current_page_id: wizardData.websiteFramework?.dynamicDesign?.currentPageId || 'main'
-            }
-          },
-          branding: {
-            primaryColor: wizardData.branding.primaryColor,
-            fontFamily: wizardData.branding.fontFamily,
-            logo: wizardData.branding.logo
-          },
-          additionalServices: {
-            socialMediaIntegration: wizardData.pricing.additionalServices.socialMediaIntegration || false,
-            seoOptimization: wizardData.pricing.additionalServices.seoOptimization || false,
-            analyticsSetup: wizardData.pricing.additionalServices.analyticsSetup || false,
-            maintenancePlan: wizardData.pricing.additionalServices.maintenancePlan || false,
-            rushDelivery: wizardData.pricing.rushDelivery
-          },
-          domains: {
-            primary_domain: wizardData.userInfo.domain,
-            additional_domains: []
-          },
-          pricing: {
-            additionalServices: wizardData.pricing.additionalServices,
-            customizationLevel: wizardData.pricing.customizationLevel,
-            rushDelivery: wizardData.pricing.rushDelivery,
-            totalPrice: wizardData.pricing.totalPrice
-          },
-          paymentOptions: {}
-        }
-      };
+        wizardData: wizardDataPayload,
+      });
 
-      console.log('Sending wizard order request:', request);
-
-      const response = await wizardService.completeOrder(request);
-
-      if (response.success) {
-        try {
-          localStorage.removeItem(`wizard_progress_${sessionId}`);
-          localStorage.removeItem('wizard_session_id');
-        } catch (e) {
-          // ignore
-        }
-        toast({
-          title: 'سفارش با موفقیت ایجاد شد',
-          description: `شناسه سفارش: ${response.order_id}`,
-          variant: 'default'
-        });
-
-        console.log('Order created successfully:', {
-          orderId: response.order_id,
-          invoiceId: response.invoiceId,
-          message: response.message,
-          order: response.order,
-          invoice: response.invoice
-        });
-
-        onOrderComplete?.(response.order_id);
-      } else {
-        throw new Error('Order creation failed');
+      if (!order || !order.id) {
+        throw new Error('ایجاد سفارش ناموفق بود');
       }
+
+      // Request payment via /payments/request
+      const payment = await paymentService.requestPayment({
+        amount: orderData.priceTomans || 0,
+        description: `پرداخت سفارش ${order.id}`,
+        orderId: order.id,
+        callbackUrl: `${window.location.origin}/payment/callback`,
+      });
+
+      if ((payment as any)?.paymentUrl) {
+        window.location.href = (payment as any).paymentUrl as string;
+        return;
+      }
+
+      throw new Error('آدرس پرداخت نامعتبر است');
     } catch (error) {
       console.error('Error creating order:', error);
       toast({
@@ -177,6 +148,16 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
   const handleSaveForLater = async () => {
     setLoading(true);
     try {
+      // Require token for protected endpoints
+      let token = tokenManager.getAccessToken();
+      if (!token) {
+        tokenManager.forceRefreshFromStorage();
+        token = tokenManager.getAccessToken();
+        if (!token) {
+          toast({ title: 'لطفاً ابتدا وارد شوید', variant: 'destructive' });
+          return;
+        }
+      }
       // Create order via /orders with pending payment (save for later)
       const wizardDataPayload = {
         websiteFramework: wizardData.websiteFramework,

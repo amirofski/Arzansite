@@ -29,6 +29,7 @@ import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 
 // Services layer
 import { authService, ordersService, invoiceService, receiptService, paymentService, type Order, type UserProfile } from '@/lib/services';
+import { tokenManager } from '@/lib/tokenManager';
 import { localOrders, type LocalOrder } from '@/lib/localOrders';
 
 const Dashboard: React.FC = () => {
@@ -61,6 +62,19 @@ const Dashboard: React.FC = () => {
 
   const fetchData = async () => {
     if (!user) return;
+
+    // Ensure we have an access token before making authenticated calls
+    let token = tokenManager.getAccessToken();
+    if (!token) {
+      tokenManager.forceRefreshFromStorage();
+      token = tokenManager.getAccessToken();
+      if (!token) {
+        // Token not yet available (race after login); skip this cycle quietly
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       // Profile
       const profileData = await authService.getMe();
@@ -87,13 +101,19 @@ const Dashboard: React.FC = () => {
       }
 
       setDraftOrders(localOrders.list());
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast({
-        title: 'خطا در بارگیری اطلاعات',
-        description: 'مشکلی در دریافت اطلاعات پیش آمد',
-        variant: 'destructive',
-      });
+    } catch (error: any) {
+      const msg = typeof error?.message === 'string' ? error.message.toLowerCase() : '';
+      // Swallow initial unauthorized errors after login; a subsequent cycle will succeed once token is ready
+      if (msg.includes('unauthorized')) {
+        console.warn('Dashboard: Skipping unauthorized fetch cycle, will retry later');
+      } else {
+        console.error('Error fetching data:', error);
+        toast({
+          title: 'خطا در بارگیری اطلاعات',
+          description: 'مشکلی در دریافت اطلاعات پیش آمد',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -497,10 +517,10 @@ const Dashboard: React.FC = () => {
               </div>
               {authLoading ? (
                 <Card><CardContent className="text-center py-8"><p className="text-muted-foreground">در حال بارگیری اطلاعات احراز هویت...</p></CardContent></Card>
-              ) : user?.id ? (
-                <WalletCard userId={user.id} />
+              ) : (user?.id || profile?.id) ? (
+                <WalletCard userId={(user?.id || profile?.id)!} />
               ) : (
-                <Card><CardContent className="text-center py-8"><p className="text-muted-foreground">خطا در بارگیری اطلاعات کاربر</p><p className="text-sm text-muted-foreground mt-2">لطفاً دوباره وارد شوید</p></CardContent></Card>
+                <Card><CardContent className="text-center py-8"><p className="text-muted-foreground">در حال آماده‌سازی اطلاعات کاربر...</p><p className="text-sm text-muted-foreground mt-2">در صورت ادامه مشکل، لطفاً دوباره وارد شوید</p></CardContent></Card>
               )}
             </TabsContent>
 

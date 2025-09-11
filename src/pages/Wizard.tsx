@@ -149,9 +149,25 @@ const Wizard = () => {
   const saveWizardProgress = useCallback(async (data: WizardData) => {
     try {
       setIsAutoSaving(true);
+
+      // If no token yet (guest or just logged in), save locally without server call
+      try {
+        const { tokenManager } = await import('@/lib/tokenManager');
+        let token = tokenManager.getAccessToken();
+        if (!token) {
+          tokenManager.forceRefreshFromStorage();
+          token = tokenManager.getAccessToken();
+        }
+        if (!token) {
+          localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify(data));
+          localStorage.setItem('wizard_session_id', sessionId);
+          setHasUnsavedChanges(false);
+          return;
+        }
+      } catch {}
       
       // Use new wizard service for saving progress
-      const response = await wizardService.saveProgress(
+      await wizardService.saveProgress(
         sessionId,
         data as unknown as Record<string, unknown>
       );
@@ -172,19 +188,19 @@ const Wizard = () => {
       }
     } catch (error) {
       console.error('Failed to save wizard progress:', error);
-      
-      // Handle error with user-friendly message
-      const errorMessage = error instanceof Error ? error.message : 'خطا در ذخیره‌سازی پیشرفت';
-      
-      toast({
-        title: 'خطا در ذخیره‌سازی',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+      // Suppress error toasts during auto-save to reduce noise
+      if (!isAutoSaving) {
+        const errorMessage = error instanceof Error ? error.message : 'خطا در ذخیره‌سازی پیشرفت';
+        toast({
+          title: 'خطا در ذخیره‌سازی',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsAutoSaving(false);
     }
-  }, [sessionId, toast, isAutoSaving]);
+  }, [sessionId, toast, isAutoSaving, setHasUnsavedChanges]);
 
   // Determine current step based on progress
   const determineCurrentStep = useCallback((progress: WizardData): number => {
@@ -200,6 +216,49 @@ const Wizard = () => {
   // Recover wizard progress from backend
   const recoverWizardProgress = useCallback(async (sessionId: string) => {
     try {
+      // If there's no token, skip server calls and attempt local recovery only
+      try {
+        const { tokenManager } = await import('@/lib/tokenManager');
+        let token = tokenManager.getAccessToken();
+        if (!token) {
+          tokenManager.forceRefreshFromStorage();
+          token = tokenManager.getAccessToken();
+        }
+        if (!token) {
+          const saved = localStorage.getItem(`wizard_progress_${sessionId}`);
+          const progressLocal = saved ? JSON.parse(saved) : {};
+          const mappedLocal = progressLocal && typeof progressLocal === 'object' ? (progressLocal as any) : {};
+          // Map to state from local
+          const mappedProgressLocal: WizardData = {
+            siteType: mappedLocal.siteType || '',
+            pageMode: '',
+            modules: mappedLocal.modules || [],
+            websiteFramework: mappedLocal.websiteFramework || {
+              selectedLayouts: {},
+              uploadedImages: {},
+              pageStructure: 'single',
+              canvasDimensions: { width: 1200, height: 2000 },
+            },
+            wireframe: undefined,
+            branding: mappedLocal.branding || {
+              primaryColor: '#8B5CF6',
+              fontFamily: 'vazir',
+              logo: ''
+            },
+            pricing: mappedLocal.pricing || {
+              additionalServices: {},
+              customizationLevel: [3],
+              rushDelivery: false,
+              totalPrice: 0
+            },
+            userInfo: mappedLocal.userInfo || { domain: '' }
+          };
+          setWizardData(mappedProgressLocal);
+          setCurrentStep(determineCurrentStep(mappedProgressLocal));
+          return;
+        }
+      } catch {}
+
       // Use new wizard service for loading progress
       const progress = await wizardService.loadProgress(sessionId);
       

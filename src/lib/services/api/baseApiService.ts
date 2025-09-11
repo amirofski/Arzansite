@@ -30,6 +30,7 @@ export class BaseApiService {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     let token = this.getAuthToken();
+    const hadToken = !!token;
 
     // If no token in memory, try to restore from localStorage
     if (!token) {
@@ -128,8 +129,12 @@ export class BaseApiService {
               this.isRefreshing = false;
             }
           } else {
-            console.log('No refresh token or already refreshing, clearing tokens');
-            this.clearToken();
+            if (hadToken) {
+              console.log('401 received with existing token, clearing tokens');
+              this.clearToken();
+            } else {
+              console.log('401 received without token on request; not clearing tokens');
+            }
           }
 
           // Don't redirect immediately, throw error instead

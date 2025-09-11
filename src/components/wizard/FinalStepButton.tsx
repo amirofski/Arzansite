@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { wizardService, authService, useApi } from '@/lib/services';
+import { wizardService, authService, ordersService, useApi } from '@/lib/services';
 import { calculateTotalPrice, PricingData } from '@/lib/pricingUtils';
 import { Check, Clock, CreditCard, UserPlus } from 'lucide-react';
 import { localOrders } from '@/lib/localOrders';
@@ -32,17 +32,12 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
   const navigate = useNavigate();
 
   // New API hooks for wizard completion and profile update
-  const { execute: completeWizardOrder } = useApi(
-    wizardService.completeOrder.bind(wizardService),
-    { 
-      onSuccess: handleWizardOrderSuccess,
-      onError: handleWizardOrderError
-    }
-  );
+  // Removed direct wizard completion; using orders + payments flow
 
   const { execute: updateProfile } = useApi(
     authService.updateProfile.bind(authService),
     { 
+      requireAuth: true,
       onError: (error) => console.warn('Profile update warning:', error)
     }
   );
@@ -120,43 +115,37 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
         }
       };
 
-      // Use wizard completion endpoint
-      try {
-        await completeWizardOrder({
-          session_id: orderData.sessionId,
-          order: {
-            title: orderData.title,
-            description: orderData.description,
-            priceTomans: orderData.price,
-            comments: orderData.comments,
-            site_type: orderData.siteType as 'personal' | 'business'
-          },
-          design_snapshot: {
-            websiteFramework: wizardData.websiteFramework,
-            branding: wizardData.branding,
-            additionalServices: wizardData.pricing?.additionalServices || {},
-            domains: {
-              primary_domain: wizardData.userInfo?.domain || 'mywebsite',
-              additional_domains: []
-            },
-            pricing: wizardData.pricing || {},
-            paymentOptions: {}
-          }
-        } as unknown as Parameters<typeof wizardService.completeOrder>[0]);
-      } catch (_e) {
-        // Do not send additional POSTs to /orders; persist a local draft so user can try later
-        const draft = localOrders.save({ ...orderData });
-        console.warn('Saved local draft due to backend error, id:', draft.id);
+      // Create pending order via /orders (save for later)
+      const order = await ordersService.createOrderFromWizard({
+        sessionId: orderData.sessionId,
+        order: {
+          title: orderData.title,
+          description: orderData.description,
+          totalAmountTomans: orderData.price,
+          comments: orderData.comments,
+          siteType: orderData.siteType,
+        },
+        wizardData: orderData.wizardData,
+      });
+
+      if (order && order.id) {
+        try {
+          localStorage.removeItem(`wizard_progress_${orderData.sessionId}`);
+          localStorage.removeItem('wizard_session_id');
+        } catch {}
+        toast({ title: 'سفارش برای بعد ذخیره شد', description: `شناسه سفارش: ${order.id}` });
+        navigate('/dashboard');
+        return;
       }
 
-      // Update user profile if needed (allowed fields only)
+      // If order creation failed, save local draft
+      const draft = localOrders.save({ ...orderData });
+      console.warn('Saved local draft due to backend error, id:', draft.id);
+
+      // Update user profile if needed
       if (wizardData.userInfo?.name) {
-        await updateProfile({
-          fullName: wizardData.userInfo.name,
-        });
+        await updateProfile({ fullName: wizardData.userInfo.name });
       }
-
-      // Success handling is done in handleWizardOrderSuccess
 
     } catch (error: unknown) {
       console.error('Save project error:', error);
@@ -187,9 +176,7 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
         });
         navigate('/dashboard');
         return;
-      } catch (e) {
-        // ignore
-      }
+      } catch {}
       toast({
         title: "خطا در ذخیره پروژه",
         description: error instanceof Error ? error.message : "مشکلی در ذخیره پروژه پیش آمد. لطفاً دوباره تلاش کنید",

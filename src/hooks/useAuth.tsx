@@ -64,12 +64,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const hasToken = tokenManager.getAccessToken();
       if (!hasToken) {
-        setUser(null);
+        // Do not forcibly log out if we already have a user (e.g., just logged in via payload)
+        // Simply skip server check; a later action can refresh the profile.
         return;
       }
       const me = await authService.getMe();
       setUser(me || null);
     } catch (e) {
+      // Only clear user if the server explicitly rejects the session
       setUser(null);
     } finally {
       setLoading(false);
@@ -104,13 +106,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    if (!normalizedUser.id) {
-      // Fallback to /auth/me if login payload lacks id
-      const me = await authService.getMe();
-      setUser(me || null);
-      return { user: me };
-    }
-
+    // Trust login payload; avoid immediate /auth/me call to prevent race with initial loadUser
     setUser(normalizedUser);
     return { user: normalizedUser, redirect: (res as any).data?.redirect };
   };

@@ -13,6 +13,7 @@ export interface UseApiOptions {
     backoffMultiplier?: number;
     jitter?: boolean;
   };
+  requireAuth?: boolean;
   onSuccess?: (data: any) => void;
   onError?: (error: any) => void;
   onFinally?: () => void;
@@ -44,6 +45,26 @@ export function useApi<T, P extends any[]>(
     lastArgsRef.current = args;
 
     try {
+      // Optionally ensure token presence before protected calls
+      if (options.requireAuth) {
+        try {
+          const { tokenManager } = await import('@/lib/tokenManager');
+          let token = tokenManager.getAccessToken();
+          if (!token) {
+            tokenManager.forceRefreshFromStorage();
+            token = tokenManager.getAccessToken();
+            if (!token) {
+              // wait once briefly for token propagation
+              await new Promise(r => setTimeout(r, 250));
+              token = tokenManager.getAccessToken();
+            }
+          }
+          if (!token) throw new Error('Unauthorized - please log in again');
+        } catch (e) {
+          throw e;
+        }
+      }
+
       const result = await withRetry(
         () => apiFunction(...args),
         options.retryConfig

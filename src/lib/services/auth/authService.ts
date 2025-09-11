@@ -143,20 +143,39 @@ export class AuthService extends BaseApiService {
         })
       );
 
-      // Normalize response shape (unwrap data if present, camelCase keys)
-      const response = FieldMapper.transformResponse<any>(raw);
-      const payload = 'data' in response ? response.data : response;
+      // Normalize and unwrap; be lenient if shape differs
+      const responseCamel = FieldMapper.transformResponse<any>(raw ?? {}) || {};
+      const payload = (responseCamel && typeof responseCamel === 'object' && 'data' in responseCamel)
+        ? (responseCamel as any).data
+        : responseCamel || {};
 
       // Store tokens from either wrapped or flat payload
-      const accessToken = payload?.accessToken || payload?.access_token;
-      const refreshToken = payload?.refreshToken || payload?.refresh_token;
-      const expiresAt = payload?.expiresAt || payload?.expires_at;
+      const accessToken = (payload as any).accessToken || (payload as any).access_token;
+      const refreshToken = (payload as any).refreshToken || (payload as any).refresh_token;
+      const expiresAt = (payload as any).expiresAt || (payload as any).expires_at;
       if (accessToken && refreshToken) {
         tokenManager.setTokens({ access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt });
       }
       
-      // Return unified AuthResponse-like object (preserve original wrapper if present)
-      return response as AuthResponse;
+      // Return unified AuthResponse-like object
+      const result: AuthResponse = {
+        success: Boolean((responseCamel as any).success ?? true),
+        message: String((responseCamel as any).message || ''),
+        data: {
+          user: (payload as any).user || {},
+          tokens: (accessToken && refreshToken) ? { accessToken, refreshToken, expiresAt } : undefined,
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          expires_at: expiresAt,
+        },
+      } as AuthResponse;
+
+      // Preserve redirect if provided by backend (in payload)
+      if ((payload as any).redirect) {
+        (result as any).data.redirect = (payload as any).redirect;
+      }
+
+      return result;
     } catch (error) {
       ErrorHandler.logError(error, 'AuthService.signIn');
       throw error;
@@ -168,7 +187,7 @@ export class AuthService extends BaseApiService {
    */
   async signOut(): Promise<{ success: boolean }> {
     try {
-      const response = await withRetry(() =>
+      await withRetry(() =>
         this.request<{ success: boolean }>('/auth/logout', {
           method: 'POST',
         })
@@ -177,12 +196,20 @@ export class AuthService extends BaseApiService {
       // Clear tokens regardless of response
       tokenManager.clearTokens();
       
-      return response;
+      return { success: true };
     } catch (error) {
+      // Log and attempt a best-effort fallback that avoids CORS preflight/visibility issues
       ErrorHandler.logError(error, 'AuthService.signOut');
-      // Clear tokens even if logout fails
+      try {
+        await fetch(`${this.baseUrl}/auth/logout`, {
+          method: 'POST',
+          mode: 'no-cors',
+          credentials: 'include',
+        });
+      } catch {}
+      // Clear tokens even if network fails; do not throw to avoid unhandled errors in UI
       tokenManager.clearTokens();
-      throw error;
+      return { success: false };
     }
   }
 
@@ -221,29 +248,48 @@ export class AuthService extends BaseApiService {
    */
   async getMe(): Promise<UserProfile> {
     try {
-      // Backend wraps payload: { success, data: { id, role, ... } }
-      const response = await withRetry(() =>
-        this.request<{ success: boolean; data: Partial<UserProfile> }>('/auth/me')
+      const raw = await withRetry(() =>
+        this.request<any>('/auth/me')
       );
 
-      const user = FieldMapper.transformWrappedResponse<Partial<UserProfile>>(response);
-      // Ensure minimal shape
-      return {
-        id: user.id as string,
-        email: (user.email as string) || '',
-        role: (user.role as any) || 'user',
-        firstName: user.firstName,
-        lastName: user.lastName,
-        fullName: user.fullName,
-        phone: user.phone,
-        address: user.address,
-        company: user.company,
-        bio: user.bio,
-        userMetadata: user.userMetadata,
-        emailConfirmedAt: user.emailConfirmedAt ?? null,
-        createdAt: (user.createdAt as string) || new Date().toISOString(),
-        updatedAt: (user.updatedAt as string) || new Date().toISOString(),
+      // Unwrap possible { success, data: {...} } and possible nested { user: {...} }
+      const wrapped = FieldMapper.transformWrappedResponse<any>(raw) || {};
+      const u = (wrapped && typeof wrapped === 'object' && 'user' in wrapped) ? wrapped.user : wrapped;
+
+      if (!u || typeof u !== 'object') {
+        throw new Error('Invalid profile response');
+      }
+
+      const result: UserProfile = {
+        id: String((u as any).id || ''),
+        email: String((u as any).email || ''),
+        role: ((u as any).role as any) || 'user',
+        firstName: (u as any).firstName,
+        lastName: (u as any).lastName,
+        fullName: (u as any).fullName,
+        phone: (u as any).phone,
+        address: (u as any).address,
+        company: (u as any).company,
+        bio: (u as any).bio,
+        userMetadata: (u as any).userMetadata,
+        emailConfirmedAt: (u as any).emailConfirmedAt ?? null,
+        createdAt: String((u as any).createdAt || new Date().toISOString()),
+        updatedAt: String((u as any).updatedAt || new Date().toISOString()),
       };
+
+      // Fallback to /profiles/me if id is missing
+      if (!result.id) {
+        try {
+          const rawProfile = await withRetry(() => this.request<any>('/profiles/me'));
+          const profile = FieldMapper.transformWrappedResponse<any>(rawProfile) || {};
+          result.id = String(profile.id || result.id);
+          result.email = String(profile.email || result.email);
+          result.role = (profile.role as any) || result.role;
+          result.fullName = profile.fullName || result.fullName;
+        } catch {}
+      }
+
+      return result;
     } catch (error) {
       ErrorHandler.logError(error, 'AuthService.getMe');
       throw error;
@@ -375,15 +421,9 @@ export class AuthService extends BaseApiService {
         this.request<any>(`/auth/check-verification/${encodeURIComponent(email)}`)
       );
 
-      // Unwrap { success, data: {...} } and camelCase
-      const data = FieldMapper.transformWrappedResponse<any>(raw) as {
-        email: string;
-        emailVerified?: boolean;
-        emailVerification?: boolean;
-        userId?: string;
-        user_id?: string;
-        message: string;
-      };
+      // Safely unwrap and normalize
+      const wrapped = (raw && typeof raw === 'object' && 'data' in raw) ? (raw as any).data : raw;
+      const data = FieldMapper.transformResponse<any>(wrapped || {}) || {};
 
       const emailVerified = typeof data.emailVerified === 'boolean'
         ? data.emailVerified

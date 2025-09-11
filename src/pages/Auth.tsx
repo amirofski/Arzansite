@@ -75,17 +75,9 @@ const Auth = () => {
       const response = await signIn(email, password);
       console.log('Auth: Response from signIn:', response);
       
-      // Validate response structure
-      if (!response) {
-        throw new Error('No response received from sign in');
-      }
-      
-      if (!response.user) {
+      // Validate minimal response shape (be lenient; rely on ProtectedRoute and subsequent profile fetch)
+      if (!response || !response.user) {
         throw new Error('No user information received');
-      }
-      
-      if (!response.user.id) {
-        throw new Error('Invalid user information received');
       }
       
       // Handle automatic redirect if provided by backend

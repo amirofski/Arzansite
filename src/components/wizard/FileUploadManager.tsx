@@ -52,6 +52,16 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const loadUploadedFiles = async () => {
     if (!user) return;
+    // Ensure token exists before calling protected endpoints
+    try {
+      const { tokenManager } = await import('@/lib/tokenManager');
+      let token = tokenManager.getAccessToken();
+      if (!token) {
+        tokenManager.forceRefreshFromStorage();
+        token = tokenManager.getAccessToken();
+        if (!token) return;
+      }
+    } catch {}
     try {
       const orderId = typeof (data as Record<string, unknown> | null)?.orderId === 'string'
         ? ((data as Record<string, unknown>)?.orderId as string)

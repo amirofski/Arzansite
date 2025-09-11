@@ -21,6 +21,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { WizardOrderManager } from './WizardOrderManager';
+import { tokenManager } from '@/lib/tokenManager';
 
 interface OrderSubmissionStepProps {
   data: WizardData;
@@ -94,9 +95,14 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [sessionId, setSessionId] = useState<string>('');
 
-  // Check authentication status when component mounts
+  // Check authentication status when component mounts or when auth state changes
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (authLoading) return;
+    // Consider authenticated if we already have a token in storage
+    const token = tokenManager.getAccessToken();
+    if (isAuthenticated || token) {
+      setShowAuthPrompt(false);
+    } else {
       setShowAuthPrompt(true);
     }
   }, [isAuthenticated, authLoading]);

@@ -17,7 +17,14 @@ export interface CreateOrderRequest {
   siteType?: string;
   sessionId?: string;
   wizardData?: unknown;
-  paymentStatus?: string;
+  userId?: string;
+  status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+  paymentStatus?: 'pending' | 'succeeded' | 'failed' | 'refunded';
+  paymentGateway?: string;
+  callbackUrl?: string;
+  returnUrl?: string;
+  zarinpalAuthority?: string;
+  zarinpalRefId?: string;
 }
 
 export interface UpdateOrderRequest {
@@ -25,7 +32,12 @@ export interface UpdateOrderRequest {
   description?: string;
   price?: number;
   status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-  paymentStatus?: string;
+  paymentStatus?: 'pending' | 'succeeded' | 'failed' | 'refunded';
+  paymentGateway?: string;
+  callbackUrl?: string;
+  returnUrl?: string;
+  zarinpalAuthority?: string;
+  zarinpalRefId?: string;
   comments?: string;
   totalPages?: number;
   totalSections?: number;
@@ -174,9 +186,38 @@ export class OrdersService extends BaseApiService {
   async createOrder(request: CreateOrderRequest): Promise<Order> {
     try {
       const enriched = {
-        ...request,
+        title: request.title,
+        description: request.description,
+        totalAmount: request.price,
+        siteType: request.siteType || 'personal',
+        comments: request.comments,
+        sessionId: request.sessionId,
+        wizardData: request.wizardData,
+        // Also include nested order object for backends expecting it
+        order: {
+          title: request.title,
+          description: request.description,
+          totalAmount: request.price,
+          siteType: request.siteType || 'personal',
+          comments: request.comments,
+          totalPages: request.totalPages,
+          totalSections: request.totalSections,
+          currency: 'IRR',
+          status: request.status || 'pending',
+          paymentStatus: request.paymentStatus || 'pending',
+        },
+        // Do NOT send user_id – backend derives user from auth context
+        status: request.status || 'pending',
+        paymentStatus: request.paymentStatus || 'pending',
+        paymentGateway: request.paymentGateway,
+        callbackUrl: request.callbackUrl,
+        returnUrl: request.returnUrl,
+        zarinpalAuthority: request.zarinpalAuthority,
+        zarinpalRefId: request.zarinpalRefId,
+        totalPages: request.totalPages,
+        totalSections: request.totalSections,
         currency: 'IRR',
-        order_number: `ORD-${Date.now()}`,
+        // Do NOT send order_number; backend generates it
       } as Record<string, unknown>;
       const snakeCaseRequest = FieldMapper.transformRequest(enriched);
       
@@ -201,17 +242,55 @@ export class OrdersService extends BaseApiService {
     sessionId: string;
     order: { title: string; description: string; totalAmountTomans: number; comments?: string; siteType?: string };
     wizardData: Record<string, unknown>;
+    status?: 'pending' | 'in_progress' | 'completed' | 'cancelled';
+    paymentStatus?: 'pending' | 'succeeded' | 'failed' | 'refunded';
+    paymentGateway?: string;
+    callbackUrl?: string;
+    returnUrl?: string;
   }): Promise<Order> {
     try {
+      // Compute optional totals if wizardData contains design structure
+      let totalPages: number | undefined;
+      let totalSections: number | undefined;
+      try {
+        const wf = (args.wizardData as any)?.websiteFramework;
+        const pages = wf?.dynamicDesign?.pages as Array<{ sections?: any[] }> | undefined;
+        if (Array.isArray(pages)) {
+          totalPages = pages.length;
+          totalSections = pages.reduce((sum, p) => sum + (Array.isArray(p.sections) ? p.sections.length : 0), 0);
+        }
+      } catch {}
+
       const payload = {
         title: args.order.title,
         description: args.order.description,
-        total_amount: args.order.totalAmountTomans,
-        site_type: args.order.siteType,
+        totalAmount: args.order.totalAmountTomans,
+        siteType: args.order.siteType || 'personal',
         comments: args.order.comments,
-        session_id: args.sessionId,
-        wizard_data: args.wizardData,
-        order_number: `ORD-${Date.now()}`,
+        sessionId: args.sessionId,
+        wizardData: args.wizardData,
+        // Also include nested order object for backends expecting it
+        order: {
+          title: args.order.title,
+          description: args.order.description,
+          totalAmount: args.order.totalAmountTomans,
+          siteType: args.order.siteType || 'personal',
+          comments: args.order.comments,
+          totalPages,
+          totalSections,
+          currency: 'IRR',
+          status: args.status || 'pending',
+          paymentStatus: args.paymentStatus || 'pending',
+        },
+        // Do NOT send user_id – backend derives user from auth context
+        status: args.status || 'pending',
+        paymentStatus: args.paymentStatus || 'pending',
+        paymentGateway: args.paymentGateway,
+        callbackUrl: args.callbackUrl,
+        returnUrl: args.returnUrl,
+        totalPages,
+        totalSections,
+        // Do NOT send order_number; backend generates it
         currency: 'IRR',
       };
       const snakeCaseRequest = FieldMapper.transformRequest(payload);

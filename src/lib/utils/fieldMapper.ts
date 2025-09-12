@@ -32,6 +32,11 @@ export class FieldMapper {
     authority: 'authority',
     paymentMethod: 'payment_method',
     paymentUrl: 'payment_url',
+    paymentGateway: 'payment_gateway',
+    callbackUrl: 'callback_url',
+    returnUrl: 'return_url',
+    zarinpalAuthority: 'zarinpal_authority',
+    zarinpalRefId: 'zarinpal_ref_id',
     
     // Wallet fields
     walletId: 'wallet_id',

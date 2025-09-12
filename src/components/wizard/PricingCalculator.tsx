@@ -215,8 +215,11 @@ const PricingCalculator = ({ data, updateData }: PricingCalculatorProps) => {
 
   const updatePricingData = (updates: any) => {
     const pricingData = {
+      // Preserve any existing boolean-based additionalServices if present
+      ...(data.pricing || {}),
       selectedPackage,
-      additionalServices,
+      // Store the selected service IDs list separately to persist exact choices
+      additionalServicesList: additionalServices,
       customizationLevel,
       rushDelivery,
       totalPrice: pricingBreakdown.totalPrice,

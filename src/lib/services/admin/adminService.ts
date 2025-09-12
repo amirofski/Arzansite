@@ -330,7 +330,7 @@ export class AdminService extends BaseApiService {
           success: boolean;
           message: string;
           logId?: string;
-        }>('/admin/emails/test', {
+        }>('/admin/emails/test-service', {
           method: 'POST',
           body: JSON.stringify(snakeCaseRequest),
         })
@@ -396,7 +396,7 @@ export class AdminService extends BaseApiService {
           success: boolean;
           message: string;
         }>(`/admin/domains/prices/${extensionId}`, {
-          method: 'PATCH',
+          method: 'PUT',
           body: JSON.stringify(snakeCaseRequest),
         })
       );
@@ -459,7 +459,7 @@ export class AdminService extends BaseApiService {
           extension: string;
           price?: number;
           message: string;
-        }>('/admin/domains/check', {
+        }>('/admin/domains/check-availability', {
           method: 'POST',
           body: JSON.stringify(snakeCaseRequest),
         })
@@ -505,7 +505,7 @@ export class AdminService extends BaseApiService {
   async getAdminStats(): Promise<AdminStats> {
     try {
       const response = await withRetry(() =>
-        this.request<AdminStats>('/admin/stats')
+        this.request<AdminStats>('/admin/dashboard/stats')
       );
 
       return FieldMapper.transformResponse(response);
@@ -520,7 +520,7 @@ export class AdminService extends BaseApiService {
    */
   async downloadReceipt(receiptId: string, format: 'pdf' | 'html'): Promise<Blob> {
     try {
-      const url = `${this.baseUrl}/admin/receipts/${receiptId}/download?format=${format}`;
+      const url = `${this.baseUrl}/receipts/${receiptId}/download${format ? `?format=${format}` : ''}`;
       const token = this.getAuthToken();
       
       const response = await fetch(url, {

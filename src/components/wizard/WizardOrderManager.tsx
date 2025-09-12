@@ -41,6 +41,7 @@ interface WizardOrderManagerProps {
     };
     pricing: {
       additionalServices: Record<string, boolean>;
+      additionalServicesList?: string[];
       customizationLevel: number[];
       rushDelivery: boolean;
       totalPrice: number;
@@ -93,6 +94,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         websiteFramework: wizardData.websiteFramework,
         branding: wizardData.branding,
         additionalServices: wizardData.pricing.additionalServices,
+        additionalServicesList: wizardData.pricing.additionalServicesList || [],
         domains: {
           primary_domain: wizardData.userInfo.domain,
           additional_domains: [] as string[],
@@ -113,18 +115,32 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
           siteType: orderData.site_type,
         },
         wizardData: wizardDataPayload,
+        status: 'pending',
+        paymentStatus: 'pending',
       });
 
       if (!order || !order.id) {
         throw new Error('ایجاد سفارش ناموفق بود');
       }
 
+      // Persist payment info onto the order (optional fields)
+      try {
+        await ordersService.updateOrder(order.id, {
+          paymentStatus: 'pending',
+          paymentGateway: 'zarinpal',
+          callbackUrl: `${window.location.origin}/payment/callback`,
+          returnUrl: `${window.location.origin}/dashboard`,
+        });
+      } catch {}
+
       // Request payment via /payments/request
       const payment = await paymentService.requestPayment({
         amount: orderData.priceTomans || 0,
         description: `پرداخت سفارش ${order.id}`,
         orderId: order.id,
+        paymentMethod: 'zarinpal',
         callbackUrl: `${window.location.origin}/payment/callback`,
+        returnUrl: `${window.location.origin}/dashboard`,
       });
 
       if ((payment as any)?.paymentUrl) {
@@ -163,6 +179,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         websiteFramework: wizardData.websiteFramework,
         branding: wizardData.branding,
         additionalServices: wizardData.pricing.additionalServices,
+        additionalServicesList: wizardData.pricing.additionalServicesList || [],
         domains: {
           primary_domain: wizardData.userInfo.domain,
           additional_domains: [] as string[],
@@ -182,6 +199,8 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
           siteType: orderData.site_type,
         },
         wizardData: wizardDataPayload,
+        status: 'pending',
+        paymentStatus: 'pending',
       });
 
       if (order && order.id) {

@@ -17,8 +17,8 @@ export class BaseApiService {
 
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl || import.meta.env.VITE_API_URL || 'https://nest.arzansite.com/api';
+    // Do NOT set Content-Type by default here to avoid interfering with FormData requests
     this.defaultHeaders = {
-'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
   }
@@ -158,7 +158,9 @@ export class BaseApiService {
           throw new Error('Unexpected HTML response from API');
         }
       }
-      
+
+      // Return parsed body to callers
+      return body as T;
     } catch (error) {
       console.error('API request failed:', error);
       console.error('Request details:', {

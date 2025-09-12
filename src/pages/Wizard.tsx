@@ -15,6 +15,7 @@ import FinalStepButton from '@/components/wizard/FinalStepButton';
 import Layout from "@/components/ui/Layout";
 import { useToast } from '@/hooks/use-toast';
 import { wizardService } from '@/lib/services';
+import { useAuth } from '@/hooks/useAuth';
 
 interface WizardData {
   siteType: 'personal' | 'business' | '';
@@ -111,6 +112,7 @@ interface WizardData {
 }
 
 const Wizard = () => {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -167,9 +169,12 @@ const Wizard = () => {
       } catch {}
       
       // Use new wizard service for saving progress
+      // Try to include user_id if available
+      const userId = (user as any)?.id || (user as any)?.user_id || (user as any)?.$id || (user as any)?.userId || (user as any)?._id;
       await wizardService.saveProgress(
         sessionId,
-        data as unknown as Record<string, unknown>
+        data as unknown as Record<string, unknown>,
+        userId ? { userId: String(userId) } : undefined
       );
       
       // Also save to localStorage as backup
@@ -200,7 +205,7 @@ const Wizard = () => {
     } finally {
       setIsAutoSaving(false);
     }
-  }, [sessionId, toast, isAutoSaving, setHasUnsavedChanges]);
+  }, [sessionId, toast, isAutoSaving, setHasUnsavedChanges, user]);
 
   // Determine current step based on progress
   const determineCurrentStep = useCallback((progress: WizardData): number => {

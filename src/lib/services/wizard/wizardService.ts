@@ -305,48 +305,55 @@ export class WizardService extends BaseApiService {
   }
 
   /**
-   * Save wizard progress - Use existing backend endpoint /wizard/save-session
+   * Save wizard progress - Only POST /wizard/save-progress
+   * Optionally include user_id when provided via opts
    */
-  async saveProgress(sessionId: string, data: Record<string, unknown>): Promise<SaveProgressResponse> {
+  async saveProgress(
+    sessionId: string,
+    data: Record<string, unknown>,
+    opts?: {
+      userId?: string;
+      currentStep?: number;
+      isCompleted?: boolean;
+      status?: string;
+      createdAt?: string;
+      updatedAt?: string;
+    }
+  ): Promise<SaveProgressResponse> {
     try {
-      const payload = {
+      const nowISO = new Date().toISOString();
+      const isCompleted = !!opts?.isCompleted;
+      const payload: Record<string, unknown> = {
         session_id: sessionId,
-        wizard_data: data,
+        // Backend expects wizard_data as string in collection; send stringified JSON
+        wizard_data: JSON.stringify(data),
+        current_step: typeof opts?.currentStep === 'number' ? opts.currentStep : 1,
+        is_completed: isCompleted,
+        status: typeof opts?.status === 'string' ? opts.status : (isCompleted ? 'completed' : 'in_progress'),
+        created_at: opts?.createdAt || nowISO,
+        updated_at: opts?.updatedAt || nowISO,
       };
+      if (opts?.userId) {
+        (payload as any).user_id = opts.userId;
+      }
+      if (typeof opts?.currentStep === 'number') {
+        (payload as any).current_step = opts.currentStep;
+      }
       const snakeCaseRequest = FieldMapper.transformRequest(payload);
 
-      // Primary: POST /wizard/save-session (per updated guide)
-      try {
-        const primary = await withRetry(() =>
-          this.request<SaveProgressResponse>('/wizard/save-session', {
-            method: 'POST',
-            body: JSON.stringify(snakeCaseRequest),
-          })
-        );
-        return FieldMapper.transformResponse(primary);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        const msgLower = message.toLowerCase();
-        if (message.includes('404') || msgLower.includes('not found') || msgLower.startsWith('cannot ')) {
-          // Fallback to previous: /wizard/progress
-          try {
-            const fallback = await withRetry(() =>
-              this.request<SaveProgressResponse>('/wizard/progress', {
-                method: 'POST',
-                body: JSON.stringify(snakeCaseRequest),
-              })
-            );
-            return FieldMapper.transformResponse(fallback);
-          } catch (e2) {
-            // As final fallback, store locally
-            localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify({ data }));
-            localStorage.setItem('wizard_session_id', sessionId);
-            return { success: false, sessionId, message: 'Saved locally (backend endpoint missing)' };
-          }
-        }
-        throw err;
-      }
+      const primary = await withRetry(() =>
+        this.request<SaveProgressResponse>('/wizard/save-progress', {
+          method: 'POST',
+          body: JSON.stringify(snakeCaseRequest),
+        })
+      );
+      return FieldMapper.transformResponse(primary);
     } catch (error) {
+      // Best-effort local backup to avoid data loss
+      try {
+        localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify(data));
+        localStorage.setItem('wizard_session_id', sessionId);
+      } catch {}
       ErrorHandler.logError(error, 'WizardService.saveProgress');
       throw error;
     }
@@ -358,14 +365,38 @@ export class WizardService extends BaseApiService {
   async loadProgress(sessionId: string): Promise<Record<string, unknown>> {
     try {
       // Try server endpoints first
+      const tryParseWizard = (obj: any): Record<string, unknown> => {
+        if (!obj || typeof obj !== 'object') return {};
+        // Prefer explicit wizardData if present
+        let wizard = (obj as any).wizardData ?? (obj as any).progressData ?? (obj as any).designData;
+        if (typeof wizard === 'string') {
+          try {
+            wizard = JSON.parse(wizard);
+          } catch {}
+        }
+        if (wizard && typeof wizard === 'object') return wizard as Record<string, unknown>;
+        // If no direct wizard payload, return obj as-is (may already be wizard-like)
+        return obj as Record<string, unknown>;
+      };
+
       try {
         // Option A (primary): GET /wizard/load-progress/:session_id
         const primary = await withRetry(() =>
-          this.request<{ success?: boolean; data?: Record<string, unknown> }>(`/wizard/load-progress/${encodeURIComponent(sessionId)}`)
+          this.request<{ success?: boolean; data?: any }>(`/wizard/load-progress/${encodeURIComponent(sessionId)}`)
         );
         const normalized = FieldMapper.transformResponse(primary);
-        if (normalized && typeof normalized === 'object' && 'data' in normalized) {
-          return (normalized as { data?: Record<string, unknown> }).data || {};
+        if (normalized && typeof normalized === 'object') {
+          const inner = (normalized as any).data ?? normalized;
+          // If backend returns { wizard_data: "..." } inside data
+          const maybeWizardString = (inner as any).wizard_data;
+          if (typeof maybeWizardString === 'string') {
+            try {
+              const parsed = JSON.parse(maybeWizardString);
+              if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
+            } catch {}
+          }
+          const parsed = tryParseWizard(inner);
+          if (Object.keys(parsed).length > 0) return parsed;
         }
       } catch (e1) {
         const msg = e1 instanceof Error ? e1.message : String(e1);
@@ -375,11 +406,20 @@ export class WizardService extends BaseApiService {
           try {
             const query = new URLSearchParams({ session_id: sessionId }).toString();
             const fallback = await withRetry(() =>
-              this.request<{ success?: boolean; data?: Record<string, unknown> }>(`/wizard/progress?${query}`)
+              this.request<{ success?: boolean; data?: any }>(`/wizard/progress?${query}`)
             );
             const normalized = FieldMapper.transformResponse(fallback);
-            if (normalized && typeof normalized === 'object' && 'data' in normalized) {
-              return (normalized as { data?: Record<string, unknown> }).data || {};
+            if (normalized && typeof normalized === 'object') {
+              const inner = (normalized as any).data ?? normalized;
+              const maybeWizardString = (inner as any).wizard_data;
+              if (typeof maybeWizardString === 'string') {
+                try {
+                  const parsed = JSON.parse(maybeWizardString);
+                  if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
+                } catch {}
+              }
+              const parsed = tryParseWizard(inner);
+              if (Object.keys(parsed).length > 0) return parsed;
             }
           } catch (_) {
             // ignore and use local storage fallback
@@ -390,8 +430,19 @@ export class WizardService extends BaseApiService {
       // LocalStorage fallback
       const savedProgress = localStorage.getItem(`wizard_progress_${sessionId}`);
       if (savedProgress) {
-        const progressData = JSON.parse(savedProgress);
-        return progressData.data || {};
+        try {
+          const progressData = JSON.parse(savedProgress);
+          const inner = progressData?.data ?? progressData;
+          const maybeWizardString = (inner as any).wizard_data;
+          if (typeof maybeWizardString === 'string') {
+            try {
+              const parsed = JSON.parse(maybeWizardString);
+              if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>;
+            } catch {}
+          }
+          const parsed = tryParseWizard(inner);
+          if (Object.keys(parsed).length > 0) return parsed;
+        } catch {}
       }
       return {};
     } catch (error) {

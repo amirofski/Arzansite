@@ -14,6 +14,7 @@ export interface PaymentRequest {
   description: string;
   paymentMethod?: string;
   callbackUrl?: string;
+  returnUrl?: string;
 }
 
 export interface PaymentVerificationRequest {

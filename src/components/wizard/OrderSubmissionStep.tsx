@@ -293,6 +293,7 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
              },
              pricing: {
                additionalServices: wizardData.pricing?.additionalServices || {},
+               additionalServicesList: (wizardData as any).pricing?.additionalServicesList || [],
                customizationLevel: wizardData.pricing?.customizationLevel || [3],
                rushDelivery: wizardData.pricing?.rushDelivery || false,
                totalPrice: wizardData.pricing?.totalPrice || 0

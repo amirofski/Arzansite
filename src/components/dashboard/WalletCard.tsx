@@ -190,13 +190,19 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
   }
 
   // Handle successful transactions fetch
-  function handleTransactionsSuccess(transactionsData: Transaction[]) {
+  function handleTransactionsSuccess(raw: any) {
+    // Normalize various response shapes to an array
+    let list: any[] = [];
+    try {
+      if (Array.isArray(raw)) list = raw;
+      else if (raw && Array.isArray(raw.transactions)) list = raw.transactions;
+      else if (raw && raw.data && Array.isArray(raw.data.transactions)) list = raw.data.transactions;
+    } catch {}
+
     // Validate transaction data and ensure unique IDs
-    const validatedTransactions = transactionsData.map((transaction, index) => {
-      if (!transaction.id) {
-        return { ...transaction, id: `temp-${index}-${Date.now()}` };
-      }
-      return transaction;
+    const validatedTransactions = list.map((transaction, index) => {
+      const id = (transaction && transaction.id) ? transaction.id : `temp-${index}-${Date.now()}`;
+      return { ...transaction, id } as Transaction;
     });
     
     setTransactions(validatedTransactions);

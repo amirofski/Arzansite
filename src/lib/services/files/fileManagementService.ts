@@ -6,10 +6,41 @@ import { FieldMapper } from '@/lib/utils/fieldMapper';
 import { ErrorHandler } from '@/lib/utils/errorHandler';
 import { withRetry } from '@/lib/utils/retry';
 
+// Normalize various bucket aliases to API-accepted query values
+function resolveBucket(input?: string): string {
+  const val = (input || 'uploads').toLowerCase();
+  switch (val) {
+    case 'uploads':
+    case 'upload':
+      return 'uploads';
+    case 'design-assets':
+    case 'design_assets':
+    case 'design':
+    case 'designs':
+    case 'design-asset':
+      return 'design-assets';
+    case 'users_avatars':
+    case 'user_avatars':
+    case 'users-avatars':
+    case 'avatars':
+    case 'avatar':
+      return 'users_avatars';
+    case 'project_files':
+    case 'project-files':
+    case 'project':
+    case 'projects':
+    case 'projectfiles':
+      return 'project-files';
+    default:
+      return val.replace(/\s+/g, '-');
+  }
+}
+
 // Request interfaces
 export interface ListUploadsRequest {
   orderId?: string;
-  bucketType: string;
+  bucketType?: string; // legacy name
+  bucket?: string;     // preferred name
 }
 
 export interface UploadFileRequest {
@@ -80,41 +111,15 @@ export class FileManagementService extends BaseApiService {
    */
   async listUploads(request: ListUploadsRequest): Promise<FileListResponse> {
     try {
-      // Primary per integration guide: GET /uploads with order_id filter
+      // Use only /storage/uploads with bucket query param
+      const bucketParam = resolveBucket(request.bucket || request.bucketType || 'uploads');
       const queryParams = new URLSearchParams();
-      if (request.orderId) queryParams.append('order_id', request.orderId);
-      if (request.bucketType) queryParams.append('bucketType', request.bucketType);
+      queryParams.set('bucket', bucketParam);
+      if (request.orderId) queryParams.set('order_id', request.orderId);
+      const endpoint = `/storage/uploads?${queryParams.toString()}`;
 
-      const queryString = queryParams.toString();
-      const primaryEndpoint = `/uploads${queryString ? `?${queryString}` : ''}`;
-
-      try {
-        const primary = await withRetry(() => this.request<FileListResponse>(primaryEndpoint));
-        return FieldMapper.transformResponse(primary);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
-          // Fallback to existing endpoints
-          const legacyQuery = new URLSearchParams();
-          if (request.orderId) legacyQuery.append('orderId', request.orderId);
-          if (request.bucketType) legacyQuery.append('bucketType', request.bucketType);
-          const legacyEndpoint = `/files/uploads${legacyQuery.toString() ? `?${legacyQuery.toString()}` : ''}`;
-
-          try {
-            const legacy = await withRetry(() => this.request<FileListResponse>(legacyEndpoint));
-            return FieldMapper.transformResponse(legacy);
-          } catch (err2) {
-            const msg2 = err2 instanceof Error ? err2.message : String(err2);
-            if (msg2.includes('404') || msg2.toLowerCase().includes('not found')) {
-              // Final fallback to storage list
-              const storage = await withRetry(() => this.request<FileListResponse>(`/storage/${request.bucketType || 'uploads'}`));
-              return FieldMapper.transformResponse(storage);
-            }
-            throw err2;
-          }
-        }
-        throw err;
-      }
+      const response = await withRetry(() => this.request<FileListResponse>(endpoint));
+      return FieldMapper.transformResponse(response);
     } catch (error) {
       ErrorHandler.logError(error, 'FileManagementService.listUploads');
       throw error;
@@ -126,8 +131,9 @@ export class FileManagementService extends BaseApiService {
    */
   async listStorageFiles(bucket: string): Promise<FileListResponse> {
     try {
+      const query = new URLSearchParams({ bucket: resolveBucket(bucket) }).toString();
       const response = await withRetry(() =>
-        this.request<FileListResponse>(`/storage/${bucket}`)
+        this.request<FileListResponse>(`/storage/uploads?${query}`)
       );
 
       return FieldMapper.transformResponse(response);
@@ -138,56 +144,53 @@ export class FileManagementService extends BaseApiService {
   }
 
   /**
-   * Upload a project file (current backend endpoint)
+   * Upload a project file (use only /storage/uploads)
    */
   async uploadProjectFile(file: File, options?: {
     description?: string;
     category?: string;
     orderId?: string;
+    bucket?: string; // uploads | design-assets | users_avatars | project-files
+    fileType?: 'design' | 'avatar' | 'document'; // optional, if backend maps types
+    fieldName?: 'file' | 'files'; // override form field name if backend expects 'files'
   }): Promise<FileUploadResponse> {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      if (options?.description) formData.append('description', options.description);
-      if (options?.category) formData.append('category', options.category);
-      if (options?.orderId) formData.append('order_id', options.orderId);
+      const bucketParam = resolveBucket(options?.bucket || options?.category || 'uploads');
+      const endpoint = `/storage/uploads?bucket=${encodeURIComponent(bucketParam)}`;
 
-      // Primary per integration guide: /uploads
+      const buildForm = (field: 'file' | 'files') => {
+        const fd = new FormData();
+        fd.append(field, file, file.name);
+        if (options?.description) fd.append('description', options.description);
+        if (options?.category) fd.append('category', options.category);
+        if (options?.orderId) fd.append('order_id', options.orderId);
+        return fd;
+      };
+
+      // Primary try with configured field name or 'file'
+      const primaryField: 'file' | 'files' = (options?.fieldName || (import.meta as any).env?.VITE_UPLOAD_FIELD_NAME || 'file') as 'file' | 'files';
       try {
-        const primary = await withRetry(() =>
-          this.request<FileUploadResponse>(`/uploads`, {
+        const response = await withRetry(() =>
+          this.request<FileUploadResponse>(endpoint, {
             method: 'POST',
-            body: formData,
+            body: buildForm(primaryField),
           })
         );
-        return FieldMapper.transformResponse(primary);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
-          // Fallback to storage endpoints
-          try {
-            const storageProject = await withRetry(() =>
-              this.request<FileUploadResponse>(`/storage/project-files`, {
-                method: 'POST',
-                body: formData,
-              })
-            );
-            return FieldMapper.transformResponse(storageProject);
-          } catch (err2) {
-            const msg2 = err2 instanceof Error ? err2.message : String(err2);
-            if (msg2.includes('404') || msg2.toLowerCase().includes('not found')) {
-              const storageUploads = await withRetry(() =>
-                this.request<FileUploadResponse>(`/storage/uploads`, {
-                  method: 'POST',
-                  body: formData,
-                })
-              );
-              return FieldMapper.transformResponse(storageUploads);
-            }
-            throw err2;
-          }
+        return FieldMapper.transformResponse(response);
+      } catch (e: any) {
+        // Always try alternate field name once on failure
+        const altField: 'file' | 'files' = primaryField === 'file' ? 'files' : 'file';
+        try {
+          const response = await withRetry(() =>
+            this.request<FileUploadResponse>(endpoint, {
+              method: 'POST',
+              body: buildForm(altField),
+            })
+          );
+          return FieldMapper.transformResponse(response);
+        } catch (e2) {
+          throw e2;
         }
-        throw err;
       }
     } catch (error) {
       ErrorHandler.logError(error, 'FileManagementService.uploadProjectFile');
@@ -200,8 +203,11 @@ export class FileManagementService extends BaseApiService {
    */
   async getProjectFile(fileId: string): Promise<FileUrlResponse> {
     try {
+      // Default to project-files bucket for backward compatibility
+      const query = new URLSearchParams({ bucket: resolveBucket('project_files'), id: fileId }).toString();
+      // Prefer unified signed-url endpoint
       const response = await withRetry(() =>
-        this.request<FileUrlResponse>(`/storage/project-files/${fileId}`)
+        this.request<FileUrlResponse>(`/storage/uploads/signed-url?${query}`)
       );
       return FieldMapper.transformResponse(response);
     } catch (error) {
@@ -215,8 +221,9 @@ export class FileManagementService extends BaseApiService {
    */
   async deleteStorageFile(bucket: string, fileId: string): Promise<DeleteFileResponse> {
     try {
+      const endpoint = `/storage/uploads/${encodeURIComponent(fileId)}?bucket=${encodeURIComponent(resolveBucket(bucket))}`;
       const response = await withRetry(() =>
-        this.request<DeleteFileResponse>(`/storage/${bucket}/${fileId}`, {
+        this.request<DeleteFileResponse>(endpoint, {
           method: 'DELETE',
         })
       );
@@ -233,11 +240,20 @@ export class FileManagementService extends BaseApiService {
    */
   async getStorageFileUrl(bucket: string, fileId: string): Promise<FileUrlResponse> {
     try {
-      const response = await withRetry(() =>
-        this.request<FileUrlResponse>(`/storage/${bucket}/${fileId}/url`)
-      );
-
-      return FieldMapper.transformResponse(response);
+      const query = new URLSearchParams({ bucket: resolveBucket(bucket), id: fileId }).toString();
+      // Primary unified endpoint for signed URL
+      try {
+        const primary = await withRetry(() =>
+          this.request<FileUrlResponse>(`/storage/uploads/signed-url?${query}`)
+        );
+        return FieldMapper.transformResponse(primary);
+      } catch (_) {
+        // Fallback to bucket-specific path if available
+        const fallback = await withRetry(() =>
+          this.request<FileUrlResponse>(`/storage/${resolveBucket(bucket)}/${fileId}/url`)
+        );
+        return FieldMapper.transformResponse(fallback);
+      }
     } catch (error) {
       ErrorHandler.logError(error, 'FileManagementService.getStorageFileUrl');
       throw error;

@@ -264,6 +264,30 @@ export class SupportService extends BaseApiService {
       throw error;
     }
   }
+
+  /**
+   * Update ticket status (Admin-only endpoint)
+   * POST /api/support/tickets/:ticketId/status
+   */
+  async updateTicketStatus(
+    ticketId: string,
+    status: 'open' | 'in_progress' | 'resolved' | 'closed',
+    adminUserId?: string
+  ): Promise<{ success: boolean; updatedStatus: string }> {
+    try {
+      const payload = FieldMapper.transformRequest({ status, adminUserId });
+      const response = await withRetry(() =>
+        this.request<{ success: boolean; updatedStatus: string }>(`/support/tickets/${ticketId}/status`, {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        })
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'SupportService.updateTicketStatus');
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

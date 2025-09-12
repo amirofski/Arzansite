@@ -72,9 +72,9 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
       // Prefer new unified uploads endpoint, fallback to legacy storage listing
       try {
-        list = await fileManagementService.listUploads({ orderId, bucketType: 'uploads' });
+        list = await fileManagementService.listUploads({ orderId, bucket: 'design-assets' });
       } catch (e) {
-        list = await fileManagementService.listStorageFiles('uploads');
+        list = await fileManagementService.listStorageFiles('design-assets');
       }
 
       if (list && typeof list === 'object' && 'files' in (list as Record<string, unknown>)) {
@@ -155,7 +155,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const handleDeleteFile = async (fileId: string) => {
     try {
-      await fileManagementService.deleteStorageFile('uploads', fileId);
+      await fileManagementService.deleteStorageFile('design-assets', fileId);
       toast.success('فایل حذف شد');
       await loadUploadedFiles();
     } catch (error) {
@@ -209,6 +209,8 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
           category: selectedCategory,
           description: fileDescription || undefined,
           orderId,
+          bucket: 'design-assets',
+          fieldName: 'files',
         });
         uploaded += 1;
         setUploadProgress(Math.round((uploaded * 100) / total));
@@ -248,7 +250,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const getSignedUrl = async (fileId: string) => {
     try {
-      const res = (await fileManagementService.getProjectFile(fileId)) as unknown as { url?: string; fileId?: string };
+      const res = (await fileManagementService.getStorageFileUrl('design-assets', fileId)) as unknown as { url?: string; fileId?: string };
       if (res && typeof res.url === 'string') return res.url;
       return null;
     } catch (error) {

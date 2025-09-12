@@ -126,6 +126,8 @@ const FinalStepButton = ({ wizardData, isStepValid, updateWizardData }: FinalSte
           siteType: orderData.siteType,
         },
         wizardData: orderData.wizardData,
+        status: 'pending',
+        paymentStatus: 'pending',
       });
 
       if (order && order.id) {

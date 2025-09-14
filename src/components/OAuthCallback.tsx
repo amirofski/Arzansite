@@ -6,7 +6,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 const OAuthCallback: React.FC<{ provider?: string }> = ({ provider }) => {
-  const { handleOAuthCallback, getOAuthCallbackParams, error } = useAuth();
+  const { error } = useAuth();
   const navigate = useNavigate();
   const params = useParams();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
@@ -15,35 +15,28 @@ const OAuthCallback: React.FC<{ provider?: string }> = ({ provider }) => {
   useEffect(() => {
     const processCallback = async () => {
       try {
-        const qp = getOAuthCallbackParams();
-        
-        // Check for OAuth error
-        if (qp.error) {
+        const search = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+        const routeProvider = (search.get('provider') || (params.provider as string) || provider || 'github');
+
+        // New flow: user_id and secret from Appwrite
+        const userId = search.get('user_id') || search.get('userId') || search.get('uid') || '';
+        const secret = search.get('secret') || search.get('code') || '';
+
+        if (!userId || !secret) {
           setStatus('error');
-          setMessage(`OAuth error: ${qp.error}`);
+          setMessage('Missing required OAuth callback parameters');
           return;
         }
 
-        // Check if we have the required code parameter
-        if (!qp.code) {
-          setStatus('error');
-          setMessage('No authorization code received from OAuth provider');
-          return;
-        }
-        // Determine provider from route or query; fallback to prop or github
-        const routeProvider = (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('provider') || '' : '')
-          || (params.provider as string)
-          || provider
-          || 'github';
+        const { authService } = await import('@/lib/services');
+        const result = await authService.oauthCallback(routeProvider, { user_id: userId, secret });
 
-        const result = await handleOAuthCallback(routeProvider, qp.code, qp.state);
-        
         setStatus('success');
         setMessage('OAuth login successful! Redirecting...');
         
         // Redirect after a short delay to show success message
         setTimeout(() => {
-          navigate(result.redirect?.url || '/dashboard');
+          navigate((result as any)?.data?.redirect?.url || '/dashboard');
         }, 1500);
         
       } catch (err) {

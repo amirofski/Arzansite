@@ -75,6 +75,41 @@ export interface PaymentMethodsResponse {
 
 export class PaymentService extends BaseApiService {
   /**
+   * Get payments for a specific order (paginated)
+   */
+async getPaymentsForOrder(orderId: string, params: { page?: number; limit?: number; from?: string; to?: string } = {}): Promise<{
+    items: Array<{
+      id?: string;
+      $id?: string;
+      order_id: string;
+      amount: number;
+      status: string;
+      created_at?: string;
+      createdAt?: string;
+      ref_id?: string;
+      authority?: string;
+    }>;
+    pagination?: { page: number; limit: number; total: number; pages: number };
+  }> {
+    const query = new URLSearchParams();
+    if (params.page != null) query.append('page', String(params.page));
+    if (params.limit != null) query.append('limit', String(params.limit));
+    if (params.from) query.append('from', params.from);
+    if (params.to) query.append('to', params.to);
+    const endpoint = `/payments/orders/${orderId}${query.toString() ? `?${query.toString()}` : ''}`;
+    const response = await withRetry(() => this.request<any>(endpoint));
+    if (response?.items) {
+      return {
+        items: FieldMapper.transformResponse(response.items),
+        pagination: FieldMapper.transformResponse(response.pagination),
+      };
+    }
+    if (Array.isArray(response)) return { items: FieldMapper.transformResponse(response) };
+    if (response?.data) return { items: FieldMapper.transformResponse(response.data) };
+    return { items: [] };
+  }
+
+  /**
    * Create payment request
    */
   async createPayment(request: PaymentRequest): Promise<PaymentResponse> {

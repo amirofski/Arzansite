@@ -12,6 +12,8 @@ export interface GetOrdersRequest {
   page?: number;
   limit?: number;
   status?: string;
+  from?: string;
+  to?: string;
 }
 
 export interface UpdateOrderRequest {
@@ -66,10 +68,58 @@ export interface AdminUser {
   id: string;
   email: string;
   full_name?: string;
+  phone?: string | null;
+  avatar_url?: string | null;
   role?: string;
+  status?: string; // 'active' | 'banned' | ...
+  verification_status?: string; // e.g., 'verified' | 'pending'
+  last_login_at?: string;
   created_at: string;
   updated_at: string;
-  is_active: boolean;
+  is_active?: boolean;
+}
+
+export interface AdminWallet {
+  $id: string;
+  user_id: string;
+  balance: number;
+  created_at: string;
+  updated_at: string;
+  userProfile?: {
+    full_name?: string;
+    email?: string;
+    phone?: string;
+  };
+}
+
+export interface AdminInvoice {
+  $id: string;
+  user_id: string;
+  order_id: string;
+  amount: number;
+  due_date: string;
+  status: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  userProfile?: {
+    full_name?: string;
+    email?: string;
+  };
+}
+
+export interface AdminWalletAdjustment {
+  id: string;
+  wallet_id: string;
+  adminId: string;
+  adminName?: string;
+  type: 'credit' | 'debit' | 'correction';
+  amount: number;
+  reason: string;
+  notes?: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  created_at: string;
 }
 
 export interface EmailLog {
@@ -117,11 +167,81 @@ export interface AdminStats {
 
 export class AdminService extends BaseApiService {
   /**
+   * Get wallets (admin)
+   */
+  async getWallets(params: { page?: number; limit?: number; search?: string } = {}): Promise<{
+    items: AdminWallet[];
+    pagination?: { page: number; limit: number; total: number; pages: number };
+  }> {
+    try {
+      const query = new URLSearchParams();
+      if (params.page) query.append('page', String(params.page));
+      if (params.limit) query.append('limit', String(params.limit));
+      if (params.search) query.append('search', params.search);
+      const endpoint = `/admin/wallets${query.toString() ? `?${query.toString()}` : ''}`;
+
+      const response = await withRetry(() => this.request<any>(endpoint));
+      // Normalize possible shapes: { items }, { data }, or raw array
+      if (Array.isArray(response)) {
+        return { items: FieldMapper.transformResponse(response) };
+      }
+      if (response?.items) {
+        return {
+          items: FieldMapper.transformResponse(response.items),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (response?.data) {
+        return { items: FieldMapper.transformResponse(response.data) };
+      }
+      return { items: FieldMapper.transformResponse(response) };
+    } catch (error) {
+      ErrorHandler.logError(error, 'AdminService.getWallets');
+      throw error;
+    }
+  }
+
+  /**
+   * Get wallet adjustments (admin)
+   */
+  async getWalletAdjustments(walletId: string, params: { page?: number; limit?: number } = {}): Promise<{
+    items: AdminWalletAdjustment[];
+    pagination?: { page: number; limit: number; total: number; pages: number };
+  }> {
+    try {
+      const query = new URLSearchParams();
+      if (params.page) query.append('page', String(params.page));
+      if (params.limit) query.append('limit', String(params.limit));
+      const endpoint = `/admin/wallets/${walletId}/adjustments${query.toString() ? `?${query.toString()}` : ''}`;
+
+      const response = await withRetry(() => this.request<any>(endpoint));
+      if (response?.items) {
+        return {
+          items: FieldMapper.transformResponse(response.items),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (response?.adjustments) {
+        return {
+          items: FieldMapper.transformResponse(response.adjustments),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (Array.isArray(response)) {
+        return { items: FieldMapper.transformResponse(response) };
+      }
+      return { items: FieldMapper.transformResponse(response?.data ?? []) };
+    } catch (error) {
+      ErrorHandler.logError(error, 'AdminService.getWalletAdjustments');
+      throw error;
+    }
+  }
+
+  /**
    * Get admin payments
    */
-  async getPayments(params: { page?: number; limit?: number; status?: string; user_id?: string } = {}): Promise<{
-    success: boolean;
-    payments: Array<{
+  async getPayments(params: { page?: number; limit?: number; status?: string; user_id?: string; from?: string; to?: string } = {}): Promise<{
+    items: Array<{
       id: string;
       user_id: string;
       status: string;
@@ -137,24 +257,24 @@ export class AdminService extends BaseApiService {
       if (params.limit) query.append('limit', String(params.limit));
       if (params.status) query.append('status', params.status);
       if (params.user_id) query.append('user_id', params.user_id);
+      if (params.from) query.append('from', params.from);
+      if (params.to) query.append('to', params.to);
       const endpoint = `/admin/payments${query.toString() ? `?${query.toString()}` : ''}`;
 
-      const response = await withRetry(() =>
-        this.request<{
-          success: boolean;
-          payments: Array<{
-            id: string;
-            user_id: string;
-            status: string;
-            ref_id?: string;
-            amount: number;
-            created_at: string;
-          }>;
-          pagination?: { page: number; limit: number; total: number; pages: number };
-        }>(endpoint)
-      );
-
-      return FieldMapper.transformResponse(response);
+      const response = await withRetry(() => this.request<any>(endpoint));
+      if (response?.items) {
+        return {
+          items: FieldMapper.transformResponse(response.items),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (response?.payments) {
+        return {
+          items: FieldMapper.transformResponse(response.payments),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      return { items: FieldMapper.transformResponse(response?.data ?? []) };
     } catch (error) {
       ErrorHandler.logError(error, 'AdminService.getPayments');
       throw error;
@@ -164,8 +284,7 @@ export class AdminService extends BaseApiService {
    * Get orders for admin
    */
   async getOrders(request: GetOrdersRequest = {}): Promise<{
-    success: boolean;
-    orders: AdminOrder[];
+    items: AdminOrder[];
     pagination?: {
       page: number;
       limit: number;
@@ -179,24 +298,31 @@ export class AdminService extends BaseApiService {
       if (request.page) queryParams.append('page', request.page.toString());
       if (request.limit) queryParams.append('limit', request.limit.toString());
       if (request.status) queryParams.append('status', request.status);
+      if (request.from) queryParams.append('from', request.from);
+      if (request.to) queryParams.append('to', request.to);
       
       const queryString = queryParams.toString();
-      const endpoint = `/admin/orders${queryString ? `?${queryString}` : ''}`;
+      // Admin orders are served from /orders with admin=true
+      const endpoint = `/orders${queryString ? `?${queryString}` : ''}`;
       
-      const response = await withRetry(() =>
-        this.request<{
-          success: boolean;
-          orders: AdminOrder[];
-          pagination?: {
-            page: number;
-            limit: number;
-            total: number;
-            pages: number;
-          };
-        }>(endpoint)
-      );
-
-      return FieldMapper.transformResponse(response);
+      const response = await withRetry(() => this.request<any>(endpoint));
+      if (response?.items) {
+        return {
+          items: FieldMapper.transformResponse(response.items),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (response?.orders) {
+        return {
+          items: FieldMapper.transformResponse(response.orders),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      // Some backends may return an array
+      if (Array.isArray(response)) {
+        return { items: FieldMapper.transformResponse(response) };
+      }
+      return { items: FieldMapper.transformResponse(response?.data ?? []) };
     } catch (error) {
       ErrorHandler.logError(error, 'AdminService.getOrders');
       throw error;
@@ -206,21 +332,82 @@ export class AdminService extends BaseApiService {
   /**
    * Get all user profiles
    */
-  async getAllProfiles(): Promise<{
-    success: boolean;
-    users: AdminUser[];
+  async getAllProfiles(params: { search?: string; page?: number; limit?: number } = {}): Promise<{
+    items: AdminUser[];
+    pagination?: { page: number; limit: number; total: number; pages: number };
   }> {
     try {
-      const response = await withRetry(() =>
-        this.request<{
-          success: boolean;
-          users: AdminUser[];
-        }>('/admin/users')
-      );
+      const query = new URLSearchParams();
+      if (params.search) query.append('search', params.search);
+      if (params.page) query.append('page', String(params.page));
+      if (params.limit) query.append('limit', String(params.limit));
 
-      return FieldMapper.transformResponse(response);
+      // Admin users listing is exposed via /admin/users
+      const response = await withRetry(() => this.request<any>(`/admin/users${query.toString() ? `?${query.toString()}` : ''}`));
+      if (response?.items) {
+        return {
+          items: FieldMapper.transformResponse(response.items),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (response?.data?.items) {
+        return {
+          items: FieldMapper.transformResponse(response.data.items),
+          pagination: FieldMapper.transformResponse(response.data.pagination),
+        };
+      }
+      if (response?.users) {
+        return {
+          items: FieldMapper.transformResponse(response.users),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (Array.isArray(response)) {
+        return { items: FieldMapper.transformResponse(response) };
+      }
+      if (Array.isArray(response?.data)) {
+        return { items: FieldMapper.transformResponse(response.data) };
+      }
+      return { items: [] };
     } catch (error) {
       ErrorHandler.logError(error, 'AdminService.getAllProfiles');
+      throw error;
+    }
+  }
+
+  /**
+   * Get invoices (admin)
+   */
+  async getInvoices(params: { page?: number; limit?: number; status?: string; user_id?: string; from?: string; to?: string } = {}): Promise<{
+    items: AdminInvoice[];
+    pagination?: { page: number; limit: number; total: number; pages: number };
+  }> {
+    try {
+      const query = new URLSearchParams();
+      if (params.page) query.append('page', String(params.page));
+      if (params.limit) query.append('limit', String(params.limit));
+      if (params.status) query.append('status', params.status);
+      if (params.user_id) query.append('user_id', params.user_id);
+      if (params.from) query.append('from', params.from);
+      if (params.to) query.append('to', params.to);
+      const endpoint = `/admin/invoices${query.toString() ? `?${query.toString()}` : ''}`;
+
+      const response = await withRetry(() => this.request<any>(endpoint));
+      if (response?.items) {
+        return {
+          items: FieldMapper.transformResponse(response.items),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (response?.invoices) {
+        return {
+          items: FieldMapper.transformResponse(response.invoices),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      return { items: FieldMapper.transformResponse(response?.data ?? []) };
+    } catch (error) {
+      ErrorHandler.logError(error, 'AdminService.getInvoices');
       throw error;
     }
   }
@@ -229,8 +416,7 @@ export class AdminService extends BaseApiService {
    * Get email logs
    */
   async getEmailLogs(limit: number = 100, offset: number = 0): Promise<{
-    success: boolean;
-    logs: EmailLog[];
+    items: EmailLog[];
     pagination?: {
       limit: number;
       offset: number;
@@ -242,24 +428,34 @@ export class AdminService extends BaseApiService {
       queryParams.append('limit', limit.toString());
       queryParams.append('offset', offset.toString());
       
-      const endpoint = `/admin/emails/logs?${queryParams.toString()}`;
+      // Logs are exposed via /emails/logs (not /admin/emails/logs)
+      const endpoint = `/emails/logs?${queryParams.toString()}`;
       
-      const response = await withRetry(() =>
-        this.request<{
-          success: boolean;
-          logs: EmailLog[];
-          pagination?: {
-            limit: number;
-            offset: number;
-            total: number;
-          };
-        }>(endpoint)
-      );
-
-      return FieldMapper.transformResponse(response);
-    } catch (error) {
+      const response = await withRetry(() => this.request<any>(endpoint));
+      if (response?.items) {
+        return {
+          items: FieldMapper.transformResponse(response.items),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (response?.logs) {
+        return {
+          items: FieldMapper.transformResponse(response.logs),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (Array.isArray(response)) {
+        return { items: FieldMapper.transformResponse(response) };
+      }
+      return { items: FieldMapper.transformResponse(response?.data ?? []) };
+    } catch (error: any) {
+      const msg = typeof error?.message === 'string' ? error.message.toLowerCase() : String(error).toLowerCase();
+      // Gracefully degrade when email logging is not configured or server returns 500
+      if (msg.includes('email logging not configured') || msg.includes('500')) {
+        return { items: [], pagination: { limit, offset, total: 0 } };
+      }
       ErrorHandler.logError(error, 'AdminService.getEmailLogs');
-      throw error;
+      return { items: [], pagination: { limit, offset, total: 0 } };
     }
   }
 
@@ -347,18 +543,21 @@ export class AdminService extends BaseApiService {
    * Get domain prices
    */
   async getDomainPrices(): Promise<{
-    success: boolean;
-    extensions: DomainExtension[];
+    items: DomainExtension[];
   }> {
     try {
-      const response = await withRetry(() =>
-        this.request<{
-          success: boolean;
-          extensions: DomainExtension[];
-        }>('/admin/domains/prices')
-      );
-
-      return FieldMapper.transformResponse(response);
+      const response = await withRetry(() => this.request<any>('/admin/domains/prices'));
+      // Backend returns { success, data: [] }
+      if (response?.data) {
+        return { items: FieldMapper.transformResponse(response.data) };
+      }
+      if (response?.extensions) {
+        return { items: FieldMapper.transformResponse(response.extensions) };
+      }
+      if (Array.isArray(response)) {
+        return { items: FieldMapper.transformResponse(response) };
+      }
+      return { items: [] };
     } catch (error) {
       ErrorHandler.logError(error, 'AdminService.getDomainPrices');
       throw error;
@@ -368,12 +567,13 @@ export class AdminService extends BaseApiService {
   /**
    * Get system metrics
    */
-  async getSystemMetrics(): Promise<SystemMetrics> {
+  async getSystemMetrics(): Promise<any> {
     try {
-      const response = await withRetry(() =>
-        this.request<SystemMetrics>('/admin/system/metrics')
-      );
-
+      const response = await withRetry(() => this.request<any>('/admin/system/metrics'));
+      // Backend returns { success, data: {...} }
+      if (response?.data) {
+        return FieldMapper.transformResponse(response.data);
+      }
       return FieldMapper.transformResponse(response);
     } catch (error) {
       ErrorHandler.logError(error, 'AdminService.getSystemMetrics');
@@ -500,6 +700,54 @@ export class AdminService extends BaseApiService {
   }
 
   /**
+   * Get single user (admin)
+   */
+  async getUser(userId: string): Promise<AdminUser> {
+    try {
+      const response = await withRetry(() => this.request<any>(`/admin/users/${encodeURIComponent(userId)}`));
+      const data = response?.data || response;
+      return FieldMapper.transformResponse(data) as AdminUser;
+    } catch (error) {
+      ErrorHandler.logError(error, 'AdminService.getUser');
+      throw error;
+    }
+  }
+
+  /**
+   * Ban user (admin)
+   */
+  async banUser(userId: string): Promise<{ success: boolean; user_id: string; status: string }> {
+    try {
+      const response = await withRetry(() =>
+        this.request<{ success: boolean; user_id: string; status: string }>(`/admin/users/${encodeURIComponent(userId)}/ban`, {
+          method: 'POST',
+        })
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'AdminService.banUser');
+      throw error;
+    }
+  }
+
+  /**
+   * Unban user (admin)
+   */
+  async unbanUser(userId: string): Promise<{ success: boolean; user_id: string; status: string }> {
+    try {
+      const response = await withRetry(() =>
+        this.request<{ success: boolean; user_id: string; status: string }>(`/admin/users/${encodeURIComponent(userId)}/unban`, {
+          method: 'POST',
+        })
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'AdminService.unbanUser');
+      throw error;
+    }
+  }
+
+  /**
    * Get admin statistics
    */
   async getAdminStats(): Promise<AdminStats> {
@@ -511,6 +759,49 @@ export class AdminService extends BaseApiService {
       return FieldMapper.transformResponse(response);
     } catch (error) {
       ErrorHandler.logError(error, 'AdminService.getAdminStats');
+      throw error;
+    }
+  }
+
+  /**
+   * Get admin receipts
+   */
+  async getAdminReceipts(params: { page?: number; limit?: number; from?: string; to?: string; search?: string } = {}): Promise<{
+    items: Array<{
+      id: string;
+      service?: string;
+      user_id: string;
+      ref_id?: string;
+      amount: number;
+      created_at: string;
+    }>;
+    pagination?: { page: number; limit: number; total: number; pages: number };
+  }> {
+    try {
+      const query = new URLSearchParams();
+      if (params.page) query.append('page', String(params.page));
+      if (params.limit) query.append('limit', String(params.limit));
+      if (params.from) query.append('from', params.from);
+      if (params.to) query.append('to', params.to);
+      if (params.search) query.append('search', params.search);
+      const endpoint = `/receipts/admin/all${query.toString() ? `?${query.toString()}` : ''}`;
+
+      const response = await withRetry(() => this.request<any>(endpoint));
+      if (response?.items) {
+        return {
+          items: FieldMapper.transformResponse(response.items),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      if (response?.receipts) {
+        return {
+          items: FieldMapper.transformResponse(response.receipts),
+          pagination: FieldMapper.transformResponse(response.pagination),
+        };
+      }
+      return { items: FieldMapper.transformResponse(response?.data ?? []) };
+    } catch (error) {
+      ErrorHandler.logError(error, 'AdminService.getAdminReceipts');
       throw error;
     }
   }

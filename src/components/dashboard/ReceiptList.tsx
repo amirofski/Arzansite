@@ -26,13 +26,18 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ pageSize = 10 }) => {
 		receiptService.getReceipts.bind(receiptService),
 		{
 			onSuccess: (data) => {
-				// Handle both direct array and wrapped response
+				// Handle direct array or wrapped response
 				if (Array.isArray(data)) {
 					setReceipts(data);
-				} else if (data && typeof data === 'object' && 'receipts' in data) {
-					setReceipts(data.receipts || []);
+				} else if (data && typeof data === 'object') {
+					if ('items' in data) setReceipts((data as any).items || []);
+					else if ('receipts' in data) setReceipts((data as any).receipts || []);
+					else if ('data' in data && Array.isArray((data as any).data)) setReceipts((data as any).data);
+					else {
+						console.warn('Unexpected receipt data structure:', data);
+						setReceipts([]);
+					}
 				} else {
-					console.warn('Unexpected receipt data structure:', data);
 					setReceipts([]);
 				}
 			},

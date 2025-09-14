@@ -16,8 +16,12 @@ export interface Receipt {
 }
 
 export interface ReceiptListRequest {
+  // Support both legacy and unified
   limit?: number;
   offset?: number;
+  page?: number;
+  from?: string;
+  to?: string;
   userId?: string;
 }
 
@@ -32,17 +36,25 @@ export class ReceiptService extends BaseApiService {
 
   /**
    * Get user receipts with optional filtering
+   * Returns either an array or a wrapped { items, pagination } depending on backend.
    */
-  async getReceipts(params?: ReceiptListRequest): Promise<Receipt[]> {
-    const queryParams = params ? new URLSearchParams() : undefined;
-    if (params?.limit) queryParams?.set('limit', params.limit.toString());
-    if (params?.offset) queryParams?.set('offset', params.offset.toString());
-    if (params?.userId) queryParams?.set('user_id', params.userId);
+  async getReceipts(params?: ReceiptListRequest): Promise<Receipt[] | { items: Receipt[]; pagination?: { page: number; limit: number; total: number; pages: number } }> {
+    const queryParams = new URLSearchParams();
+    if (params?.limit != null) queryParams.append('limit', params.limit.toString());
+    if (params?.offset != null) queryParams.append('offset', params.offset.toString());
+    if (params?.page != null) queryParams.append('page', params.page.toString());
+    if (params?.from) queryParams.append('from', params.from);
+    if (params?.to) queryParams.append('to', params.to);
+    if (params?.userId) queryParams.append('user_id', params.userId);
 
-    const endpoint = `/receipts${queryParams ? `?${queryParams.toString()}` : ''}`;
-    const response = await this.request<Receipt[]>(endpoint);
+    const endpoint = `/receipts${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const response = await this.request<any>(endpoint);
 
-    return response;
+    if (Array.isArray(response)) return response as Receipt[];
+    if (response?.items) return { items: FieldMapper.transformResponse(response.items), pagination: FieldMapper.transformResponse(response.pagination) };
+    if (response?.receipts) return { items: FieldMapper.transformResponse(response.receipts), pagination: FieldMapper.transformResponse(response.pagination) };
+    if (response?.data && Array.isArray(response.data)) return response.data as Receipt[];
+    return [] as Receipt[];
   }
 
   /**

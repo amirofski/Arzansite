@@ -67,52 +67,27 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
         ? ((data as Record<string, unknown>)?.orderId as string)
         : undefined;
 
-      let list: unknown;
-      let rawFiles: Array<Record<string, unknown>> = [];
-
-      // Prefer new unified uploads endpoint, fallback to legacy storage listing
-      try {
-        list = await fileManagementService.listUploads({ orderId, bucket: 'design-assets' });
-      } catch (e) {
-        list = await fileManagementService.listStorageFiles('design-assets');
+      if (!orderId) {
+        setUploadedFiles([]);
+        return;
       }
 
-      if (list && typeof list === 'object' && 'files' in (list as Record<string, unknown>)) {
-        const maybeFiles = (list as { files?: unknown }).files;
-        if (Array.isArray(maybeFiles)) rawFiles = maybeFiles as Array<Record<string, unknown>>;
-      } else if (Array.isArray(list)) {
-        rawFiles = list as Array<Record<string, unknown>>;
-      }
+      const { wizardService } = await import('@/lib/services');
+      const res = await wizardService.listOrderFiles(orderId);
+      const items = Array.isArray(res?.items) ? res.items : [];
 
-      const mapped: UploadedFile[] = rawFiles.map((f) => {
-        const rf = f as StorageFile;
-        const id = typeof rf.id === 'string'
-          ? rf.id
-          : (typeof (rf as Record<string, unknown>)['fileId'] === 'string'
-            ? ((rf as Record<string, unknown>)['fileId'] as string)
-            : (typeof rf.$id === 'string' ? rf.$id : ''));
-        const file_name = (typeof rf.name === 'string' && rf.name)
-          || (typeof rf.file_name === 'string' && rf.file_name)
-          || (typeof rf.filename === 'string' && rf.filename)
-          || id
-          || 'file';
-        const file_type = (typeof rf.mimeType === 'string' && rf.mimeType)
-          || (typeof (rf as Record<string, unknown>)['mime'] === 'string' && ((rf as Record<string, unknown>)['mime'] as string))
-          || (typeof rf.file_type === 'string' && rf.file_type)
-          || '';
-        const file_size = (typeof (rf as Record<string, unknown>)['size'] === 'number' && ((rf as Record<string, unknown>)['size'] as number))
-          || (typeof rf.sizeOriginal === 'number' && rf.sizeOriginal)
-          || (typeof rf.file_size === 'number' && rf.file_size)
-          || 0;
-        const description = (typeof rf.description === 'string' ? rf.description : undefined);
-        const category = (typeof rf.category === 'string' ? rf.category : 'general');
-        const file_path = `api://uploads/${id}`;
-        const created_at = (typeof rf.created_at === 'string'
-          ? rf.created_at
-          : (typeof (rf as Record<string, unknown>)['createdAt'] === 'string'
-            ? ((rf as Record<string, unknown>)['createdAt'] as string)
-            : ''));
-        return { id, file_name, file_path, file_type, file_size, category, description, created_at };
+      const mapped: UploadedFile[] = items.map((it: any) => {
+        const id = String(it.file_id || it.id || it.$id || '');
+        return {
+          id,
+          file_name: String(it.original_name || it.file_name || it.name || id || 'file'),
+          file_path: String(it.file_path || ''),
+          file_type: String(it.mime_type || it.file_type || ''),
+          file_size: Number(it.file_size || it.size || 0),
+          category: String(it.file_type || it.category || 'general'),
+          description: typeof it.description === 'string' ? it.description : undefined,
+          created_at: String(it.created_at || it.createdAt || ''),
+        } as UploadedFile;
       });
 
       setUploadedFiles(mapped);
@@ -155,7 +130,12 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const handleDeleteFile = async (fileId: string) => {
     try {
-      await fileManagementService.deleteStorageFile('design-assets', fileId);
+      const orderId = typeof (data as Record<string, unknown> | null)?.orderId === 'string'
+        ? ((data as Record<string, unknown>)?.orderId as string)
+        : undefined;
+      if (!orderId) throw new Error('شناسه سفارش نامعتبر است');
+      const { wizardService } = await import('@/lib/services');
+      await wizardService.deleteOrderFile(fileId, orderId);
       toast.success('فایل حذف شد');
       await loadUploadedFiles();
     } catch (error) {
@@ -183,48 +163,26 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
       }
     }
 
-    console.log('FileUploadManager: Starting bulk upload:', {
-      fileCount: files.length,
-      files: fileArray.map(f => ({ name: f.name, size: f.size, type: f.type })),
-      category: selectedCategory,
-      description: fileDescription
-    });
-
     setUploading(true);
     setUploadProgress(0);
     setUploadError(null);
-    // Sequentially upload via storage wrapper
-
-    console.log('FileUploadManager: Prepared files:', fileArray.map(f => f.name));
 
     try {
-      console.log('FileUploadManager: Uploading via /storage/upload/...');
-      const total = fileArray.length;
-      let uploaded = 0;
       const orderId = typeof (data as Record<string, unknown> | null)?.orderId === 'string'
         ? ((data as Record<string, unknown>)?.orderId as string)
         : undefined;
-      for (const f of fileArray) {
-        await fileManagementService.uploadProjectFile(f, {
-          category: selectedCategory,
-          description: fileDescription || undefined,
-          orderId,
-          bucket: 'design-assets',
-          fieldName: 'files',
-        });
-        uploaded += 1;
-        setUploadProgress(Math.round((uploaded * 100) / total));
-      }
+      const sessionId = typeof (data as Record<string, unknown> | null)?.sessionId === 'string'
+        ? ((data as Record<string, unknown>)?.sessionId as string)
+        : localStorage.getItem('wizard_session_id') || undefined;
+      if (!orderId) throw new Error('شناسه سفارش نامعتبر است');
+
+      const { wizardService } = await import('@/lib/services');
+      await wizardService.uploadFiles({ orderId, files: fileArray, sessionId: sessionId || undefined, description: fileDescription || undefined });
       if (fileDescription) setFileDescription('');
       toast.success(`${files.length} فایل با موفقیت آپلود شد`);
       await loadUploadedFiles();
     } catch (error) {
       console.error('FileUploadManager: Error uploading files:', error);
-      console.error('FileUploadManager: Bulk upload error details:', {
-        error,
-        errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        errorStack: error instanceof Error ? error.stack : undefined
-      });
       setUploadError(error instanceof Error ? error.message : 'خطا در آپلود فایل‌ها');
       toast.error('خطا در آپلود فایل‌ها');
     } finally {
@@ -250,7 +208,12 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const getSignedUrl = async (fileId: string) => {
     try {
-      const res = (await fileManagementService.getStorageFileUrl('design-assets', fileId)) as unknown as { url?: string; fileId?: string };
+      // Try to find direct file_path from current list first
+      const f = uploadedFiles.find((x) => x.id === fileId);
+      if (f && typeof f.file_path === 'string' && f.file_path) {
+        return f.file_path;
+      }
+      const res = (await fileManagementService.getStorageFileUrl('project-files', fileId)) as unknown as { url?: string; fileId?: string };
       if (res && typeof res.url === 'string') return res.url;
       return null;
     } catch (error) {

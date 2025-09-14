@@ -40,11 +40,14 @@ import SiteModeDisplay from '@/components/ui/SiteModeDisplay';
 // Removed unused frontend email templating utilities; keep only adminService usage for emails
 // Removed legacy service imports; using consolidated services via '@/lib/services'
 import AdminInvoiceManager from '@/components/admin/AdminInvoiceManager';
+import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import AdminReceiptManager from '@/components/admin/AdminReceiptManager';
+import AdminWalletAdjustmentDialog from '@/components/admin/AdminWalletAdjustmentDialog';
 import AdminPaymentLogs from '@/components/admin/AdminPaymentLogs';
 import AdminDashboardStats from '@/components/admin/AdminDashboardStats';
-import type { AdminUser, AdminOrder, AdminEmailLog } from '@/lib/services';
+import type { AdminUser, AdminOrder, AdminEmailLog, AdminWallet, AdminWalletAdjustment } from '@/lib/services';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -81,6 +84,8 @@ const AdminDashboard = () => {
     averageOrderValue: 0
   });
 
+  const [selectedTab, setSelectedTab] = useState<string>('orders');
+
   // New state for enhanced features
   const [domainPrices, setDomainPrices] = useState<{ id: string; extension: string; price: number; description?: string; available?: boolean; category?: string }[]>([]);
   type SystemMetricsView = { system?: { uptime?: number; memoryUsage?: number; cpuUsage?: number }; database?: { responseTime?: number }; services?: { email?: { status?: string }; payment?: { status?: string } } };
@@ -94,6 +99,18 @@ const AdminDashboard = () => {
   const [loadingDomains, setLoadingDomains] = useState(false);
   const [loadingSystemMetrics, setLoadingSystemMetrics] = useState(false);
 
+  // Wallets tab state
+  const [wallets, setWallets] = useState<AdminWallet[]>([]);
+  const [walletsLoading, setWalletsLoading] = useState(false);
+  const [walletsSearchTerm, setWalletsSearchTerm] = useState('');
+  const [walletsPage, setWalletsPage] = useState(1);
+  const [walletsLimit, setWalletsLimit] = useState(10);
+  const [walletsPagination, setWalletsPagination] = useState<{ page: number; limit: number; total: number; pages: number } | null>(null);
+  const [selectedWallet, setSelectedWallet] = useState<AdminWallet | null>(null);
+  const [adjustments, setAdjustments] = useState<AdminWalletAdjustment[]>([]);
+  const [adjustmentsLoading, setAdjustmentsLoading] = useState(false);
+  const [adjustDialogOpen, setAdjustDialogOpen] = useState(false);
+
   // useEffect to load data (placed after callbacks to avoid temporal dead zone)
 
   
@@ -102,7 +119,7 @@ const AdminDashboard = () => {
     setOrdersLoading(true);
     try {
       const ordersData = await adminService.getOrders({ admin: true });
-      setOrders(ordersData.orders || []);
+      setOrders(ordersData.items || []);
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
@@ -114,7 +131,7 @@ const AdminDashboard = () => {
     setUsersLoading(true);
     try {
       const usersData = await adminService.getAllProfiles();
-      setUsers(usersData.users || []);
+      setUsers((usersData as any)?.items || []);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -126,7 +143,7 @@ const AdminDashboard = () => {
     setEmailLogsLoading(true);
     try {
       const logsData = await adminService.getEmailLogs(100, 0);
-      setEmailLogs(logsData.logs || []);
+      setEmailLogs(logsData.items || []);
     } catch (error) {
       console.error('Error fetching email logs:', error);
     } finally {
@@ -134,12 +151,41 @@ const AdminDashboard = () => {
     }
   }, []);
 
+  // Wallets fetchers
+  const fetchWallets = useCallback(async () => {
+    setWalletsLoading(true);
+    try {
+      const resp = await adminService.getWallets({ page: walletsPage, limit: walletsLimit, search: walletsSearchTerm || undefined });
+      setWallets(resp.items || []);
+      setWalletsPagination(resp.pagination || null);
+    } catch (error) {
+      console.error('Error fetching wallets:', error);
+      toast({ title: 'خطا در دریافت کیف پول‌ها', variant: 'destructive' });
+    } finally {
+      setWalletsLoading(false);
+    }
+  }, [walletsPage, walletsLimit, walletsSearchTerm, toast]);
+
+  const fetchWalletAdjustments = useCallback(async (wallet: AdminWallet) => {
+    setSelectedWallet(wallet);
+    setAdjustmentsLoading(true);
+    try {
+      const resp = await adminService.getWalletAdjustments(wallet.$id, { page: 1, limit: 10 });
+      setAdjustments(resp.items || []);
+    } catch (error) {
+      console.error('Error fetching wallet adjustments:', error);
+      toast({ title: 'خطا در دریافت سوابق تنظیم', variant: 'destructive' });
+    } finally {
+      setAdjustmentsLoading(false);
+    }
+  }, [toast]);
+
   const calculateStats = useCallback(async () => {
     try {
       const allOrders = await adminService.getOrders({ admin: true });
       const allUsersRaw = await adminService.getAllProfiles();
-      const allUsers = allUsersRaw.users || [];
-      const orders = allOrders.orders || [];
+      const allUsers = allUsersRaw.items || [];
+      const orders = allOrders.items || [];
       
       const totalOrders = orders.length;
       const totalUsers = allUsers.length;
@@ -180,7 +226,7 @@ const AdminDashboard = () => {
       await Promise.all([
         fetchOrders(),
         fetchUsers(),
-        fetchEmailLogs(),
+        // Lazy-load email logs when the Emails tab is opened
         calculateStats()
       ]);
     } catch (error) {
@@ -193,7 +239,7 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [fetchOrders, fetchUsers, fetchEmailLogs, calculateStats, toast]);
+  }, [fetchOrders, fetchUsers, calculateStats, toast]);
 
   const handleOrderStatusUpdate = async (orderId: string, newStatus: string) => {
     try {
@@ -267,7 +313,7 @@ const AdminDashboard = () => {
           setLoadingDomains(true);
       try {
         const data = await adminService.getDomainPrices();
-        setDomainPrices(data.extensions || []);
+        setDomainPrices(data.items || []);
       } catch (error) {
       console.error('Error fetching domain prices:', error);
       toast({
@@ -283,9 +329,16 @@ const AdminDashboard = () => {
   const fetchSystemMetrics = useCallback(async () => {
     setLoadingSystemMetrics(true);
     try {
-      await adminService.getSystemMetrics();
-      // Backend metrics schema differs from view; render minimal placeholder without unsafe casts
-      setSystemMetrics({ system: { uptime: 0 } });
+      const metrics = await adminService.getSystemMetrics();
+      // Render minimal placeholder, map only fields we show
+      setSystemMetrics({
+        system: { uptime: Number(metrics?.system?.uptime || 0), memoryUsage: Number(metrics?.system?.memoryUsage || 0), cpuUsage: Number(metrics?.system?.cpuUsage || 0) },
+        database: { responseTime: Number(metrics?.database?.responseTime || 0) },
+        services: {
+          email: { status: metrics?.services?.email?.status },
+          payment: { status: metrics?.services?.payment?.status },
+        },
+      });
     } catch (error) {
       console.error('Error fetching system metrics:', error);
       toast({
@@ -304,8 +357,16 @@ const AdminDashboard = () => {
       fetchAllData();
       fetchDomainPrices();
       fetchSystemMetrics();
+      fetchWallets();
     }
-  }, [user, fetchAllData, fetchDomainPrices, fetchSystemMetrics]);
+  }, [user, fetchAllData, fetchDomainPrices, fetchSystemMetrics, fetchWallets]);
+
+  // Lazy-load email logs when Emails tab is opened
+  useEffect(() => {
+    if (selectedTab === 'emails' && !emailLogsLoading && (!emailLogs || emailLogs.length === 0)) {
+      fetchEmailLogs();
+    }
+  }, [selectedTab, emailLogsLoading, emailLogs, fetchEmailLogs]);
 
   const updateDomainPrice = async (extensionId: string, newPrice: number) => {
     try {
@@ -385,37 +446,31 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteUser = async (userToDelete: AdminUser) => {
-    if (!deleteUserReason.trim()) {
-      toast({
-        title: 'خطا',
-        description: 'لطفاً دلیل حذف کاربر را وارد کنید',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+  const handleBanUser = async (u: AdminUser) => {
     try {
-      const result = await adminService.deleteUser(userToDelete.id, { reason: deleteUserReason });
-      
-      if (result.success) {
-        toast({
-          title: 'کاربر حذف شد',
-          description: result.message,
-        });
-        setDeleteUserDialog({ open: false, user: null });
-        setDeleteUserReason('');
-        await fetchUsers();
+      const res = await adminService.banUser(u.id);
+      if (res.success) {
+        toast({ title: 'کاربر مسدود شد', description: `وضعیت: ${res.status}` });
+        fetchUsers();
       } else {
-        throw new Error(result.message || 'عملیات ناموفق بود');
+        throw new Error('Ban failed');
       }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'مشکلی در حذف کاربر پیش آمد';
-      toast({
-        title: 'خطا در حذف کاربر',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+    } catch (error: any) {
+      toast({ title: 'خطا در مسدودسازی', description: error?.message || 'مشکلی پیش آمد', variant: 'destructive' });
+    }
+  };
+
+  const handleUnbanUser = async (u: AdminUser) => {
+    try {
+      const res = await adminService.unbanUser(u.id);
+      if (res.success) {
+        toast({ title: 'کاربر آزاد شد', description: `وضعیت: ${res.status}` });
+        fetchUsers();
+      } else {
+        throw new Error('Unban failed');
+      }
+    } catch (error: any) {
+      toast({ title: 'خطا در رفع انسداد', description: error?.message || 'مشکلی پیش آمد', variant: 'destructive' });
     }
   };
 
@@ -621,8 +676,8 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
 
-          <Tabs defaultValue="orders" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-10">
+          <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-11">
               <TabsTrigger value="orders">سفارشات</TabsTrigger>
               <TabsTrigger value="users">کاربران</TabsTrigger>
               <TabsTrigger value="emails">ایمیل‌ها</TabsTrigger>
@@ -631,6 +686,7 @@ const AdminDashboard = () => {
               <TabsTrigger value="invoices">فاکتورها</TabsTrigger>
               <TabsTrigger value="receipts">رسیدها</TabsTrigger>
               <TabsTrigger value="payments">پرداخت‌ها</TabsTrigger>
+              <TabsTrigger value="wallets">کیف پول‌ها</TabsTrigger>
               <TabsTrigger value="domains">دامنه‌ها</TabsTrigger>
               <TabsTrigger value="tools">ابزارها</TabsTrigger>
             </TabsList>
@@ -724,12 +780,25 @@ const AdminDashboard = () => {
                           </div>
                           <div>
                             <span className="font-medium">تاریخ ایجاد: </span>
-                            {formatDate(order.created_at)}
+                            {formatDate((order as any).created_at || (order as any).createdAt)}
                           </div>
                           <div>
                             <span className="font-medium">کاربر: </span>
-                            {order.user_id}
+                            {(() => {
+                              const u = users.find((x) => x.id === (order as any).user_id);
+                              return u?.full_name || u?.email || (order as any).user_id;
+                            })()}
                           </div>
+                        </div>
+                        <div className="mt-4">
+                          <OrderDesignPreview
+                            orderId={order.id}
+                            orderTitle={order.title}
+                            orderPrice={order.price || 0}
+                            paymentStatus={(order as any).payment_status || (order as any).paymentStatus || 'pending'}
+                            isAdmin={true}
+                            onStatusUpdate={fetchOrders}
+                          />
                         </div>
                       </CardContent>
                     </Card>
@@ -795,24 +864,33 @@ const AdminDashboard = () => {
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <CardTitle className="text-lg">
-                              {user.full_name || user.email}
-                            </CardTitle>
-                            <CardDescription className="mt-2">
-                              {user.email}
-                            </CardDescription>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={(user as any).avatar_url || ''} alt={user.full_name || user.email} />
+                                <AvatarFallback>{(user.full_name || user.email || '?').slice(0,2).toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <CardTitle className="text-lg">
+                                  {user.full_name || (user as any).fullName || user.email}
+                                </CardTitle>
+                                <CardDescription className="mt-1">
+                                  {user.email}
+                                </CardDescription>
+                              </div>
+                            </div>
                           </div>
                           <div className="flex gap-2 items-center">
                             <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
                               {user.role === 'admin' ? 'مدیر' : 'کاربر'}
                             </Badge>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setDeleteUserDialog({ open: true, user })}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <Badge variant={(user as any).status === 'banned' ? 'destructive' : 'outline'}>
+                              {(user as any).status || 'active'}
+                            </Badge>
+                            {((user as any).status === 'banned') ? (
+                              <Button variant="outline" size="sm" onClick={() => handleUnbanUser(user)}>رفع انسداد</Button>
+                            ) : (
+                              <Button variant="destructive" size="sm" onClick={() => handleBanUser(user)}>مسدود کردن</Button>
+                            )}
                           </div>
                         </div>
                       </CardHeader>
@@ -823,8 +901,24 @@ const AdminDashboard = () => {
                             {user.role === 'admin' ? 'مدیر' : 'کاربر'}
                           </div>
                           <div>
+                            <span className="font-medium">وضعیت: </span>
+                            {(user as any).status || 'active'}
+                          </div>
+                          <div>
+                            <span className="font-medium">تلفن: </span>
+                            {(user as any).phone || '—'}
+                          </div>
+                          <div>
+                            <span className="font-medium">تأیید ایمیل: </span>
+                            {(user as any).verification_status || '—'}
+                          </div>
+                          <div>
                             <span className="font-medium">تاریخ عضویت: </span>
-                            {formatDate(user.created_at)}
+                            {formatDate((user as any).created_at || (user as any).createdAt)}
+                          </div>
+                          <div>
+                            <span className="font-medium">آخرین ورود: </span>
+                            {formatDate((user as any).last_login_at || (user as any).lastLoginAt)}
                           </div>
                         </div>
                       </CardContent>
@@ -1069,6 +1163,113 @@ const AdminDashboard = () => {
                 <h2 className="text-2xl font-bold">لاگ پرداخت‌ها</h2>
               </div>
               <AdminPaymentLogs />
+            </TabsContent>
+
+            <TabsContent value="wallets" className="space-y-6">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <h2 className="text-2xl font-bold">مدیریت کیف پول‌ها</h2>
+                <div className="flex gap-3 items-center">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      placeholder="جستجو (نام/ایمیل/شناسه کاربر)..."
+                      value={walletsSearchTerm}
+                      onChange={(e) => setWalletsSearchTerm(e.target.value)}
+                      className="pl-10 w-full sm:w-64"
+                    />
+                  </div>
+                  <Button onClick={() => { setWalletsPage(1); fetchWallets(); }} variant="outline">
+                    بروزرسانی
+                  </Button>
+                </div>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>لیست کیف پول‌ها</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {walletsLoading ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground">در حال بارگیری...</div>
+                  ) : wallets.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground">کیف پولی یافت نشد</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {wallets.map((w) => (
+                        <div key={w.$id} className="p-3 border rounded-lg bg-background flex items-center justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{w.userProfile?.full_name || w.user_id}</span>
+                              {w.userProfile?.email && (
+                                <span className="text-xs text-muted-foreground">{w.userProfile.email}</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">ایجاد: {formatDate(w.created_at)}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium whitespace-nowrap">{formatPrice(w.balance)}</div>
+                            <Button size="sm" variant="outline" onClick={() => fetchWalletAdjustments(w)}>سوابق</Button>
+                            <Button size="sm" variant="outline" onClick={() => { setSelectedWallet(w); setAdjustDialogOpen(true); }}>تنظیم موجودی</Button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {walletsPagination && (
+                        <PaginationControls
+                          currentPage={walletsPagination.page}
+                          totalPages={walletsPagination.pages}
+                          onPageChange={(p) => { setWalletsPage(p); fetchWallets(); }}
+                          totalItems={walletsPagination.total}
+                          itemsPerPage={walletsPagination.limit}
+                        />
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {selectedWallet && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>سوابق تنظیم موجودی - {selectedWallet.userProfile?.full_name || selectedWallet.user_id}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {adjustmentsLoading ? (
+                      <div className="text-center py-8 text-sm text-muted-foreground">در حال بارگیری...</div>
+                    ) : adjustments.length === 0 ? (
+                      <div className="text-center py-8 text-sm text-muted-foreground">سابقه‌ای یافت نشد</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {adjustments.map((adj) => (
+                          <div key={adj.id} className="p-3 border rounded-lg bg-background flex items-center justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm">{adj.type === 'credit' ? 'افزایش' : adj.type === 'debit' ? 'کاهش' : 'تصحیح'}</span>
+                                <span className="text-xs text-muted-foreground">توسط: {adj.adminName || adj.adminId}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">{adj.reason}</div>
+                              <div className="text-xs text-muted-foreground mt-1">{formatDate(adj.created_at)}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-medium whitespace-nowrap">{formatPrice(adj.amount)}</div>
+                              <div className="text-xs text-muted-foreground">{formatPrice(adj.balanceBefore)} → {formatPrice(adj.balanceAfter)}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              <AdminWalletAdjustmentDialog
+                open={adjustDialogOpen}
+                onOpenChange={setAdjustDialogOpen}
+                walletId={selectedWallet?.$id || ''}
+                userName={selectedWallet?.userProfile?.full_name || selectedWallet?.user_id || ''}
+                currentBalance={selectedWallet?.balance || 0}
+                onAdjustmentComplete={() => { fetchWallets(); if (selectedWallet) fetchWalletAdjustments(selectedWallet); }}
+              />
             </TabsContent>
 
             <TabsContent value="domains" className="space-y-6">

@@ -24,12 +24,23 @@ const AdminReceiptManager: React.FC = () => {
 	const [loading, setLoading] = useState(true);
 	const [search, setSearch] = useState('');
 	const [downloading, setDownloading] = useState<string | null>(null);
+	const [from, setFrom] = useState<string>('');
+	const [to, setTo] = useState<string>('');
+	const [page, setPage] = useState<number>(1);
+	const [limit, setLimit] = useState<number>(20);
+	const [totalPages, setTotalPages] = useState<number>(1);
+
+	const toIsoOrEmpty = (value: string) => {
+		if (!value) return '';
+		try { return new Date(value).toISOString(); } catch { return ''; }
+	};
 
 	const load = async () => {
 		setLoading(true);
 		try {
-			const data = await adminService.getAdminReceipts();
-			setReceipts(data.receipts || []);
+			const data = await adminService.getAdminReceipts({ page, limit, from: toIsoOrEmpty(from), to: toIsoOrEmpty(to) });
+			setReceipts(data.items || []);
+			setTotalPages(data.pagination?.pages || 1);
 		} catch (e) {
 			toast({ title: 'خطا در دریافت رسیدها', variant: 'destructive' });
 		} finally {
@@ -40,7 +51,7 @@ const AdminReceiptManager: React.FC = () => {
 	useEffect(() => {
 		load();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+	}, [page, limit]);
 
 	const filtered = useMemo(() => {
 		const s = search.trim().toLowerCase();
@@ -77,9 +88,25 @@ const AdminReceiptManager: React.FC = () => {
 				</Button>
 			</CardHeader>
 			<CardContent>
-				<div className="relative mb-4">
-					<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
-					<Input placeholder="جستجو (RefId/کاربر/سرویس)..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+				<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-4">
+					<div className="relative">
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+						<Input placeholder="جستجو (RefId/کاربر/سرویس)..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
+					</div>
+					<div>
+						<label className="text-xs text-muted-foreground">از تاریخ</label>
+						<Input type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
+					</div>
+					<div>
+						<label className="text-xs text-muted-foreground">تا تاریخ</label>
+						<Input type="datetime-local" value={to} onChange={(e) => setTo(e.target.value)} />
+					</div>
+					<div className="flex items-end">
+						<Button variant="outline" size="sm" onClick={() => { setPage(1); load(); }} className="flex items-center gap-1">
+							<RefreshCw className="w-4 h-4" />
+							اعمال فیلتر
+						</Button>
+					</div>
 				</div>
 
 				{loading ? (
@@ -109,8 +136,15 @@ const AdminReceiptManager: React.FC = () => {
 						))}
 					</div>
 				)}
-			</CardContent>
-		</Card>
+				<div className="flex items-center justify-between mt-4">
+					<div className="text-xs text-muted-foreground">صفحه {page} از {totalPages}</div>
+					<div className="flex gap-2">
+						<Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>قبلی</Button>
+						<Button size="sm" variant="outline" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>بعدی</Button>
+					</div>
+				</div>
+				</CardContent>
+			</Card>
 	);
 };
 

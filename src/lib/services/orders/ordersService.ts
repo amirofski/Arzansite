@@ -141,6 +141,8 @@ export class OrdersService extends BaseApiService {
     page?: number;
     limit?: number;
     status?: string;
+    from?: string;
+    to?: string;
   }): Promise<OrderListResponse> {
     try {
       const queryParams = new URLSearchParams();
@@ -149,6 +151,8 @@ export class OrdersService extends BaseApiService {
       if (params?.page) queryParams.append('page', params.page.toString());
       if (params?.limit) queryParams.append('limit', params.limit.toString());
       if (params?.status) queryParams.append('status', params.status);
+      if (params?.from) queryParams.append('from', params.from);
+      if (params?.to) queryParams.append('to', params.to);
       
       const queryString = queryParams.toString();
       const endpoint = `/orders${queryString ? `?${queryString}` : ''}`;

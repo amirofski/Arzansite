@@ -70,15 +70,17 @@ const AdminPaymentManager = ({
   const loadTransactions = async () => {
     try {
       setLoading(true);
-      const history = await paymentService.getPaymentHistory({ limit: 50 });
-      const tx = (history.payments || []).filter(p => (p as any).orderId === orderId).map(p => ({
-        id: p.id,
-        transaction_type: p.status === 'pending' ? 'payment_request' : (p.status === 'completed' || p.status === 'succeeded') ? 'payment_verification' : 'payment_verification',
-        status: (p.status as any) || 'pending',
-        created_at: (p as any).createdAt || new Date().toISOString(),
+      // Prefer new per-order payments endpoint with pagination
+      const resp = await paymentService.getPaymentsForOrder(orderId, { page: 1, limit: 20 });
+      const items = Array.isArray((resp as any)?.items) ? (resp as any).items : [];
+      const tx = items.map((p: any) => ({
+        id: p.id || p.$id || `${p.order_id}-${p.created_at || p.createdAt}`,
+        transaction_type: p.status === 'pending' ? 'payment_request' : (p.status === 'completed' || p.status === 'succeeded' || p.status === 'paid') ? 'payment_verification' : 'payment_verification',
+        status: p.status || 'pending',
+        created_at: p.created_at || p.createdAt || new Date().toISOString(),
         amount: p.amount || 0,
-        zarinpal_authority: (p as any).authority,
-        zarinpal_ref_id: (p as any).refId,
+        zarinpal_authority: p.authority,
+        zarinpal_ref_id: p.ref_id,
         metadata: {},
       })) as PaymentTransaction[];
       setTransactions(tx);

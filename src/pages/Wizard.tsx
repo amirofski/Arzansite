@@ -152,6 +152,9 @@ const Wizard = () => {
     try {
       setIsAutoSaving(true);
 
+      // Always include current_step (0-based) in the payload
+      const dataWithStep = { ...(data as Record<string, unknown>), current_step: currentStep - 1 };
+
       // If no token yet (guest or just logged in), save locally without server call
       try {
         const { tokenManager } = await import('@/lib/tokenManager');
@@ -161,7 +164,7 @@ const Wizard = () => {
           token = tokenManager.getAccessToken();
         }
         if (!token) {
-          localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify(data));
+          localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify(dataWithStep));
           localStorage.setItem('wizard_session_id', sessionId);
           setHasUnsavedChanges(false);
           return;
@@ -173,12 +176,12 @@ const Wizard = () => {
       const userId = (user as any)?.id || (user as any)?.user_id || (user as any)?.$id || (user as any)?.userId || (user as any)?._id;
       await wizardService.saveProgress(
         sessionId,
-        data as unknown as Record<string, unknown>,
+        dataWithStep as Record<string, unknown>,
         userId ? { userId: String(userId) } : undefined
       );
       
       // Also save to localStorage as backup
-      localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify(data));
+      localStorage.setItem(`wizard_progress_${sessionId}`, JSON.stringify(dataWithStep));
       localStorage.setItem('wizard_session_id', sessionId);
       
       setHasUnsavedChanges(false);
@@ -205,7 +208,7 @@ const Wizard = () => {
     } finally {
       setIsAutoSaving(false);
     }
-  }, [sessionId, toast, isAutoSaving, setHasUnsavedChanges, user]);
+  }, [sessionId, toast, isAutoSaving, setHasUnsavedChanges, user, currentStep]);
 
   // Determine current step based on progress
   const determineCurrentStep = useCallback((progress: WizardData): number => {

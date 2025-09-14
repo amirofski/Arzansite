@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { authService, useApi, UserProfile } from '@/lib/services';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Upload } from 'lucide-react';
 
 interface EditProfileDialogProps {
   open: boolean;
@@ -21,8 +21,11 @@ const EditProfileDialog = ({ open, onOpenChange, profile, onProfileUpdated }: Ed
   const [formData, setFormData] = useState({
     fullName: '',
     phone: '',
-    address: ''
+    address: '',
+    avatarUrl: ''
   });
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   // New API hook for updating profile
   const { execute: updateProfile, loading: updateLoading } = useApi(
@@ -38,7 +41,8 @@ const EditProfileDialog = ({ open, onOpenChange, profile, onProfileUpdated }: Ed
       setFormData({
         fullName: profile.fullName || '',
         phone: profile.phone || '',
-        address: profile.address || ''
+        address: profile.address || '',
+        avatarUrl: profile.avatarUrl || ''
       });
     }
   }, [profile]);
@@ -69,10 +73,25 @@ const EditProfileDialog = ({ open, onOpenChange, profile, onProfileUpdated }: Ed
     if (!user || !profile) return;
 
     try {
+      // If avatar file selected, upload first
+      let newAvatarUrl: string | undefined = undefined;
+      if (avatarFile) {
+        try {
+          setAvatarUploading(true);
+          const res = await authService.uploadAvatar(avatarFile);
+          if (res?.success && res.avatar_url) {
+            newAvatarUrl = res.avatar_url;
+          }
+        } finally {
+          setAvatarUploading(false);
+        }
+      }
+
       await updateProfile({
         fullName: formData.fullName,
         phone: formData.phone || undefined,
         address: formData.address || undefined,
+        ...(newAvatarUrl ? { avatarUrl: newAvatarUrl } : {})
       });
     } catch (error) {
       console.error('Error in handleSubmit:', error);
@@ -95,6 +114,19 @@ const EditProfileDialog = ({ open, onOpenChange, profile, onProfileUpdated }: Ed
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="avatar">تصویر پروفایل</Label>
+            <div className="flex items-center gap-3">
+              <Input id="avatar" type="file" accept="image/png,image/jpeg,image/webp" onChange={(e) => setAvatarFile(e.target.files?.[0] || null)} />
+              {avatarUploading && <Loader2 className="w-4 h-4 animate-spin" />}
+              {formData.avatarUrl && !avatarFile && (
+                <a href={formData.avatarUrl} target="_blank" rel="noreferrer" className="text-xs text-primary flex items-center gap-1">
+                  <Upload className="w-3 h-3" /> مشاهده تصویر فعلی
+                </a>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="fullName">نام کامل *</Label>
             <Input

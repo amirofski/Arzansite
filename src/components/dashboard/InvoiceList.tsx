@@ -41,13 +41,18 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 		invoiceService.getInvoices.bind(invoiceService),
 		{
 			onSuccess: (data) => {
-				// Handle both direct array and wrapped response
+				// Handle direct array or wrapped responses
 				if (Array.isArray(data)) {
 					setInvoices(data);
-				} else if (data && typeof data === 'object' && 'invoices' in data) {
-					setInvoices(data.invoices || []);
+				} else if (data && typeof data === 'object') {
+					if ('items' in data) setInvoices((data as any).items || []);
+					else if ('invoices' in data) setInvoices((data as any).invoices || []);
+					else if ('data' in data && Array.isArray((data as any).data)) setInvoices((data as any).data);
+					else {
+						console.warn('Unexpected invoice data structure:', data);
+						setInvoices([]);
+					}
 				} else {
-					console.warn('Unexpected invoice data structure:', data);
 					setInvoices([]);
 				}
 			},

@@ -96,6 +96,7 @@ export interface UserProfile {
   fullName?: string;
   phone?: string;
   address?: string;
+  avatarUrl?: string;
   company?: string;
   bio?: string;
   userMetadata?: Record<string, unknown>;
@@ -272,6 +273,7 @@ export class AuthService extends BaseApiService {
         company: (u as any).company,
         bio: (u as any).bio,
         userMetadata: (u as any).userMetadata,
+        avatarUrl: (u as any).avatarUrl || (u as any).avatar_url || undefined,
         emailConfirmedAt: (u as any).emailConfirmedAt ?? null,
         createdAt: String((u as any).createdAt || new Date().toISOString()),
         updatedAt: String((u as any).updatedAt || new Date().toISOString()),
@@ -478,7 +480,7 @@ export class AuthService extends BaseApiService {
     }
   }
 
-  // OAuth methods (placeholder implementations)
+  // OAuth methods
   async oauthStart(provider: string, params: { successUrl: string; failureUrl: string }): Promise<{ redirectUrl: string; state?: string }> {
     try {
       const response = await withRetry(() =>
@@ -491,6 +493,29 @@ export class AuthService extends BaseApiService {
       return FieldMapper.transformResponse(response);
     } catch (error) {
       ErrorHandler.logError(error, 'AuthService.oauthStart');
+      throw error;
+    }
+  }
+
+  async oauthCallback(provider: string, args: { user_id: string; secret: string }): Promise<AuthResponse> {
+    try {
+      const response = await withRetry(() =>
+        this.request<any>(`/auth/oauth/${encodeURIComponent(provider)}/callback`, {
+          method: 'POST',
+          body: JSON.stringify({ user_id: args.user_id, secret: args.secret })
+        })
+      );
+      const payload = FieldMapper.transformWrappedResponse<any>(response) || response;
+      // Try to set tokens if present
+      const accessToken = payload?.accessToken || payload?.access_token || payload?.data?.accessToken || payload?.data?.access_token;
+      const refreshToken = payload?.refreshToken || payload?.refresh_token || payload?.data?.refreshToken || payload?.data?.refresh_token;
+      const expiresAt = payload?.expiresAt || payload?.expires_at || payload?.data?.expiresAt || payload?.data?.expires_at;
+      if (accessToken && refreshToken) {
+        tokenManager.setTokens({ access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt });
+      }
+      return FieldMapper.transformResponse(payload);
+    } catch (error) {
+      ErrorHandler.logError(error, 'AuthService.oauthCallback');
       throw error;
     }
   }
@@ -519,6 +544,61 @@ export class AuthService extends BaseApiService {
       return FieldMapper.transformResponse(response);
     } catch (error) {
       ErrorHandler.logError(error, 'AuthService.oauthLogout');
+      throw error;
+    }
+  }
+
+  // Magic link methods
+  async requestMagicLink(args: { email: string; redirectUrl?: string }): Promise<{ success: boolean; message?: string }> {
+    try {
+      const response = await withRetry(() =>
+        this.request<{ success: boolean; message?: string }>('/auth/magic-link/request', {
+          method: 'POST',
+          body: JSON.stringify(args),
+        })
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'AuthService.requestMagicLink');
+      throw error;
+    }
+  }
+
+  async verifyMagicLink(args: { token: string; user_id?: string }): Promise<AuthResponse> {
+    try {
+      const response = await withRetry(() =>
+        this.request<any>('/auth/magic-link/verify', {
+          method: 'POST',
+          body: JSON.stringify(args),
+        })
+      );
+      const payload = FieldMapper.transformWrappedResponse<any>(response) || response;
+      const accessToken = payload?.accessToken || payload?.access_token || payload?.data?.accessToken || payload?.data?.access_token;
+      const refreshToken = payload?.refreshToken || payload?.refresh_token || payload?.data?.refreshToken || payload?.data?.refresh_token;
+      const expiresAt = payload?.expiresAt || payload?.expires_at || payload?.data?.expiresAt || payload?.data?.expires_at;
+      if (accessToken && refreshToken) {
+        tokenManager.setTokens({ access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt });
+      }
+      return FieldMapper.transformResponse(payload);
+    } catch (error) {
+      ErrorHandler.logError(error, 'AuthService.verifyMagicLink');
+      throw error;
+    }
+  }
+
+  async uploadAvatar(file: File): Promise<{ success: boolean; avatar_url: string }> {
+    try {
+      const fd = new FormData();
+      fd.append('file', file, file.name);
+      const response = await withRetry(() =>
+        this.request<{ success: boolean; avatar_url: string }>('/profiles/me/avatar', {
+          method: 'PATCH',
+          body: fd,
+        })
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'AuthService.uploadAvatar');
       throw error;
     }
   }

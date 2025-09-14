@@ -44,8 +44,8 @@ const AdminWalletManager: React.FC<AdminWalletManagerProps> = ({ userId, userNam
     try {
       const txResp = await walletService.getTransactions({ limit: 20 });
       const balResp = await walletService.getBalance();
-      setTransactions(txResp.transactions || []);
-      setBalance(balResp.balance || 0);
+      setTransactions(Array.isArray(txResp.transactions) ? txResp.transactions : (txResp.items || []));
+      setBalance((balResp as any)?.balance ?? (balResp as any)?.data?.balance ?? 0);
     } catch (error) {
       console.error('Error fetching wallet data:', error);
       toast({

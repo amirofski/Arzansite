@@ -18,8 +18,11 @@ export interface Invoice {
 
 export interface InvoiceListRequest {
   status?: string;
+  // New unified filters
+  page?: number;
   limit?: number;
-  offset?: number;
+  from?: string; // ISO string
+  to?: string;   // ISO string
 }
 
 export interface PayInvoiceRequest {
@@ -40,18 +43,26 @@ export class InvoiceService extends BaseApiService {
   }
 
   /**
-   * Get user invoices with optional filtering
+   * Get user invoices with optional filtering (unified pagination)
+   * Returns a normalized array for compatibility with existing UI.
    */
-  async getInvoices(params?: InvoiceListRequest): Promise<Invoice[]> {
-    const queryParams = params ? new URLSearchParams() : undefined;
-    if (params?.status) queryParams?.set('status', params.status);
-    if (params?.limit) queryParams?.set('limit', params.limit.toString());
-    if (params?.offset) queryParams?.set('offset', params.offset.toString());
+  async getInvoices(params?: InvoiceListRequest): Promise<Invoice[] | { items: Invoice[]; pagination?: { page: number; limit: number; total: number; pages: number } }> {
+    const queryParams = new URLSearchParams();
+    if (params?.status) queryParams.append('status', params.status);
+    if (params?.page != null) queryParams.append('page', String(params.page));
+    if (params?.limit != null) queryParams.append('limit', String(params.limit));
+    if (params?.from) queryParams.append('from', params.from);
+    if (params?.to) queryParams.append('to', params.to);
 
-    const endpoint = `/invoices${queryParams ? `?${queryParams.toString()}` : ''}`;
-    const response = await this.request<Invoice[]>(endpoint);
+    const endpoint = `/invoices${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    const response = await this.request<any>(endpoint);
 
-    return response;
+    // Normalize possible shapes
+    if (Array.isArray(response)) return response as Invoice[];
+    if (response?.items) return { items: FieldMapper.transformResponse(response.items), pagination: FieldMapper.transformResponse(response.pagination) };
+    if (response?.invoices) return { items: FieldMapper.transformResponse(response.invoices), pagination: FieldMapper.transformResponse(response.pagination) };
+    if (response?.data && Array.isArray(response.data)) return response.data as Invoice[];
+    return [] as Invoice[];
   }
 
   /**

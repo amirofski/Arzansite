@@ -49,6 +49,7 @@ const Dashboard: React.FC = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
   const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -58,6 +59,8 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     // If login payload ensures emailVerified true, we don't need to show verification prompt.
     setShowVerificationPrompt(false);
+    // Reset avatar error on user change
+    setAvatarError(false);
   }, [user]);
 
   const fetchData = async () => {
@@ -76,9 +79,20 @@ const Dashboard: React.FC = () => {
     }
 
     try {
-      // Profile
-      const profileData = await authService.getMe();
-      setProfile(profileData);
+      // Profile: merge /auth/me and /profiles/me for richer info
+      const me = await authService.getMe();
+      let merged: any = me;
+      try {
+        const pr = await authService.getProfile();
+        if (pr?.success && pr.data) {
+          merged = { ...me, ...pr.data };
+          const avatarFromProfile = (pr.data as any).avatarUrl || (pr.data as any).avatar_url || (pr.data as any).avatar;
+          if (!merged.avatarUrl && avatarFromProfile) {
+            (merged as any).avatarUrl = avatarFromProfile;
+          }
+        }
+      } catch {}
+      setProfile(merged as any);
 
       // Orders
       await fetchOrders();
@@ -86,7 +100,10 @@ const Dashboard: React.FC = () => {
       // Invoices count (best effort)
       try {
         const invoices = await invoiceService.getInvoices();
-        setInvoiceCount(Array.isArray(invoices) ? invoices.length : 0);
+        const count = Array.isArray(invoices)
+          ? invoices.length
+          : (Array.isArray((invoices as any)?.items) ? (invoices as any).items.length : 0);
+        setInvoiceCount(count);
       } catch {
         setInvoiceCount(0);
       }
@@ -94,7 +111,9 @@ const Dashboard: React.FC = () => {
       // Receipts count (best effort)
       try {
         const receipts = await receiptService.getReceipts();
-        const arr = Array.isArray((receipts as any)?.receipts) ? (receipts as any).receipts : (Array.isArray(receipts) ? receipts : []);
+        const arr = Array.isArray(receipts)
+          ? receipts
+          : (Array.isArray((receipts as any)?.items) ? (receipts as any).items : (Array.isArray((receipts as any)?.receipts) ? (receipts as any).receipts : []));
         setReceiptCount(arr.length);
       } catch {
         setReceiptCount(0);
@@ -124,8 +143,12 @@ const Dashboard: React.FC = () => {
     setOrdersLoading(true);
     try {
       const ordersData = await ordersService.getOrders({ mine: true });
-      const list = Array.isArray((ordersData as any)?.orders) ? (ordersData as any).orders : (Array.isArray(ordersData) ? ordersData : []);
-      const validOrders = list.filter((order: any) => order && typeof order === 'object' && typeof order.id === 'string');
+      const list = Array.isArray((ordersData as any)?.orders)
+        ? (ordersData as any).orders
+        : Array.isArray((ordersData as any)?.items)
+          ? (ordersData as any).items
+          : (Array.isArray(ordersData) ? ordersData : []);
+      const validOrders = (list as any[]).filter((order: any) => order && typeof order === 'object' && typeof order.id === 'string');
       setOrders(validOrders);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -547,19 +570,84 @@ const Dashboard: React.FC = () => {
             </TabsContent>
 
             <TabsContent value="profile" className="space-y-6">
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <h2 className="text-2xl font-bold">اطلاعات حساب</h2>
                 <Button onClick={() => setEditProfileOpen(true)} variant="outline"><User className="w-4 h-4 ml-2" />ویرایش اطلاعات</Button>
               </div>
 
+              {/* Profile header with avatar and badges */}
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="shrink-0">
+                      {profile?.avatarUrl && !avatarError ? (
+                        <img
+                          src={profile.avatarUrl}
+                          alt="avatar"
+                          className="h-16 w-16 rounded-full border object-cover"
+                          onError={() => setAvatarError(true)}
+                        />
+                      ) : (
+                        <div className="h-16 w-16 rounded-full border bg-muted flex items-center justify-center text-lg">
+                          {(profile?.fullName?.[0] || profile?.email?.[0] || '?').toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <div className="text-lg font-semibold truncate">{profile?.fullName || profile?.email || 'کاربر'}</div>
+                        <span className={`text-xs px-2 py-0.5 rounded ${((profile as any)?.verification_status === 'verified' || profile?.emailConfirmedAt) ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                          {((profile as any)?.verification_status === 'verified' || profile?.emailConfirmedAt) ? 'ایمیل تایید شده' : 'ایمیل تایید نشده'}
+                        </span>
+                        <span className="text-xs px-2 py-0.5 rounded bg-muted text-foreground/80">
+                          {(profile as any)?.role || 'user'}
+                        </span>
+                        {(profile as any)?.status && (
+                          <span className={`text-xs px-2 py-0.5 rounded ${((profile as any).status === 'banned' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700')}`}>
+                            {(profile as any).status}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-1 truncate">{profile?.email}</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Personal information */}
               <Card>
                 <CardHeader><CardTitle>اطلاعات شخصی</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div><label className="text-sm font-medium text-muted-foreground">نام کامل</label><p className="mt-1">{profile?.fullName || 'نامشخص'}</p></div>
-                    <div><label className="text-sm font-medium text-muted-foreground">ایمیل</label><p className="mt-1">{profile?.email}</p></div>
-                    <div><label className="text-sm font-medium text-muted-foreground">شماره تلفن</label><p className="mt-1">{profile?.phone || 'نامشخص'}</p></div>
-                    <div><label className="text-sm font-medium text-muted-foreground">آدرس</label><p className="mt-1">{profile?.address || 'نامشخص'}</p></div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">نام کامل</label>
+                      <p className="mt-1">{profile?.fullName || 'نامشخص'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">ایمیل</label>
+                      <p className="mt-1">{profile?.email}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">شماره تلفن</label>
+                      <p className="mt-1">{profile?.phone || 'نامشخص'}</p>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">آدرس</label>
+                      <p className="mt-1">{profile?.address || 'نامشخص'}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Account details */}
+              <Card>
+                <CardHeader><CardTitle>جزئیات حساب</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div><span className="text-muted-foreground">نقش: </span>{(profile as any)?.role || 'user'}</div>
+                    <div><span className="text-muted-foreground">وضعیت: </span>{(profile as any)?.status || 'active'}</div>
+                    <div><span className="text-muted-foreground">تاریخ ایجاد: </span>{profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString('fa-IR') : '—'}</div>
+                    <div><span className="text-muted-foreground">آخرین ورود: </span>{(profile as any)?.last_login_at ? new Date((profile as any).last_login_at).toLocaleDateString('fa-IR') : '—'}</div>
                   </div>
                 </CardContent>
               </Card>

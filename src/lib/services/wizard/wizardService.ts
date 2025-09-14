@@ -199,6 +199,62 @@ export interface SaveProgressResponse {
 
 export class WizardService extends BaseApiService {
   /**
+   * Upload files for an order via wizard endpoint
+   */
+  async uploadFiles(args: { orderId: string; files: File[]; sessionId?: string; description?: string }): Promise<{ success: boolean; items?: any[] }> {
+    try {
+      const fd = new FormData();
+      fd.append('order_id', args.orderId);
+      if (args.sessionId) fd.append('session_id', args.sessionId);
+      if (args.description) fd.append('description', args.description);
+      args.files.forEach((f) => fd.append('files[]', f, f.name));
+
+      const response = await withRetry(() =>
+        this.request<{ success: boolean; items?: any[] }>('/wizard/upload-files', {
+          method: 'POST',
+          body: fd,
+        })
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'WizardService.uploadFiles');
+      throw error;
+    }
+  }
+
+  /**
+   * List files for an order via wizard endpoint
+   */
+  async listOrderFiles(orderId: string): Promise<{ items: any[] }> {
+    try {
+      const response = await withRetry(() =>
+        this.request<any>(`/wizard/orders/${encodeURIComponent(orderId)}/files`)
+      );
+      const items = Array.isArray(response?.items) ? response.items : (Array.isArray(response) ? response : (Array.isArray(response?.files) ? response.files : []));
+      return { items: FieldMapper.transformResponse(items) };
+    } catch (error) {
+      ErrorHandler.logError(error, 'WizardService.listOrderFiles');
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a wizard project file
+   */
+  async deleteOrderFile(fileId: string, orderId: string): Promise<{ success: boolean }> {
+    try {
+      const endpoint = `/wizard/files/${encodeURIComponent(fileId)}?order_id=${encodeURIComponent(orderId)}`;
+      const response = await withRetry(() =>
+        this.request<{ success: boolean }>(endpoint, { method: 'DELETE' })
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'WizardService.deleteOrderFile');
+      throw error;
+    }
+  }
+
+  /**
    * Complete wizard order
    */
   async completeOrder(request: CompleteOrderRequest): Promise<OrderResponse> {

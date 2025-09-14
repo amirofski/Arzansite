@@ -89,6 +89,13 @@ export type {
   DownloadReceiptRequest,
 } from './receipts/receiptService';
 
+// Transactions Service
+export { transactionsService } from './transactions/transactionsService';
+export type {
+  TransactionItem,
+  TransactionsPagination,
+} from './transactions/transactionsService';
+
 // Email Management Service
 export { emailManagementService } from './emails/emailManagementService';
 export type {
@@ -137,6 +144,9 @@ export type {
   DomainExtension,
   SystemMetrics,
   AdminStats,
+  AdminWallet,
+  AdminInvoice,
+  AdminWalletAdjustment,
 } from './admin/adminService';
 
 // Notifications Service

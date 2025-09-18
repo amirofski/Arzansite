@@ -26,6 +26,7 @@ import InvoiceList from '@/components/dashboard/InvoiceList';
 import ReceiptList from '@/components/dashboard/ReceiptList';
 import DesignPreview from '@/components/wizard/DesignPreview';
 import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
+import OrderCard from '@/components/dashboard/OrderCard';
 
 // Services layer
 import { authService, ordersService, invoiceService, receiptService, paymentService, type Order, type UserProfile } from '@/lib/services';
@@ -179,19 +180,10 @@ const Dashboard: React.FC = () => {
   };
 
   const renderDesignPreview = (order: Order) => {
-    if (!order?.description) {
-      return (
-        <div className="border rounded-lg p-4 bg-muted/30">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-medium">توضیحات سفارش</span>
-          </div>
-          <p className="text-sm text-muted-foreground">توضیحات نامشخص</p>
-        </div>
-      );
-    }
+    // Prefer wizardData from backend if present
     try {
-      const parsedData = JSON.parse(order.description);
-      if (parsedData?.websiteFramework?.dynamicDesign) {
+      const wizardPayload: any = (order as any).wizardData || (order as any).wizard_data;
+      if (wizardPayload?.websiteFramework?.dynamicDesign) {
         return (
           <div className="space-y-4">
             <div className="border rounded-lg p-4 bg-muted/30">
@@ -199,23 +191,36 @@ const Dashboard: React.FC = () => {
                 <Palette className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-medium">پیش‌نمایش طراحی پویا</span>
               </div>
-              <DesignPreview design={parsedData.websiteFramework.dynamicDesign} showActions={false} />
+<DesignPreview design={wizardPayload.websiteFramework.dynamicDesign} showActions={false} uploadedImages={wizardPayload.websiteFramework.uploadedImages || {}} />
             </div>
           </div>
         );
       }
-      if (parsedData?.moduleLayout || parsedData?.modules) {
-        return <div className="space-y-4">{renderModuleLayoutPreview(parsedData)}</div>;
-      }
-      return (
-        <div className="border rounded-lg p-4 bg-muted/30">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-medium">توضیحات سفارش</span>
-          </div>
-          <p className="text-sm text-muted-foreground">{order.description}</p>
-        </div>
-      );
-    } catch {
+    } catch {}
+
+    // Fallback: try to parse JSON description
+    if (order?.description) {
+      try {
+        const parsedData = JSON.parse(order.description);
+        if (parsedData?.websiteFramework?.dynamicDesign) {
+          return (
+            <div className="space-y-4">
+              <div className="border rounded-lg p-4 bg-muted/30">
+                <div className="flex items-center gap-2 mb-3">
+                  <Palette className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">پیش‌نمایش طراحی پویا</span>
+                </div>
+                <DesignPreview design={parsedData.websiteFramework.dynamicDesign} showActions={false} />
+              </div>
+            </div>
+          );
+        }
+        if (parsedData?.moduleLayout || parsedData?.modules) {
+          return <div className="space-y-4">{renderModuleLayoutPreview(parsedData)}</div>;
+        }
+      } catch {}
+
+      // If description exists but not JSON
       return (
         <div className="border rounded-lg p-4 bg-muted/30">
           <div className="flex items-center gap-2 mb-2">
@@ -225,6 +230,16 @@ const Dashboard: React.FC = () => {
         </div>
       );
     }
+
+    // No description and no wizard data
+    return (
+      <div className="border rounded-lg p-4 bg-muted/30">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-sm font-medium">توضیحات سفارش</span>
+        </div>
+        <p className="text-sm text-muted-foreground">توضیحات نامشخص</p>
+      </div>
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -465,67 +480,12 @@ const Dashboard: React.FC = () => {
                     ))}
 
                     {currentOrders.map((order) => (
-                      <Card key={order.id}>
-                        <CardHeader>
-                          <div className="flex justify بین items-start">
-                            <div className="flex-1">
-                              <CardTitle className="text-lg">{order.title || 'عنوان نامشخص'}</CardTitle>
-                              <div className="mt-3">{renderDesignPreview(order)}</div>
-                            </div>
-                            <div className="flex gap-2 items-center">
-                              <OrderDesignPreview
-                                orderId={order.id}
-                                orderTitle={order.title || 'عنوان نامشخص'}
-                                orderPrice={order.price || 0}
-                                paymentStatus={(order as any).payment_status || (order as any).paymentStatus || 'pending'}
-                                onStatusUpdate={fetchOrders}
-                              />
-                              <Badge className={`${getStatusColor(order.status)} border-0`}>{getStatusText(order.status)}</Badge>
-                              {order.status === 'pending' && (
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  className="flex items-center gap-1"
-                                  onClick={() => { setOrderToDelete(order); setDeleteDialogOpen(true); }}
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                  حذف سفارش
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            <div><span className="font-medium">قیمت: </span>{order.price ? formatPrice(order.price) : 'نامشخص'}</div>
-                            <div><span className="font-medium">تاریخ ایجاد: </span>{formatDate((order as any).created_at || (order as any).createdAt)}</div>
-                            <div><span className="font-medium">آخرین بروزرسانی: </span>{formatDate((order as any).updated_at || (order as any).updatedAt)}</div>
-                          </div>
-                          {order.comments && (
-                            <div className="mt-4 p-3 bg-muted rounded-lg">
-                              <span className="font-medium text-sm">توضیحات: </span>
-                              <p className="text-sm mt-1">{order.comments}</p>
-                            </div>
-                          )}
-                          {order.status === 'pending' && (
-                            <div className="mt-4 flex flex-wrap gap-2">
-                              <Button size="sm" onClick={async () => {
-                                try {
-                                  const pr = await paymentService.requestPayment({
-                                    amount: order.price || 0,
-                                    description: `پرداخت سفارش ${order.id}`,
-                                    orderId: order.id,
-                                    callbackUrl: `${window.location.origin}/payment/callback`
-                                  });
-                                  if ((pr as any)?.paymentUrl) window.location.href = (pr as any).paymentUrl; else throw new Error('آدرس پرداخت نامعتبر است');
-                                } catch (err: any) {
-                                  toast({ title: 'خطا در ایجاد پرداخت', description: err?.message || 'مشکلی در ایجاد پرداخت پیش آمد', variant: 'destructive' });
-                                }
-                              }}>پرداخت درگاه</Button>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
+                      <OrderCard
+                        key={order.id}
+                        order={order as any}
+                        onDeleted={(id) => setOrders(prev => prev.filter(o => o.id !== id))}
+                        onRefresh={fetchOrders}
+                      />
                     ))}
                   </div>
 

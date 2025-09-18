@@ -157,13 +157,147 @@ export class OrdersService extends BaseApiService {
       const queryString = queryParams.toString();
       const endpoint = `/orders${queryString ? `?${queryString}` : ''}`;
       
-      const response = await withRetry(() =>
-        this.request<OrderListResponse>(endpoint)
-      );
+      const raw = await withRetry(() => this.request<any>(endpoint));
+      const t = FieldMapper.transformResponse(raw) as any;
 
-      return FieldMapper.transformResponse(response);
+      // Extract array of orders from multiple possible shapes
+      const root = t?.data ?? t;
+      let items: any[] = [];
+      if (Array.isArray(root?.orders)) items = root.orders;
+      else if (Array.isArray(root?.items)) items = root.items;
+      else if (Array.isArray(t)) items = t as any[];
+      else if (Array.isArray(raw?.data?.orders)) items = raw.data.orders;
+      else if (Array.isArray(raw?.data?.items)) items = raw.data.items;
+
+      // Normalize each order to always have id, status, price, wizardData
+      const normalized = (items || []).map((o: any) => {
+        const id = o.id || o.orderId || o.order_id || o._id || o.$id || o?.order?.id || '';
+        const status = o.status || o?.order?.status || (o?.data?.status) || 'pending';
+        const price = o.price ?? o.totalAmount ?? o.total_amount ?? o?.order?.totalAmount ?? 0;
+        const wizardData = o.wizardData || o.wizard_data || o?.metadata?.wizardData || undefined;
+        return { ...o, id, status, price, wizardData };
+      });
+
+      const pagination = root?.pagination || t?.pagination || {
+        page: Number(params?.page || 1),
+        limit: Number(params?.limit || normalized.length || 0),
+        total: Number(root?.total || normalized.length || 0),
+        pages: Number(root?.pages || 1),
+      };
+
+      return { success: true, orders: normalized as any, pagination } as OrderListResponse;
     } catch (error) {
       ErrorHandler.logError(error, 'OrdersService.getOrders');
+      throw error;
+    }
+  }
+
+  /**
+   * Unified create order endpoint supporting draft or payment flows.
+   * Tries POST /orders/create first. Falls back to legacy POST /orders.
+   */
+  async createOrderUnified(args: {
+    submitMode: 'draft' | 'payment';
+    wizardData: Record<string, unknown> | undefined;
+    totalAmount: number | string;
+    currency?: string;
+    title?: string;
+    description?: string;
+    comments?: string;
+    siteType?: string;
+  }): Promise<{
+    orderId: string;
+    status: string;
+    payment?: { id?: string; redirectUrl?: string; expiresAt?: string };
+  }> {
+    try {
+      // Send camelCase payload as-is to match new DTOs. Default wizardData to {} and coerce totalAmount to number.
+      const camelPayload = {
+        submitMode: args.submitMode,
+        wizardData: (args.wizardData && typeof args.wizardData === 'object') ? args.wizardData : {},
+        totalAmount: Number(args.totalAmount),
+        currency: args.currency || 'IRR',
+        title: args.title,
+        description: args.description,
+        comments: args.comments,
+        siteType: args.siteType || 'personal',
+      };
+
+      try {
+        const res = await withRetry(() =>
+          this.request<any>('/orders/create', {
+            method: 'POST',
+            body: JSON.stringify(camelPayload),
+          })
+        );
+        const data = FieldMapper.transformResponse(res) as any;
+        // Normalize diverse backend shapes
+        const orderId = data?.orderId || data?.order_id || data?.order?.id || data?.id;
+        const status = data?.status || data?.order?.status || 'pending';
+        const payment = data?.payment || (data?.paymentUrl ? { redirectUrl: data.paymentUrl } : undefined);
+        return { orderId, status, payment };
+      } catch (primaryErr) {
+        // Fallback to legacy /orders
+        const legacy = await this.createOrder({
+          title: args.title || 'سفارش وب‌سایت',
+          description: args.description || 'ثبت از ویزارد',
+          price: Number(args.totalAmount) || 0,
+          comments: args.comments,
+          siteType: args.siteType || 'personal',
+          wizardData: camelPayload.wizardData,
+          status: 'pending',
+          paymentStatus: 'pending',
+        });
+        return { orderId: (legacy as any)?.id, status: (legacy as any)?.status || 'pending' };
+      }
+    } catch (error) {
+      ErrorHandler.logError(error, 'OrdersService.createOrderUnified');
+      throw error;
+    }
+  }
+
+  /**
+   * Update order status (primarily by webhook/admin)
+   */
+  async updateOrderStatus(
+    orderId: string,
+    updates: {
+      status?: string; // e.g., 'completed' | 'pending' | 'canceled' | ...
+      paymentStatus?: 'succeeded' | 'failed' | 'refunded' | 'pending';
+      reason?: string;
+    } = {}
+  ): Promise<any> {
+    try {
+      const body = FieldMapper.transformRequest({
+        orderId,
+        status: updates.status,
+        paymentStatus: updates.paymentStatus,
+        reason: updates.reason,
+      });
+      try {
+        const res = await withRetry(() =>
+          this.request<any>('/orders/update-status', {
+            method: 'POST',
+            body: JSON.stringify(body),
+          })
+        );
+        return res;
+      } catch {
+        // Fallback to RESTful style if available
+        const res = await withRetry(() =>
+          this.request<any>(`/orders/${encodeURIComponent(orderId)}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify(FieldMapper.transformRequest({
+              status: updates.status,
+              paymentStatus: updates.paymentStatus,
+              reason: updates.reason,
+            })),
+          })
+        );
+        return res;
+      }
+    } catch (error) {
+      ErrorHandler.logError(error, 'OrdersService.updateOrderStatus');
       throw error;
     }
   }

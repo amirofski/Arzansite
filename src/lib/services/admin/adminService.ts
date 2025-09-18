@@ -306,23 +306,17 @@ export class AdminService extends BaseApiService {
       const endpoint = `/orders${queryString ? `?${queryString}` : ''}`;
       
       const response = await withRetry(() => this.request<any>(endpoint));
-      if (response?.items) {
-        return {
-          items: FieldMapper.transformResponse(response.items),
-          pagination: FieldMapper.transformResponse(response.pagination),
-        };
-      }
-      if (response?.orders) {
-        return {
-          items: FieldMapper.transformResponse(response.orders),
-          pagination: FieldMapper.transformResponse(response.pagination),
-        };
-      }
-      // Some backends may return an array
-      if (Array.isArray(response)) {
-        return { items: FieldMapper.transformResponse(response) };
-      }
-      return { items: FieldMapper.transformResponse(response?.data ?? []) };
+      // Normalize various shapes: {items}, {orders}, {data:{items|orders}}, array
+      const root = response?.data ?? response;
+      let items: any[] = [];
+      if (Array.isArray(root?.items)) items = root.items;
+      else if (Array.isArray(root?.orders)) items = root.orders;
+      else if (Array.isArray(response)) items = response;
+      else if (Array.isArray(response?.data?.items)) items = response.data.items;
+      else if (Array.isArray(response?.data?.orders)) items = response.data.orders;
+      
+      const pagination = root?.pagination || response?.pagination || undefined;
+      return { items: FieldMapper.transformResponse(items), pagination: FieldMapper.transformResponse(pagination) };
     } catch (error) {
       ErrorHandler.logError(error, 'AdminService.getOrders');
       throw error;

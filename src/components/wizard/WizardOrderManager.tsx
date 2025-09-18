@@ -11,7 +11,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Save, CreditCard, Clock, CheckCircle } from 'lucide-react';
 
 interface WizardOrderManagerProps {
-  sessionId: string;
   wizardData: {
     siteType: 'personal' | 'business' | '';
     websiteFramework?: {
@@ -49,6 +48,7 @@ interface WizardOrderManagerProps {
     userInfo: {
       domain: string;
       domainExtension?: string;
+      additionalDomains?: Array<{ domain: string; extension: string; price: number; available: boolean }>;
     };
   };
   onOrderComplete?: (orderId: string) => void;
@@ -60,7 +60,6 @@ interface WizardOrderManagerProps {
  * and save for later functionality according to the backend guide
  */
 export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
-  sessionId,
   wizardData,
   onOrderComplete,
   onOrderSaved
@@ -78,6 +77,10 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
   const handleCompleteOrder = async () => {
     setLoading(true);
     try {
+      if (!orderData.priceTomans || Number(orderData.priceTomans) <= 0) {
+        toast({ title: 'قیمت نامعتبر است', description: 'لطفاً ابتدا قیمت را محاسبه کنید', variant: 'destructive' });
+        return;
+      }
       // Require token for protected endpoints
       let token = tokenManager.getAccessToken();
       if (!token) {
@@ -89,55 +92,44 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         }
       }
 
-      // Build wizard data snapshot (used in order metadata)
+// Build wizard data snapshot (used in order metadata)
       const wizardDataPayload = {
         websiteFramework: wizardData.websiteFramework,
         branding: wizardData.branding,
         additionalServices: wizardData.pricing.additionalServices,
         additionalServicesList: wizardData.pricing.additionalServicesList || [],
         domains: {
-          primary_domain: wizardData.userInfo.domain,
-          additional_domains: [] as string[],
+          primaryDomain: wizardData.userInfo.domain,
+          domainExtension: wizardData.userInfo.domainExtension,
+          additionalDomains: wizardData.userInfo.additionalDomains || [],
         },
         pricing: {
           ...wizardData.pricing,
         },
       } as Record<string, unknown>;
 
-      // Create order via /orders
-      const order = await ordersService.createOrderFromWizard({
-        sessionId: sessionId,
-        order: {
-          title: orderData.title,
-          description: orderData.description,
-          totalAmountTomans: orderData.priceTomans,
-          comments: orderData.comments,
-          siteType: orderData.site_type,
-        },
+      // Try unified endpoint with payment
+      const unified = await ordersService.createOrderUnified({
+        submitMode: 'payment',
         wizardData: wizardDataPayload,
-        status: 'pending',
-        paymentStatus: 'pending',
+        totalAmount: orderData.priceTomans,
+        currency: 'IRR',
+        title: orderData.title,
+        description: orderData.description,
+        comments: orderData.comments,
+        siteType: orderData.site_type,
       });
 
-      if (!order || !order.id) {
-        throw new Error('ایجاد سفارش ناموفق بود');
+      if (unified?.payment?.redirectUrl) {
+        window.location.href = String(unified.payment.redirectUrl);
+        return;
       }
 
-      // Persist payment info onto the order (optional fields)
-      try {
-        await ordersService.updateOrder(order.id, {
-          paymentStatus: 'pending',
-          paymentGateway: 'zarinpal',
-          callbackUrl: `${window.location.origin}/payment/callback`,
-          returnUrl: `${window.location.origin}/dashboard`,
-        });
-      } catch {}
-
-      // Request payment via /payments/request
+      // Fallback: request payment via payments service
       const payment = await paymentService.requestPayment({
         amount: orderData.priceTomans || 0,
-        description: `پرداخت سفارش ${order.id}`,
-        orderId: order.id,
+        description: `پرداخت سفارش ${unified?.orderId || 'سفارش'}`,
+        orderId: unified?.orderId,
         paymentMethod: 'zarinpal',
         callbackUrl: `${window.location.origin}/payment/callback`,
         returnUrl: `${window.location.origin}/dashboard`,
@@ -164,6 +156,10 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
   const handleSaveForLater = async () => {
     setLoading(true);
     try {
+      if (!orderData.priceTomans || Number(orderData.priceTomans) <= 0) {
+        toast({ title: 'قیمت نامعتبر است', description: 'لطفاً ابتدا قیمت را محاسبه کنید', variant: 'destructive' });
+        return;
+      }
       // Require token for protected endpoints
       let token = tokenManager.getAccessToken();
       if (!token) {
@@ -174,53 +170,45 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
           return;
         }
       }
-      // Create order via /orders with pending payment (save for later)
+// Create order as draft (pending)
       const wizardDataPayload = {
         websiteFramework: wizardData.websiteFramework,
         branding: wizardData.branding,
         additionalServices: wizardData.pricing.additionalServices,
         additionalServicesList: wizardData.pricing.additionalServicesList || [],
         domains: {
-          primary_domain: wizardData.userInfo.domain,
-          additional_domains: [] as string[],
+          primaryDomain: wizardData.userInfo.domain,
+          domainExtension: wizardData.userInfo.domainExtension,
+          additionalDomains: wizardData.userInfo.additionalDomains || [],
         },
         pricing: {
           ...wizardData.pricing,
         },
       } as Record<string, unknown>;
 
-      const order = await ordersService.createOrderFromWizard({
-        sessionId: sessionId,
-        order: {
-          title: orderData.title,
-          description: orderData.description,
-          totalAmountTomans: orderData.priceTomans,
-          comments: orderData.comments,
-          siteType: orderData.site_type,
-        },
+      const unified = await ordersService.createOrderUnified({
+        submitMode: 'draft',
         wizardData: wizardDataPayload,
-        status: 'pending',
-        paymentStatus: 'pending',
+        totalAmount: orderData.priceTomans,
+        currency: 'IRR',
+        title: orderData.title,
+        description: orderData.description,
+        comments: orderData.comments,
+        siteType: orderData.site_type,
       });
 
-      if (order && order.id) {
-        try {
-          localStorage.removeItem(`wizard_progress_${sessionId}`);
-          localStorage.removeItem('wizard_session_id');
-        } catch (e) {
-          // ignore
-        }
+      // Treat HTTP 201 with success but without orderId as success
+      if (unified && (unified.orderId || unified.status === 'pending')) {
         toast({
           title: 'سفارش برای بعد ذخیره شد',
-          description: `شناسه سفارش: ${order.id}`,
+          description: unified.orderId ? `شناسه سفارش: ${unified.orderId}` : 'سفارش شما با موفقیت ذخیره شد',
           variant: 'default'
         });
 
-        onOrderSaved?.(order.id);
+        onOrderSaved?.(unified.orderId || '');
       } else {
         throw new Error('Failed to save order for later');
       }
-    } catch (error) {
       console.error('Error saving order for later:', error);
       toast({
         title: 'خطا در ذخیره سفارش',

@@ -16,9 +16,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const socials = [
-  { icon: Instagram, label: "Instagram", href: "https://instagram.com/arzansite" },
-  { icon: Linkedin, label: "LinkedIn", href: "https://linkedin.com/company/arzansite" },
-  { icon: Github, label: "GitHub", href: "https://github.com/arzansite" },
+  { icon: Instagram, label: "Instagram", href: "https://instagram.com/arzansite_ai" },
+  // { icon: Linkedin, label: "LinkedIn", href: "https://linkedin.com/company/arzansite" },
+  { icon: Github, label: "GitHub", href: "https://github.com/arzansite_ai" },
 ];
 
 const Header: React.FC = () => {
@@ -158,7 +158,7 @@ const Header: React.FC = () => {
           </a>
         </div>
         {/* Mobile menu/socials */}
-        <div className="hidden lg:inline-flex items-center gap-2">
+        {/* <div className="hidden lg:inline-flex items-center gap-2">
           {socials.map(({ icon: Icon, label, href }) => (
             <a
               key={label}
@@ -171,7 +171,7 @@ const Header: React.FC = () => {
               <Icon className="w-5 h-5 text-accent" />
             </a>
           ))}
-        </div>
+        </div> */}
       </div>
     </motion.header>
   );

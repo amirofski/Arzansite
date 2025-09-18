@@ -21,7 +21,6 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { WizardOrderManager } from './WizardOrderManager';
-import { tokenManager } from '@/lib/tokenManager';
 
 interface OrderSubmissionStepProps {
   data: WizardData;
@@ -92,32 +91,18 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
   const { toast } = useToast();
   const navigate = useNavigate();
   
-  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
-  const [sessionId, setSessionId] = useState<string>('');
+const [showAuthPrompt, setShowAuthPrompt] = useState(false);
 
-  // Check authentication status when component mounts or when auth state changes
+// Check authentication status when component mounts or when auth state changes
   useEffect(() => {
     if (authLoading) return;
-    // Consider authenticated if we already have a token in storage
-    const token = tokenManager.getAccessToken();
-    if (isAuthenticated || token) {
+    if (isAuthenticated) {
       setShowAuthPrompt(false);
     } else {
       setShowAuthPrompt(true);
     }
   }, [isAuthenticated, authLoading]);
 
-  // Generate session ID for wizard
-  useEffect(() => {
-    const existingSessionId = localStorage.getItem('wizard_session_id');
-    if (existingSessionId) {
-      setSessionId(existingSessionId);
-    } else {
-      const newSessionId = `wizard_${Date.now()}`;
-      setSessionId(newSessionId);
-      localStorage.setItem('wizard_session_id', newSessionId);
-    }
-  }, []);
 
   const handleOrderComplete = (orderId: string) => {
     toast({
@@ -275,38 +260,36 @@ const OrderSubmissionStep = ({ data: wizardData, updateData }: OrderSubmissionSt
       </Card>
 
              {/* Wizard Order Manager */}
-       {sessionId && (
-         <WizardOrderManager
-           sessionId={sessionId}
-           wizardData={{
-             siteType: wizardData.siteType,
-             websiteFramework: {
-               dynamicDesign: {
-                 pages: wizardData.websiteFramework?.dynamicDesign?.pages || [],
-                 currentPageId: wizardData.websiteFramework?.dynamicDesign?.currentPageId || 'main'
-               }
-             },
-             branding: {
-               primaryColor: wizardData.branding?.primaryColor || '#8B5CF6',
-               fontFamily: wizardData.branding?.fontFamily || 'vazir',
-               logo: wizardData.branding?.logo || ''
-             },
-             pricing: {
-               additionalServices: wizardData.pricing?.additionalServices || {},
-               additionalServicesList: (wizardData as any).pricing?.additionalServicesList || [],
-               customizationLevel: wizardData.pricing?.customizationLevel || [3],
-               rushDelivery: wizardData.pricing?.rushDelivery || false,
-               totalPrice: wizardData.pricing?.totalPrice || 0
-             },
-             userInfo: {
-               domain: wizardData.userInfo?.domain || '',
-               domainExtension: wizardData.userInfo?.additionalDomains?.[0]?.extension
+<WizardOrderManager
+         wizardData={{
+           siteType: wizardData.siteType,
+           websiteFramework: {
+             dynamicDesign: {
+               pages: wizardData.websiteFramework?.dynamicDesign?.pages || [],
+               currentPageId: wizardData.websiteFramework?.dynamicDesign?.currentPageId || 'main'
              }
-           }}
-           onOrderComplete={handleOrderComplete}
-           onOrderSaved={handleOrderSaved}
-         />
-       )}
+           },
+           branding: {
+             primaryColor: wizardData.branding?.primaryColor || '#8B5CF6',
+             fontFamily: wizardData.branding?.fontFamily || 'vazir',
+             logo: wizardData.branding?.logo || ''
+           },
+           pricing: {
+             additionalServices: wizardData.pricing?.additionalServices || {},
+             additionalServicesList: (wizardData as any).pricing?.additionalServicesList || [],
+             customizationLevel: wizardData.pricing?.customizationLevel || [3],
+             rushDelivery: wizardData.pricing?.rushDelivery || false,
+             totalPrice: wizardData.pricing?.totalPrice || 0
+           },
+           userInfo: {
+             domain: wizardData.userInfo?.domain || '',
+             domainExtension: wizardData.userInfo?.domainExtension,
+             additionalDomains: wizardData.userInfo?.additionalDomains || [],
+           }
+         }}
+         onOrderComplete={handleOrderComplete}
+         onOrderSaved={handleOrderSaved}
+       />
 
       {/* Navigation Help */}
       <div className="text-center text-sm text-muted-foreground">

@@ -41,6 +41,7 @@ import SiteModeDisplay from '@/components/ui/SiteModeDisplay';
 // Removed legacy service imports; using consolidated services via '@/lib/services'
 import AdminInvoiceManager from '@/components/admin/AdminInvoiceManager';
 import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
+import DesignPreview from '@/components/wizard/DesignPreview';
 import AdminReceiptManager from '@/components/admin/AdminReceiptManager';
 import AdminWalletAdjustmentDialog from '@/components/admin/AdminWalletAdjustmentDialog';
 import AdminPaymentLogs from '@/components/admin/AdminPaymentLogs';
@@ -790,7 +791,23 @@ const AdminDashboard = () => {
                             })()}
                           </div>
                         </div>
-                        <div className="mt-4">
+                        <div className="mt-4 space-y-4">
+                          {/* Inline dynamic design preview using wizardData if available */}
+                          {(() => {
+                            const wiz: any = (order as any).wizardData || (order as any).wizard_data;
+                            if (wiz?.websiteFramework?.dynamicDesign) {
+                              return (
+                                <div className="border rounded-lg p-4 bg-muted/30">
+                                  <div className="flex items-center gap-2 mb-3">
+                                    <span className="text-sm font-medium">پیش‌نمایش طراحی پویا</span>
+                                  </div>
+<DesignPreview design={wiz.websiteFramework.dynamicDesign} showActions={false} uploadedImages={wiz.websiteFramework.uploadedImages || {}} />
+                                </div>
+                              );
+                            }
+                            return null;
+                          })()}
+
                           <OrderDesignPreview
                             orderId={order.id}
                             orderTitle={order.title}

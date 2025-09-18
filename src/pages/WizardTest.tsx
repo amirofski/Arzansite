@@ -77,7 +77,6 @@ const WizardTest = () => {
     }
   };
 
-  const mockSessionId = 'wizard_test_1234567890';
 
   return (
     <Layout>
@@ -124,10 +123,9 @@ const WizardTest = () => {
                     <Badge variant="default">مدیر</Badge>
                     کامپوننت مدیریت سفارش پیشرفته
                   </CardTitle>
-                </CardContent>
+                </CardHeader>
                 <CardContent>
                   <WizardOrderManager
-                    sessionId={mockSessionId}
                     wizardData={mockWizardData}
                     onOrderComplete={(orderId) => {
                       console.log('Order completed:', orderId);
@@ -193,8 +191,8 @@ const WizardTest = () => {
                     <div className="text-sm space-y-1 text-muted-foreground font-mono">
                       <div>POST /api/wizard/complete-order</div>
                       <div>POST /api/wizard/save-order</div>
-                      <div>POST /api/wizard/save-progress</div>
-                      <div>GET /api/wizard/load-progress/{'{sessionId}'}</div>
+                      <div className="line-through opacity-70">POST /api/wizard/save-progress (deprecated)</div>
+                      <div className="line-through opacity-70">GET /api/wizard/load-progress/:sessionId (deprecated)</div>
                     </div>
                   </div>
                 </CardContent>

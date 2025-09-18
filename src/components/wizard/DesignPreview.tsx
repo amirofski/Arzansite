@@ -179,6 +179,48 @@ const DesignPreview = ({
 
   // Render section component using image
   const renderSection = (section: PageSection) => {
+    // 1) Prefer explicit customData images when present
+    const customImages = Array.isArray(section.customData?.images)
+      ? section.customData!.images
+      : (typeof (section.customData as any)?.images === 'string' ? [(section.customData as any).images] : []);
+
+    if (customImages && customImages.length > 0) {
+      return (
+        <div className="grid gap-3">
+          {customImages.map((img, idx) => {
+            const src = resolveImageSrc(String(img));
+            if (!src) return null;
+            return (
+              <LazyImage
+                key={`${section.id}-${idx}`}
+                src={src}
+                alt={`${section.sectionType}-${section.layoutId}-${idx}`}
+                className="w-full h-auto rounded-lg"
+                fallback="/placeholder.svg"
+              />
+            );
+          })}
+        </div>
+      );
+    }
+
+    // 2) If no custom images, derive a direct asset path by layoutId under public/designs
+    try {
+      const layout = String(section.layoutId || '1');
+      const parts = layout.split('-');
+      const index = parts.length > 1 ? parts[1] : layout;
+      const direct = `/designs/${section.sectionType}/${index}.png`;
+      return (
+        <LazyImage
+          src={direct}
+          alt={`${section.sectionType}-${layout}`}
+          className="w-full h-auto rounded-lg"
+          fallback="/placeholder.svg"
+        />
+      );
+    } catch {}
+
+    // 3) Otherwise use template preview images if available
     const templates = imageTemplates[section.sectionType] || [];
     const template = templates.find(t => t.id === section.layoutId) || templates[0];
     
@@ -209,7 +251,7 @@ const DesignPreview = ({
       );
     }
 
-    // Fallback to component if no image
+    // 4) Fallback to component if no image
     const LayoutComponent = template.component;
     return <LayoutComponent className="w-full" />;
   };

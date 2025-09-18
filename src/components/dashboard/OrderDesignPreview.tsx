@@ -17,6 +17,7 @@ interface OrderDesignPreviewProps {
   paymentStatus: string;
   isAdmin?: boolean;
   onStatusUpdate?: () => void;
+  initialDesign?: DynamicDesign | null; // optional to skip API calls
 }
 
 const OrderDesignPreview = ({ 
@@ -25,7 +26,8 @@ const OrderDesignPreview = ({
   orderPrice, 
   paymentStatus, 
   isAdmin = false,
-  onStatusUpdate 
+  onStatusUpdate,
+  initialDesign,
 }: OrderDesignPreviewProps) => {
   const [design, setDesign] = useState<DynamicDesign | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,14 +37,20 @@ const OrderDesignPreview = ({
   const loadDesignData = useCallback(async () => {
     try {
       setLoading(true);
+      // If provided, use the initial design and skip API
+      if (initialDesign) {
+        setDesign(initialDesign);
+        return;
+      }
       const designData = await DesignService.loadDesign(orderId);
       setDesign(designData);
     } catch (error) {
-      console.error('Error loading design data:', error);
+      // Suppress noisy errors if design endpoints are not available
+      console.warn('Design preview fallback:', error instanceof Error ? error.message : error);
     } finally {
       setLoading(false);
     }
-  }, [orderId]);
+  }, [orderId, initialDesign]);
 
   useEffect(() => {
     loadDesignData();

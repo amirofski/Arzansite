@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import Index from "./pages/Index";
+import Contact from "./pages/Contact";
 import Wizard from "./pages/Wizard";
 import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -79,6 +80,7 @@ const SiteModeWrapper = React.memo(() => {
         } />
         {/* <Route path="/payment-callback" element={<PaymentCallback />} /> */}
         <Route path="/payment/callback" element={<PaymentCallback />} />
+        <Route path="/contact" element={<Contact />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

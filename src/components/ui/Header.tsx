@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Instagram, Linkedin, Github, Phone, Mail, Menu, User, LogOut, Shield, Bell } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 // Removed direct Supabase usage; user role is provided by useAuth
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,17 @@ const Header: React.FC = () => {
     setUserRole(user?.role || 'user');
   }, [user]);
 
+  // Transparent on home top; glass when scrolled or on non-home routes
+  const location = useLocation();
+  const isHome = location.pathname === '/';
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled((window.scrollY || 0) > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [isHome]);
+
   const handleSignOut = async () => {
     await signOut();
     navigate("/");
@@ -38,7 +49,7 @@ const Header: React.FC = () => {
 
   return (
     <motion.header
-      className="fixed top-0 w-full z-50 bg-white/30 backdrop-blur-xl border-b border-white/20 shadow-lg"
+      className={`fixed top-0 w-full z-50 transition-all duration-500 ${isHome && !scrolled ? 'bg-transparent border-transparent shadow-none' : 'bg-white/30 backdrop-blur-xl border-b border-white/20 shadow-lg'}`}
       initial={{ y: -100, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.7, ease: "easeOut" }}
@@ -71,13 +82,12 @@ const Header: React.FC = () => {
                 ease: "linear"
               }}
               style={{
-                backgroundSize: "200% 200%",
+                backgroundSize: "50% 50%",
                 display: "inline-block"
               }}
             >
               ارزان سایت
             </motion.span>
-            <span className="text-xs text-accent font-semibold tracking-wide mt-0.5">Arzan Site - بهترین سایت‌ساز ایران</span>
           </div>
         </button>
         {/* Socials (desktop) */}

@@ -139,11 +139,15 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'cancelled'>('all');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+
   const fetchOrders = async () => {
     if (!user) return;
     setOrdersLoading(true);
     try {
-      const ordersData = await ordersService.getOrders({ mine: true });
+      const ordersData = await ordersService.getOrders({ mine: true, status: statusFilter !== 'all' ? statusFilter : undefined, from: fromDate || undefined, to: toDate || undefined });
       const list = Array.isArray((ordersData as any)?.orders)
         ? (ordersData as any).orders
         : Array.isArray((ordersData as any)?.items)
@@ -378,7 +382,23 @@ const Dashboard: React.FC = () => {
             <TabsContent value="orders" className="space-y-6">
               <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                 <h2 className="text-2xl font-bold">سفارشات من</h2>
-                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+              <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center">
+                {/* Filters */}
+                <div className="flex flex-wrap gap-2 items-center">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input placeholder="جستجو دامنه/عنوان..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-full sm:w-64" />
+                  </div>
+                  <select className="border rounded px-2 py-1 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                    <option value="all">همه وضعیت‌ها</option>
+                    <option value="pending">در انتظار</option>
+                    <option value="in_progress">در حال انجام</option>
+                    <option value="completed">تکمیل شده</option>
+                    <option value="cancelled">لغو شده</option>
+                  </select>
+                  <input type="date" className="border rounded px-2 py-1 text-sm" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+                  <input type="date" className="border rounded px-2 py-1 text-sm" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+                </div>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input placeholder="جستجو در سفارشات..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-full sm:w-64" />

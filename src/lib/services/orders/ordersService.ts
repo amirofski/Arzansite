@@ -41,6 +41,8 @@ export interface UpdateOrderRequest {
   comments?: string;
   totalPages?: number;
   totalSections?: number;
+  siteType?: string;
+  wizardData?: unknown;
 }
 
 // Response interfaces
@@ -174,8 +176,13 @@ export class OrdersService extends BaseApiService {
         const id = o.id || o.orderId || o.order_id || o._id || o.$id || o?.order?.id || '';
         const status = o.status || o?.order?.status || (o?.data?.status) || 'pending';
         const price = o.price ?? o.totalAmount ?? o.total_amount ?? o?.order?.totalAmount ?? 0;
-        const wizardData = o.wizardData || o.wizard_data || o?.metadata?.wizardData || undefined;
-        return { ...o, id, status, price, wizardData };
+        let wizardData: any = o.wizardData || o.wizard_data || o?.metadata?.wizardData || undefined;
+        if (typeof wizardData === 'string') {
+          try { wizardData = JSON.parse(wizardData); } catch {}
+        }
+        const createdAt = o.createdAt || o.created_at || o.$createdAt || o.$created_at;
+        const updatedAt = o.updatedAt || o.updated_at || o.$updatedAt || o.$updated_at;
+        return { ...o, id, status, price, wizardData, createdAt, updatedAt };
       });
 
       const pagination = root?.pagination || t?.pagination || {

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { ordersService, paymentService } from '@/lib/services';
 import { tokenManager } from '@/lib/tokenManager';
 import { Button } from '@/components/ui/button';
@@ -64,6 +65,10 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
   onOrderComplete,
   onOrderSaved
 }) => {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const isEditMode = params.get('mode') === 'edit';
+  const editingOrderId = params.get('orderId') || undefined;
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [orderData, setOrderData] = useState({
@@ -108,6 +113,33 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         },
       } as Record<string, unknown>;
 
+      // If editing, update the order then request payment
+      if (isEditMode && editingOrderId) {
+        await ordersService.updateOrder(editingOrderId, {
+          title: orderData.title,
+          description: orderData.description,
+          price: orderData.priceTomans,
+          comments: orderData.comments,
+          siteType: orderData.site_type,
+          wizardData: wizardDataPayload,
+          status: 'pending',
+          paymentStatus: 'pending',
+        });
+        const pr = await paymentService.requestPayment({
+          amount: orderData.priceTomans || 0,
+          description: `پرداخت سفارش ${editingOrderId}`,
+          orderId: editingOrderId,
+          callbackUrl: `${window.location.origin}/payment/callback`,
+          returnUrl: `${window.location.origin}/dashboard`,
+        });
+        const url = (pr as any)?.paymentUrl || (pr as any)?.data?.paymentUrl;
+        if (url) {
+          window.location.href = String(url);
+          return;
+        }
+        throw new Error('آدرس پرداخت نامعتبر است');
+      }
+
       // Try unified endpoint with payment
       const unified = await ordersService.createOrderUnified({
         submitMode: 'payment',
@@ -135,8 +167,9 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         returnUrl: `${window.location.origin}/dashboard`,
       });
 
-      if ((payment as any)?.paymentUrl) {
-        window.location.href = (payment as any).paymentUrl as string;
+      const url = (payment as any)?.paymentUrl || (payment as any)?.data?.paymentUrl;
+      if (url) {
+        window.location.href = String(url);
         return;
       }
 
@@ -186,16 +219,30 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         },
       } as Record<string, unknown>;
 
-      const unified = await ordersService.createOrderUnified({
-        submitMode: 'draft',
-        wizardData: wizardDataPayload,
-        totalAmount: orderData.priceTomans,
-        currency: 'IRR',
-        title: orderData.title,
-        description: orderData.description,
-        comments: orderData.comments,
-        siteType: orderData.site_type,
-      });
+      if (isEditMode && editingOrderId) {
+        await ordersService.updateOrder(editingOrderId, {
+          title: orderData.title,
+          description: orderData.description,
+          price: orderData.priceTomans,
+          comments: orderData.comments,
+          siteType: orderData.site_type,
+          wizardData: wizardDataPayload,
+          status: 'pending',
+          paymentStatus: 'pending',
+        });
+        toast({ title: 'سفارش بروزرسانی و ذخیره شد', description: `شناسه سفارش: ${editingOrderId}` });
+        onOrderSaved?.(editingOrderId);
+      } else {
+        const unified = await ordersService.createOrderUnified({
+          submitMode: 'draft',
+          wizardData: wizardDataPayload,
+          totalAmount: orderData.priceTomans,
+          currency: 'IRR',
+          title: orderData.title,
+          description: orderData.description,
+          comments: orderData.comments,
+          siteType: orderData.site_type,
+        });
 
       // Treat HTTP 201 with success but without orderId as success
       if (unified && (unified.orderId || unified.status === 'pending')) {
@@ -209,6 +256,8 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
       } else {
         throw new Error('Failed to save order for later');
       }
+      }
+    } catch (error) {
       console.error('Error saving order for later:', error);
       toast({
         title: 'خطا در ذخیره سفارش',

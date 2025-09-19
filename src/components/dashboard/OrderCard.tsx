@@ -73,8 +73,9 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onDeleted, onRefresh }) =>
         callbackUrl: `${window.location.origin}/payment/callback`,
         returnUrl: `${window.location.origin}/dashboard`,
       });
-      if ((pr as any)?.paymentUrl) {
-        window.location.href = (pr as any).paymentUrl as string;
+      const url = (pr as any)?.paymentUrl || (pr as any)?.data?.paymentUrl;
+      if (url) {
+        window.location.href = String(url);
       } else {
         throw new Error('آدرس پرداخت نامعتبر است');
       }

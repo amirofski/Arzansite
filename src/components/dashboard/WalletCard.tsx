@@ -330,7 +330,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
         const depositPayload = {
           amount: Math.floor(amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
           description: depositDescription || `شارژ کیف پول - ${formatAmount(amount, 'RIAL')}`,
-          callbackUrl: `${window.location.origin}/wallet-payment-callback`
+          callbackUrl: `${window.location.origin}/payment/callback`
         };
       
       await requestDeposit(depositPayload);
@@ -472,7 +472,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                                                  const depositData = await requestDeposit({
                            amount: Math.floor(amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
                            description: description,
-                           callbackUrl: `${window.location.origin}/wallet-payment-callback`
+                           callbackUrl: `${window.location.origin}/payment/callback`
                          }) as { paymentUrl: string; orderId: string };
                          
                          if (!depositData.paymentUrl) throw new Error('Failed to create deposit request');

@@ -14,6 +14,8 @@ interface OrderCardProps {
   order: Order & { wizardData?: any; wizard_data?: any };
   onDeleted?: (id: string) => void;
   onRefresh?: () => void;
+  hidePayButton?: boolean;
+  onDeleteRequest?: (id: string) => Promise<void> | void;
 }
 
 const statusText = (s: string) => {
@@ -38,7 +40,7 @@ const statusColor = (s: string) => {
 
 const formatPrice = (n: number) => new Intl.NumberFormat('fa-IR').format(n) + ' تومان';
 
-const OrderCard: React.FC<OrderCardProps> = ({ order, onDeleted, onRefresh }) => {
+const OrderCard: React.FC<OrderCardProps> = ({ order, onDeleted, onRefresh, hidePayButton = false, onDeleteRequest }) => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const wiz: any = (order as any).wizardData || (order as any).wizard_data || {};
@@ -48,7 +50,11 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onDeleted, onRefresh }) =>
 
   const handleDelete = async () => {
     try {
-      await ordersService.deleteOrder(order.id);
+      if (onDeleteRequest) {
+        await onDeleteRequest(order.id);
+      } else {
+        await ordersService.deleteOrder(order.id);
+      }
       toast({ title: 'سفارش حذف شد', description: 'سفارش با موفقیت حذف شد' });
       onDeleted?.(order.id);
     } catch (err: any) {
@@ -154,7 +160,7 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onDeleted, onRefresh }) =>
                 <div className="text-muted-foreground mb-1">توضیحات</div>
                 <div className="line-clamp-5 whitespace-pre-wrap">{order.comments || order.description || '—'}</div>
               </div>
-              {order.status === 'pending' && (
+              {!hidePayButton && order.status === 'pending' && (
                 <Button onClick={handlePay} className="w-full flex items-center gap-2"><CreditCard className="w-4 h-4" />پرداخت درگاه</Button>
               )}
             </div>

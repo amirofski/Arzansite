@@ -11,12 +11,9 @@ import Auth from "./pages/Auth";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
-// removed custom auth pages; using unified Auth page
 import PaymentCallback from "./pages/PaymentCallback";
-import WalletPaymentCallback from "./pages/WalletPaymentCallback";
 import OAuthCallback from "./components/OAuthCallback";
 import NotFound from "./pages/NotFound";
-import Debug from "./pages/Debug";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -70,7 +67,6 @@ const SiteModeWrapper = React.memo(() => {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/auth/oauth/callback" element={<OAuthCallback provider="github" />} />
         <Route path="/auth/oauth/callback/:provider" element={<OAuthCallback />} />
-        <Route path="/debug" element={<Debug />} />
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
@@ -83,8 +79,6 @@ const SiteModeWrapper = React.memo(() => {
         } />
         {/* <Route path="/payment-callback" element={<PaymentCallback />} /> */}
         <Route path="/payment/callback" element={<PaymentCallback />} />
-        {/* <Route path="/wallet-payment-callback" element={<WalletPaymentCallback />} /> */}
-        <Route path="/wallet/payment/callback" element={<WalletPaymentCallback />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

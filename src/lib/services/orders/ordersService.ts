@@ -275,12 +275,15 @@ export class OrdersService extends BaseApiService {
     } = {}
   ): Promise<any> {
     try {
-      const body = FieldMapper.transformRequest({
-        orderId,
-        status: updates.status,
-        paymentStatus: updates.paymentStatus,
-        reason: updates.reason,
-      });
+      // Some backends expect camelCase 'orderId' on this specific endpoint. Keep orderId as-is.
+      const body = {
+        orderId: String(orderId),
+        ...FieldMapper.transformRequest({
+          status: updates.status,
+          paymentStatus: updates.paymentStatus,
+          reason: updates.reason,
+        }),
+      };
       try {
         const res = await withRetry(() =>
           this.request<any>('/orders/update-status', {

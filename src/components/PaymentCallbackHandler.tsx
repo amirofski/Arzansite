@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { paymentService, walletService } from '@/lib/services';
+import { paymentService, walletService, ordersService } from '@/lib/services';
 import { SafeTransactionDescription } from './SafeTransactionDescription';
 
 export interface PaymentCallbackData {
@@ -22,6 +23,7 @@ export interface PaymentVerificationResult {
   errorDetails?: string;
   retryable: boolean;
   supportRequired: boolean;
+  context?: 'order' | 'wallet';
 }
 
 export interface PaymentError {
@@ -193,7 +195,9 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
       }
 
       // Decide context: wallet deposit (no orderId) vs order payment (has orderId)
-      const isWallet = !data.orderId;
+      let hasOrderContext = false;
+      try { hasOrderContext = !!sessionStorage.getItem('orderPaymentInfo'); } catch {}
+      const isWallet = !hasOrderContext && !data.orderId;
 
       if (isWallet) {
         // Verify wallet deposit
@@ -211,6 +215,7 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
             description: response.description,
             retryable: false,
             supportRequired: false,
+            context: 'wallet',
           };
         } else {
           return {
@@ -235,11 +240,12 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
         return {
           success: true,
           refId: response.refId,
-          orderId: response.orderId,
+          orderId: response.orderId || data.orderId,
           amount: response.amount,
           description: response.description,
           retryable: false,
           supportRequired: false,
+          context: 'order',
         };
       } else {
         return {
@@ -303,6 +309,14 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
       if (result.success) {
         setStatus('success');
         onPaymentSuccess?.(result);
+        // Best-effort client-side update in case backend didn't set order status
+        if (result.orderId) {
+          try {
+            await ordersService.updateOrderStatus(result.orderId, { paymentStatus: 'succeeded' });
+          } catch (e) {
+            console.warn('Order status update fallback failed:', e);
+          }
+        }
       } else {
         setStatus('failed');
         const errorDetails = getErrorDetails(result.errorCode!, result.error);
@@ -376,22 +390,43 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
   // Loading state
   if (status === 'loading') {
     return (
-      <div className="payment-callback-loading">
-        <div className="loading-spinner"></div>
-        <h2>در حال تأیید پرداخت...</h2>
-        <p>لطفاً صبر کنید، در حال بررسی وضعیت پرداخت شما هستیم.</p>
-      </div>
+      <motion.div 
+        className="payment-callback-loading"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <motion.div 
+          className="loading-spinner"
+          animate={{ rotate: 360 }} 
+          transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
+        />
+        <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>در حال تأیید پرداخت...</motion.h2>
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>لطفاً صبر کنید، در حال بررسی وضعیت پرداخت شما هستیم.</motion.p>
+      </motion.div>
     );
   }
 
   // Success state
   if (status === 'success' && verificationResult) {
     return (
-      <div className="payment-callback-success">
-        <div className="success-icon">✅</div>
-        <h2>پرداخت موفقیت‌آمیز بود</h2>
+      <motion.div 
+        className="payment-callback-success"
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.35 }}
+      >
+        <motion.div 
+          className="success-icon"
+          initial={{ scale: 0, rotate: -20 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+        >
+          ✅
+        </motion.div>
+        <motion.h2 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>پرداخت موفقیت‌آمیز بود</motion.h2>
         
-        <div className="payment-details">
+        <motion.div className="payment-details" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
           <div className="detail-item">
             <span className="label">شماره پیگیری:</span>
             <span className="value">{verificationResult.refId}</span>
@@ -418,10 +453,10 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
               />
             </div>
           )}
-        </div>
+        </motion.div>
 
-        <div className="success-message">
-          {(!verificationResult.orderId) ? (
+        <motion.div className="success-message" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+          {(verificationResult.context === 'wallet') ? (
             <>
               <p>پرداخت شما با موفقیت انجام شد و مبلغ به کیف پول شما اضافه شد.</p>
               <p>تا چند لحظه دیگر به داشبورد (بخش کیف پول) هدایت می‌شوید...</p>
@@ -433,9 +468,9 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
             </>
           )}
           <p>شماره پیگیری را برای مراجعات بعدی یادداشت کنید.</p>
-        </div>
+        </motion.div>
 
-        <div className="action-buttons">
+        <motion.div className="action-buttons" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           {!verificationResult.orderId && (
             <button 
               onClick={handleGoToWallet}
@@ -450,17 +485,29 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
           >
             بازگشت به داشبورد
           </button>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   }
 
   // Failed state
   if (status === 'failed' && errorDetails) {
     return (
-      <div className="payment-callback-failed">
-        <div className="error-icon">❌</div>
-        <h2>{errorDetails.message}</h2>
+      <motion.div 
+        className="payment-callback-failed"
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.35 }}
+      >
+        <motion.div 
+          className="error-icon"
+          initial={{ scale: 0, rotate: 10 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+        >
+          ❌
+        </motion.div>
+        <motion.h2 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>{errorDetails.message}</motion.h2>
         
         <div className="error-details">
           <p className="error-description">{errorDetails.description}</p>
@@ -554,7 +601,7 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
             <p>در صورت کسر مبلغ از حساب شما، لطفاً با پشتیبانی تماس بگیرید.</p>
           </div>
         )}
-      </div>
+      </motion.div>
     );
   }
 

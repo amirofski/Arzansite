@@ -40,8 +40,7 @@ import SiteModeDisplay from '@/components/ui/SiteModeDisplay';
 // Removed unused frontend email templating utilities; keep only adminService usage for emails
 // Removed legacy service imports; using consolidated services via '@/lib/services'
 import AdminInvoiceManager from '@/components/admin/AdminInvoiceManager';
-import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
-import DesignPreview from '@/components/wizard/DesignPreview';
+import OrderCard from '@/components/dashboard/OrderCard';
 import AdminReceiptManager from '@/components/admin/AdminReceiptManager';
 import AdminWalletAdjustmentDialog from '@/components/admin/AdminWalletAdjustmentDialog';
 import AdminPaymentLogs from '@/components/admin/AdminPaymentLogs';
@@ -741,86 +740,52 @@ const AdminDashboard = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-4">
-                  {currentOrders.map((order) => (
-                    <Card key={order.id}>
-                      <CardHeader>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg">{order.title}</CardTitle>
-                            <CardDescription className="mt-2">
-                              {order.description}
-                            </CardDescription>
-                          </div>
-                          <div className="flex gap-2 items-center">
-                            <Badge className={`${getStatusColor(order.status)} border-0`}>
-                              {getStatusText(order.status)}
-                            </Badge>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleOrderStatusUpdate(order.id, 'completed')}
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteOrder(order.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="font-medium">قیمت: </span>
-                            {order.price ? formatPrice(order.price) : 'نامشخص'}
-                          </div>
-                          <div>
-                            <span className="font-medium">تاریخ ایجاد: </span>
-                            {formatDate((order as any).created_at || (order as any).createdAt)}
-                          </div>
-                          <div>
-                            <span className="font-medium">کاربر: </span>
-                            {(() => {
-                              const u = users.find((x) => x.id === (order as any).user_id);
-                              return u?.full_name || u?.email || (order as any).user_id;
-                            })()}
-                          </div>
-                        </div>
-                        <div className="mt-4 space-y-4">
-                          {/* Inline dynamic design preview using wizardData if available */}
-                          {(() => {
-                            const wiz: any = (order as any).wizardData || (order as any).wizard_data;
-                            if (wiz?.websiteFramework?.dynamicDesign) {
-                              return (
-                                <div className="border rounded-lg p-4 bg-muted/30">
-                                  <div className="flex items-center gap-2 mb-3">
-                                    <span className="text-sm font-medium">پیش‌نمایش طراحی پویا</span>
-                                  </div>
-<DesignPreview design={wiz.websiteFramework.dynamicDesign} showActions={false} uploadedImages={wiz.websiteFramework.uploadedImages || {}} />
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
+                <div className="space-y-6">
+                  {currentOrders.map((order) => {
+                    // Map AdminOrder to user Order shape for OrderCard
+                    const mappedOrder: any = {
+                      id: (order as any).id,
+                      title: (order as any).title,
+                      description: (order as any).description,
+                      price: Number((order as any).price || 0),
+                      status: (order as any).status || 'pending',
+                      paymentStatus: (order as any).payment_status || (order as any).paymentStatus,
+                      comments: (order as any).comments,
+                      totalPages: (order as any).total_pages || (order as any).totalPages,
+                      totalSections: (order as any).total_sections || (order as any).totalSections,
+                      userId: (order as any).user_id,
+                      siteType: (order as any).site_type || (order as any).siteType,
+                      sessionId: (order as any).session_id || (order as any).sessionId,
+                      wizardData: (order as any).wizardData || (order as any).wizard_data,
+                      createdAt: (order as any).created_at || (order as any).createdAt,
+                      updatedAt: (order as any).updated_at || (order as any).updatedAt,
+                    };
 
-                          <OrderDesignPreview
-                            orderId={order.id}
-                            orderTitle={order.title}
-                            orderPrice={order.price || 0}
-                            paymentStatus={(order as any).payment_status || (order as any).paymentStatus || 'pending'}
-                            isAdmin={true}
-                            onStatusUpdate={fetchOrders}
-                          />
+                    return (
+                      <div key={(order as any).id} className="space-y-2">
+                        <OrderCard
+                          order={mappedOrder}
+                          hidePayButton
+                          onRefresh={fetchOrders}
+                          onDeleted={() => fetchOrders()}
+                          onDeleteRequest={async (id) => { await adminService.deleteOrder(id); }}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Badge className={`${getStatusColor(order.status)} border-0`}>
+                            {getStatusText(order.status)}
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOrderStatusUpdate(order.id, 'completed')}
+                          >
+                            <CheckCircle className="w-4 h-4" /> تکمیل سفارش
+                          </Button>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  
+                      </div>
+                    );
+                  })}
+
                   <PaginationControls
                     currentPage={ordersCurrentPage}
                     totalPages={ordersTotalPages}

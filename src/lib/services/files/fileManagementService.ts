@@ -107,6 +107,63 @@ export interface DeleteFileResponse {
 
 export class FileManagementService extends BaseApiService {
   /**
+   * Upload multiple files to a storage bucket (proxyed to Appwrite, persisted in project_files)
+   */
+  async uploadMany(bucket: string, files: File[], options?: { orderId?: string; description?: string; metadata?: string | Record<string, unknown> }): Promise<{
+    success: boolean;
+    uploaded: Array<{ fileId: string; fileName: string; message?: string }>;
+    errors: Array<{ fileName: string; error: string }>;
+  }> {
+    try {
+      const b = resolveBucket(bucket);
+      const fd = new FormData();
+      for (const f of files) {
+        // backend accepts repeated "files" entries
+        fd.append('files', f, f.name);
+      }
+      if (options?.orderId) fd.append('order_id', options.orderId);
+      if (options?.description) fd.append('description', options.description);
+      if (options?.metadata) fd.append('metadata', typeof options.metadata === 'string' ? options.metadata : JSON.stringify(options.metadata));
+
+      const response = await withRetry(() =>
+        this.request<any>(`/storage/upload/${encodeURIComponent(b)}/many`, {
+          method: 'POST',
+          body: fd,
+        })
+      );
+
+      // Normalize aggregated result
+      const uploaded = Array.isArray(response?.uploaded) ? response.uploaded : [];
+      const errors = Array.isArray(response?.errors) ? response.errors : [];
+      return {
+        success: Boolean(response?.success ?? uploaded.length > 0),
+        uploaded: FieldMapper.transformResponse(uploaded),
+        errors: FieldMapper.transformResponse(errors),
+      };
+    } catch (error) {
+      ErrorHandler.logError(error, 'FileManagementService.uploadMany');
+      throw error;
+    }
+  }
+
+  /**
+   * Stream download proxy for a file
+   */
+  async downloadProxy(bucket: string, fileId: string): Promise<Blob> {
+    try {
+      const b = resolveBucket(bucket);
+      const url = `${this.baseUrl}/storage/download/${encodeURIComponent(b)}/${encodeURIComponent(fileId)}`;
+      const token = this.getAuthToken();
+      const res = await fetch(url, { headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.blob();
+    } catch (error) {
+      ErrorHandler.logError(error, 'FileManagementService.downloadProxy');
+      throw error;
+    }
+  }
+
+  /**
    * List uploaded files
    */
   async listUploads(request: ListUploadsRequest): Promise<FileListResponse> {

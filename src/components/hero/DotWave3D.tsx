@@ -12,7 +12,7 @@ export type DotWave3DProps = {
   density?: { x: number; y: number }; // grid resolution
   color?: string; // dot color
   parallax?: { mouse: number; scroll: number }; // strengths
-  hole?: { y: number; feather: number }; // center horizontal band (in NDC)
+  hole?: { y: number; feather: number }; // center sparseness band in NDC (radial helper)
   className?: string;
 };
 
@@ -22,7 +22,7 @@ const DotWave3D: React.FC<DotWave3DProps> = ({
   density = { x: 80, y: 50 },
   color = "#bcd1ff",
   parallax = { mouse: 0.06, scroll: 40 },
-  hole = { y: 0.26, feather: 0.18 },
+  hole = { y: 0.22, feather: 0.22 },
   className = "absolute inset-0 pointer-events-none -z-10",
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -41,17 +41,23 @@ const DotWave3D: React.FC<DotWave3DProps> = ({
     camera.position.set(0, 8, 38);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.8);
+const isSmall = (container.clientWidth || 0) < 640;
+    const dpr = Math.min(window.devicePixelRatio || 1, isSmall ? 1.2 : 1.8);
     renderer.setPixelRatio(dpr);
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setClearColor(0x000000, 0); // transparent
     container.appendChild(renderer.domElement);
 
-    // Build a grid of points on XZ plane; Y displaced in shader by time-based sin
-    const cols = Math.max(16, Math.floor(density.x));
-    const rows = Math.max(10, Math.floor(density.y));
-    const width = 90; // expanded visible area width for an infinite feel
-    const depth = 60; // expanded visible area depth
+// Build a grid of points on XZ plane; Y displaced in shader by time-based sin
+    // Responsive density based on container size
+    const baseCols = Math.max(40, Math.floor(density.x));
+    const baseRows = Math.max(28, Math.floor(density.y));
+    const scaleX = Math.max(0.6, Math.min(1.4, container.clientWidth / 1280));
+    const scaleY = Math.max(0.6, Math.min(1.4, container.clientHeight / 720));
+    const cols = Math.floor(baseCols * scaleX);
+    const rows = Math.floor(baseRows * scaleY);
+    const width = 100; // expanded area for an infinite feel
+    const depth = 70;
     const xStep = width / cols;
     const zStep = depth / rows;
 
@@ -70,7 +76,7 @@ const DotWave3D: React.FC<DotWave3DProps> = ({
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
 
-    const material = new THREE.ShaderMaterial({
+const material = new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
       uniforms: {
@@ -89,16 +95,21 @@ const DotWave3D: React.FC<DotWave3DProps> = ({
         varying vec2 vNdc;
         void main() {
           vec3 p = position;
-          float wave = sin(p.x * 0.18 + uTime * uSpeed) * 0.8
-                     + cos(p.z * 0.22 + uTime * uSpeed * 0.9) * 0.6;
+          // Mixed waves to avoid linear banding and add subtle complexity
+          float w1 = sin(p.x * 0.18 + uTime * (uSpeed*1.0)) * 0.7;
+          float w2 = cos(p.z * 0.21 - uTime * (uSpeed*0.9)) * 0.6;
+          float w3 = sin((p.x + p.z) * 0.13 + uTime * (uSpeed*0.7)) * 0.4;
+          float wave = w1 + w2 + w3;
           p.y += wave * uAmp;
           vHeight = p.y;
           vec4 clip = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
           gl_Position = clip;
-          vNdc = clip.xy / clip.w; // -1..1
-          // Perspective-aware point size
-          float size = 3.2 + (p.y + 1.0) * 1.8;
-          gl_PointSize = size;
+          vNdc = clip.xy / clip.w; // -1..1 in screen space
+          // Edge emphasis: bigger toward edges, tiny near center for depth
+          float r = length(vNdc);
+          float edge = smoothstep(0.15, 1.0, r);
+          float base = 1.8 + (p.y + 1.0) * 1.2;
+          gl_PointSize = base + edge * 3.0; // larger at edges, smaller center
         }
       `,
       fragmentShader: `
@@ -113,10 +124,13 @@ const DotWave3D: React.FC<DotWave3DProps> = ({
           float d = length(uv);
           if (d > 0.5) discard;
           float alpha = smoothstep(0.5, 0.0, d);
-          // Vertical center band hole (lower alpha around NDC y=0)
+          // Radial center sparsity and vertical feather
+          float r = length(vNdc);
+          float center = smoothstep(0.0, 0.25, r); // near center => smaller alpha
+          alpha *= mix(0.2, 1.0, center);
           float distY = abs(vNdc.y);
-          float holeMask = smoothstep(uHoleY - uHoleFeather, uHoleY + uHoleFeather, distY);
-          alpha *= holeMask;
+          float band = smoothstep(uHoleY - uHoleFeather, uHoleY + uHoleFeather, distY);
+          alpha *= band;
           // Height-based subtle brightness
           float b = clamp(0.65 + vHeight * 0.15, 0.5, 1.0);
           gl_FragColor = vec4(uColor * b, alpha * 0.9);
@@ -168,7 +182,9 @@ const DotWave3D: React.FC<DotWave3DProps> = ({
       const t = clock.getElapsedTime();
       if (!prefersReduced) {
         (material.uniforms.uTime.value as number) = t;
-        // Smoothly lerp rotations for a natural feel
+        // Gentle auto drift to enhance depth
+        group.rotation.z = Math.sin(t * 0.1) * 0.02;
+        // Smoothly lerp rotations for a natural feel (mouse tilt)
         group.rotation.x += (targetRX - group.rotation.x) * 0.06;
         group.rotation.y += (targetRY - group.rotation.y) * 0.06;
       }

@@ -61,7 +61,7 @@ const Index = () => {
 
       {/* Hero Section */}
       <section className="relative min-h-[100svh] flex items-center overflow-hidden bg-[linear-gradient(180deg,#0b1029,#070b1d)] text-white">
-        <DotWave3D className="absolute inset-0 z-0 pointer-events-none" density={{ x: 96, y: 56 }} amplitude={0.9} speed={0.25} parallax={{ mouse: 0.06, scroll: 40 }} />
+        <DotWave3D className="absolute inset-0 z-0 pointer-events-none" density={{ x: 96, y: 56 }} amplitude={0.1} speed={0.25} parallax={{ mouse: 0.06, scroll: 40 }} />
         <div className="relative z-10 max-w-7xl mx-auto w-full px-4 md:px-8 grid md:grid-cols-2 gap-10 items-center">
           <div>
             <motion.p className="text-accent font-semibold tracking-wide mb-3" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.7 }}>

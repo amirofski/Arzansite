@@ -75,6 +75,15 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onDeleted, onRefresh }) =>
       });
       const url = (pr as any)?.paymentUrl || (pr as any)?.data?.paymentUrl;
       if (url) {
+        try {
+          const info = {
+            orderId: order.id,
+            amount: order.price || 0,
+            description: `پرداخت سفارش ${order.id}`,
+            timestamp: Date.now(),
+          };
+          sessionStorage.setItem('orderPaymentInfo', JSON.stringify(info));
+        } catch {}
         window.location.href = String(url);
       } else {
         throw new Error('آدرس پرداخت نامعتبر است');

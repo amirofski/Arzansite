@@ -20,6 +20,7 @@ export interface PaymentRequest {
 export interface PaymentVerificationRequest {
   authority: string;
   orderId?: string;
+  amount?: number;
 }
 
 export interface PaymentStatusRequest {

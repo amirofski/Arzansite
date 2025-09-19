@@ -144,9 +144,20 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
     const params = new URLSearchParams(location.search);
     const authority = params.get('Authority') ?? params.get('authority') ?? '';
     const statusParam = params.get('Status') ?? '';
-    const orderId = params.get('orderId') ?? '';
-    const amount = params.get('amount') ? parseInt(params.get('amount')!) : undefined;
-    const description = params.get('description') ?? '';
+    const orderIdParam = params.get('orderId') ?? params.get('order_id') ?? '';
+    const amountParam = params.get('amount');
+    const descriptionParam = params.get('description') ?? '';
+
+    // Try to recover payment context from sessionStorage if query params are missing
+    let stored: { orderId?: string; amount?: number; description?: string } | null = null;
+    try {
+      const raw = sessionStorage.getItem('orderPaymentInfo');
+      if (raw) stored = JSON.parse(raw);
+    } catch {}
+
+    const orderId = orderIdParam || stored?.orderId || '';
+    const amount = amountParam ? parseInt(amountParam) : stored?.amount || undefined;
+    const description = descriptionParam || stored?.description || '';
 
     return {
       authority,
@@ -184,7 +195,7 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
       // Verify payment with backend
       const response = await paymentService.verifyPayment({
         authority: data.authority,
-        orderId: data.orderId
+        amount: data.amount
       });
 
              if (response.success) {
@@ -527,7 +538,7 @@ export const usePaymentCallback = () => {
     try {
       const response = await paymentService.verifyPayment({
         authority: callbackData.authority,
-        orderId: callbackData.orderId
+        amount: callbackData.amount
       });
       
       // Transform response to match PaymentVerificationResult interface

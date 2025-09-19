@@ -134,6 +134,15 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         });
         const url = (pr as any)?.paymentUrl || (pr as any)?.data?.paymentUrl;
         if (url) {
+          try {
+            const info = {
+              orderId: editingOrderId,
+              amount: orderData.priceTomans || 0,
+              description: `پرداخت سفارش ${editingOrderId}`,
+              timestamp: Date.now(),
+            };
+            sessionStorage.setItem('orderPaymentInfo', JSON.stringify(info));
+          } catch {}
           window.location.href = String(url);
           return;
         }
@@ -153,6 +162,15 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
       });
 
       if (unified?.payment?.redirectUrl) {
+        try {
+          const info = {
+            orderId: unified?.orderId,
+            amount: orderData.priceTomans || 0,
+            description: `پرداخت سفارش ${unified?.orderId || 'سفارش'}`,
+            timestamp: Date.now(),
+          };
+          sessionStorage.setItem('orderPaymentInfo', JSON.stringify(info));
+        } catch {}
         window.location.href = String(unified.payment.redirectUrl);
         return;
       }
@@ -169,6 +187,15 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
 
       const url = (payment as any)?.paymentUrl || (payment as any)?.data?.paymentUrl;
       if (url) {
+        try {
+          const info = {
+            orderId: unified?.orderId,
+            amount: orderData.priceTomans || 0,
+            description: `پرداخت سفارش ${unified?.orderId || 'سفارش'}`,
+            timestamp: Date.now(),
+          };
+          sessionStorage.setItem('orderPaymentInfo', JSON.stringify(info));
+        } catch {}
         window.location.href = String(url);
         return;
       }

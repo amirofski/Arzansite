@@ -40,6 +40,17 @@ export const PaymentButton: React.FC<PaymentButtonProps> = ({
     {
       onSuccess: (response) => {
         if (response.success && response.paymentUrl) {
+          try {
+            if (context === 'order') {
+              const info = {
+                orderId,
+                amount,
+                description,
+                timestamp: Date.now(),
+              };
+              sessionStorage.setItem('orderPaymentInfo', JSON.stringify(info));
+            }
+          } catch {}
           window.location.href = response.paymentUrl;
         } else {
           const errorMessage = response.error || 'خطا در ایجاد درخواست پرداخت';

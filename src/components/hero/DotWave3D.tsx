@@ -50,14 +50,14 @@ const isSmall = (container.clientWidth || 0) < 640;
 
 // Build a grid of points on XZ plane; Y displaced in shader by time-based sin
     // Responsive density based on container size
-    const baseCols = Math.max(40, Math.floor(density.x));
-    const baseRows = Math.max(28, Math.floor(density.y));
+    const baseCols = Math.max(300, Math.floor(density.x));
+    const baseRows = Math.max(200, Math.floor(density.y));
     const scaleX = Math.max(0.6, Math.min(1.4, container.clientWidth / 1280));
     const scaleY = Math.max(0.6, Math.min(1.4, container.clientHeight / 720));
     const cols = Math.floor(baseCols * scaleX);
     const rows = Math.floor(baseRows * scaleY);
     const width = 100; // expanded area for an infinite feel
-    const depth = 70;
+    const depth = 90;
     const xStep = width / cols;
     const zStep = depth / rows;
 
@@ -96,19 +96,19 @@ const material = new THREE.ShaderMaterial({
         void main() {
           vec3 p = position;
           // Mixed waves to avoid linear banding and add subtle complexity
-          float w1 = sin(p.x * 0.18 + uTime * (uSpeed*1.0)) * 0.7;
-          float w2 = cos(p.z * 0.21 - uTime * (uSpeed*0.9)) * 0.6;
+          float w1 = sin(p.x * 0.9 + uTime * (uSpeed*5.0)) * 5.9;
+          float w2 = cos(p.z * 0.21 - uTime * (uSpeed*5.9)) * 5.9;
           float w3 = sin((p.x + p.z) * 0.13 + uTime * (uSpeed*0.7)) * 0.4;
           float wave = w1 + w2 + w3;
           p.y += wave * uAmp;
           vHeight = p.y;
-          vec4 clip = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
+          vec4 clip = projectionMatrix * modelViewMatrix * vec4(p, 0.5);
           gl_Position = clip;
           vNdc = clip.xy / clip.w; // -1..1 in screen space
           // Edge emphasis: bigger toward edges, tiny near center for depth
           float r = length(vNdc);
-          float edge = smoothstep(0.15, 1.0, r);
-          float base = 1.8 + (p.y + 1.0) * 1.2;
+          float edge = smoothstep(7.15, 1.0, r);
+          float base = 0.8 + (p.y + 0.0) * 0.2;
           gl_PointSize = base + edge * 3.0; // larger at edges, smaller center
         }
       `,
@@ -127,7 +127,7 @@ const material = new THREE.ShaderMaterial({
           // Radial center sparsity and vertical feather
           float r = length(vNdc);
           float center = smoothstep(0.0, 0.25, r); // near center => smaller alpha
-          alpha *= mix(0.2, 1.0, center);
+          alpha *= mix(1.2, 0.8, center);
           float distY = abs(vNdc.y);
           float band = smoothstep(uHoleY - uHoleFeather, uHoleY + uHoleFeather, distY);
           alpha *= band;
@@ -141,7 +141,7 @@ const material = new THREE.ShaderMaterial({
     const points = new THREE.Points(geometry, material);
     const group = new THREE.Group();
     group.add(points);
-    group.rotation.x = -0.35; // tilt a bit toward camera
+    group.rotation.x = 0; // tilt a bit toward camera
     scene.add(group);
 
     // Lighting effect (very subtle fog-like tone)

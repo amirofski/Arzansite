@@ -87,7 +87,7 @@ export const PaymentButton: React.FC<PaymentButtonProps> = ({
   );
 
   const handlePayment = async () => {
-    const cb = callbackUrl || `${window.location.origin}/payment-callback`;
+    const cb = callbackUrl || `${window.location.origin}/payment/callback`;
     if (context === 'wallet') {
       await requestWalletDeposit({
         amount,

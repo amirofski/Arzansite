@@ -62,6 +62,11 @@ interface WalletPaymentInfo {
 const WalletPaymentCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  // Redirect to unified callback route preserving query params
+  useEffect(() => {
+    const qs = window.location.search || '';
+    navigate(`/payment/callback${qs}`, { replace: true });
+  }, [navigate]);
   const { toast } = useToast();
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
   const [refId, setRefId] = useState<string>('');

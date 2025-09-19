@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { paymentService } from '@/lib/services';
+import { paymentService, walletService } from '@/lib/services';
 import { SafeTransactionDescription } from './SafeTransactionDescription';
 
 export interface PaymentCallbackData {
@@ -192,32 +192,65 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
         };
       }
 
-      // Verify payment with backend
+      // Decide context: wallet deposit (no orderId) vs order payment (has orderId)
+      const isWallet = !data.orderId;
+
+      if (isWallet) {
+        // Verify wallet deposit
+        const response = await walletService.verifyDeposit({
+          orderId: data.orderId || undefined,
+          authority: data.authority,
+        });
+
+        if (response.success) {
+          return {
+            success: true,
+            refId: response.refId,
+            orderId: undefined,
+            amount: response.amount,
+            description: response.description,
+            retryable: false,
+            supportRequired: false,
+          };
+        } else {
+          return {
+            success: false,
+            error: response.error || 'Wallet deposit verification failed',
+            errorCode: response.errorCode || 'VERIFICATION_FAILED',
+            errorDetails: response.errorDetails,
+            retryable: response.retryable !== false,
+            supportRequired: response.supportRequired === true,
+          };
+        }
+      }
+
+      // Order payment verification
       const response = await paymentService.verifyPayment({
         authority: data.authority,
-        amount: data.amount
+        amount: data.amount,
+        orderId: data.orderId,
       });
 
-             if (response.success) {
-         return {
-           success: true,
-           refId: response.refId,
-           orderId: response.orderId,
-           amount: response.amount,
-           description: response.description,
-           retryable: false,
-           supportRequired: false
-         };
-       } else {
-         return {
-           success: false,
-           error: response.error || 'Payment verification failed',
-           errorCode: response.errorCode || 'VERIFICATION_FAILED',
-           errorDetails: response.errorDetails,
-           retryable: response.retryable !== false,
-           supportRequired: response.supportRequired === true
-         };
-       }
+      if (response.success) {
+        return {
+          success: true,
+          refId: response.refId,
+          orderId: response.orderId,
+          amount: response.amount,
+          description: response.description,
+          retryable: false,
+          supportRequired: false,
+        };
+      } else {
+        return {
+          success: false,
+          error: response.error || 'Payment verification failed',
+          errorCode: response.errorCode || 'VERIFICATION_FAILED',
+          errorDetails: response.errorDetails,
+          retryable: response.retryable !== false,
+          supportRequired: response.supportRequired === true,
+        };
+      }
     } catch (error: unknown) {
       console.error('Payment verification error:', error);
       
@@ -330,6 +363,16 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
     handleVerification();
   }, [handleVerification]);
 
+  // Auto-redirect on success after 5 seconds (wallet -> wallet tab)
+  useEffect(() => {
+    if (status === 'success' && verificationResult) {
+      const isWallet = !verificationResult.orderId;
+      const target = isWallet ? '/dashboard?tab=wallet&payment_success=true' : '/dashboard';
+      const timer = setTimeout(() => navigate(target), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [status, verificationResult, navigate]);
+
   // Loading state
   if (status === 'loading') {
     return (
@@ -378,17 +421,29 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
         </div>
 
         <div className="success-message">
-          <p>پرداخت شما با موفقیت انجام شد و مبلغ به کیف پول شما اضافه شد.</p>
+          {(!verificationResult.orderId) ? (
+            <>
+              <p>پرداخت شما با موفقیت انجام شد و مبلغ به کیف پول شما اضافه شد.</p>
+              <p>تا چند لحظه دیگر به داشبورد (بخش کیف پول) هدایت می‌شوید...</p>
+            </>
+          ) : (
+            <>
+              <p>پرداخت سفارش شما با موفقیت ثبت شد. وضعیت سفارش از طریق داشبورد قابل پیگیری است.</p>
+              <p>تا چند لحظه دیگر به داشبورد هدایت می‌شوید...</p>
+            </>
+          )}
           <p>شماره پیگیری را برای مراجعات بعدی یادداشت کنید.</p>
         </div>
 
         <div className="action-buttons">
-          <button 
-            onClick={handleGoToWallet}
-            className="primary-button"
-          >
-            مشاهده کیف پول
-          </button>
+          {!verificationResult.orderId && (
+            <button 
+              onClick={handleGoToWallet}
+              className="primary-button"
+            >
+              مشاهده کیف پول
+            </button>
+          )}
           <button 
             onClick={() => navigate('/dashboard')}
             className="secondary-button"

@@ -65,23 +65,25 @@ const Index = () => {
         <div className="relative z-10 max-w-7xl mx-auto w-full px-4 md:px-8 grid md:grid-cols-2 gap-10 items-center">
           <div>
             <motion.p className="text-accent font-semibold tracking-wide mb-3" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.7 }}>
-              ArzanSite — انسان + هوش مصنوعی
+            انسان + هوش مصنوعی = وب‌سایتی که برای رشد شما ساخته می‌شود
             </motion.p>
-            <motion.h1 className="text-4xl md:text-6xl font-extrabold leading-[1.15] mb-6" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 0.05 }}>
-              سایت حرفه‌ای با طراحی سفارشی و سئوی قدرتمند
+            <motion.h1 className="text-4xl md:text-6xl font-extrabold !leading-[1.5] mb-6" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 0.05 }}>
+            سایت اختصاصی‌تان را در کمتر از ۳ روز با هوش مصنوعی بسازید 🚀
             </motion.h1>
             <motion.p className="text-white/90 text-lg md:text-xl leading-8 mb-7 max-w-2xl" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 0.15 }}>
-              سایت‌ساز فوق‌سریع با مالکیت سورس کامل، بهینه برای Core Web Vitals و رشد ارگانیک. از استارتاپ تا برند؛ آمادهٔ اسکیل.
-              <span className="font-bold text-accent"> تحویل فوری زیر ۲۴ ساعت.</span>
+            بدون مراجعه حضوری، بدون دردسر و با مالکیت ۱۰۰٪ سورس کد.
+            از طراحی بصری تا دیپلوی روی کلود، همه‌چیز خودکار، سریع و امن.
             </motion.p>
             <motion.ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-white/90 mb-8" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 0.25 }}>
               {[
-                "SSL و CDN رایگان",
-                "دیپلوی روی Vercel",
-                "پشتیبانی ۲۴/۷",
-                "پرداخت امن و مالکیت ۱۰۰٪ سورس",
+                "⚡ تحویل فوری (کمتر از ۳ روز)",
+                "🔒 امنیت وب۳ + SSL رایگان",
+                "☁️ هاست غیرمتمرکز با ۱ ترابایت فضای رایگان",
+                "📈 سئوی کامل و آماده‌ی رشد در گوگل",
+                "🔄 CI/CD و به‌روزرسانی خودکار",
+                "🤝 پشتیبانی ۲۴/۷"
               ].map((t, i) => (
-                <li key={i} className="flex items-center gap-2">
+                <li key={i} className="flex items-center gap-2 text-xs">
                   <CheckCircle className="w-5 h-5 text-accent" />
                   <span>{t}</span>
                 </li>
@@ -89,10 +91,10 @@ const Index = () => {
             </motion.ul>
             <motion.div className="flex items-center gap-3" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 0.35 }}>
               <Button className="px-6 py-3 text-base font-bold bg-accent text-black hover:opacity-90" onClick={() => navigate('/wizard')}>
-                شروع رایگان
+                شروع طراحی
               </Button>
               <Button variant="outline" className="px-6 py-3 text-base font-bold bg-white/10 text-white border-white/30 hover:bg-white/20" onClick={() => navigate('/contact')}>
-                صحبت با تیم فروش
+                 تماس با ما  
               </Button>
             </motion.div>
           </div>

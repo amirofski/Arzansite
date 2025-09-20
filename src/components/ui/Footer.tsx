@@ -12,8 +12,8 @@ const socials = [
 const Footer: React.FC = () => {
   return (
     <footer className="relative w-full mt-16 overflow-hidden">
-      <BlackHoleBackground className="max-h-[350px]">
-        <div className="relative z-50 w-full h-full flex flex-col justify-center">
+      <BlackHoleBackground className="max-h-[400px]">
+        <div className="relative z-50 w-full h-full flex flex-col justify-center !-top-96">
           {/* Main Content */}
           <div className="relative z-50 max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-8 md:py-12">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-6 lg:gap-8">

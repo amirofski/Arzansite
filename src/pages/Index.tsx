@@ -60,7 +60,7 @@ const Index = () => {
       </Helmet>
 
       {/* Hero Section */}
-      <section className="relative min-h-[100svh] flex items-center overflow-hidden bg-[linear-gradient(180deg,#0b1029,#070b1d)] text-white">
+      <section className="relative min-h-[100svh] flex items-center overflow-hidden bg-[linear-gradient(180deg,#0b1029,#070b1d)] text-white pt-20">
         <DotWave3D className="absolute inset-0 z-0 pointer-events-none" density={{ x: 96, y: 56 }} amplitude={0.1} speed={0.25} parallax={{ mouse: 0.06, scroll: 40 }} />
         <div className="relative z-10 max-w-7xl mx-auto w-full px-4 md:px-8 grid md:grid-cols-2 gap-10 items-center">
           <div>
@@ -217,7 +217,7 @@ const Index = () => {
                 { icon: Shield, title: "محافظت کامل", description: "بدون پایگاه داده یا سرور، بدون نقطه ضعف امنیتی", features: ["SSL رایگان", "حفاظت DDoS", "بکاپ خودکار"] },
                 { icon: Clock, title: "اپتایم ۹۹.۹۹٪", description: "سرویس پایدار و قابل اعتماد ۲۴ ساعته", features: ["مانیتورینگ مداوم", "سرور چندگانه", "پشتیبانی ۲۴/۷"] },
               ].map((item, index) => (
-                <motion.div key={index} className="bg-white p-8 rounded-2xl shadow-lg" initial={{ x: index === 0 ? -40 : 40, opacity: 0 }} whileInView={{ x: 0, opacity: 1 }} transition={{ duration: 0.8 }} viewport={{ once: true }}>
+                <motion.div key={index} className="bg-white p-8 rounded-2xl shadow-lg" initial={{ x: index === 0 ? 0 : 0, opacity: 0 }} whileInView={{ x: 0, opacity: 1 }} transition={{ duration: 0.8 }} viewport={{ once: true }}>
                   <item.icon className="w-14 h-14 text-green-500 mx-auto mb-6" />
                   <h3 className="text-2xl font-bold mb-4">{item.title}</h3>
                   <p className="text-muted-foreground mb-6">{item.description}</p>

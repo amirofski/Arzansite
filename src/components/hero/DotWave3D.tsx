@@ -22,7 +22,7 @@ const DotWave3D: React.FC<DotWave3DProps> = ({
   density = { x: 80, y: 50 },
   color = "#bcd1ff",
   parallax = { mouse: 0.06, scroll: 40 },
-  hole = { y: 0.22, feather: 0.22 },
+  hole = { y: 0.12, feather: 0.12 },
   className = "absolute inset-0 pointer-events-none -z-10",
 }) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -37,8 +37,8 @@ const DotWave3D: React.FC<DotWave3DProps> = ({
 
     const scene = new THREE.Scene();
 
-    const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
-    camera.position.set(0, 8, 38);
+    const camera = new THREE.PerspectiveCamera(100, 100, 0.1, 5000);
+    camera.position.set(0, 7, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 const isSmall = (container.clientWidth || 0) < 640;
@@ -96,20 +96,20 @@ const material = new THREE.ShaderMaterial({
         void main() {
           vec3 p = position;
           // Mixed waves to avoid linear banding and add subtle complexity
-          float w1 = sin(p.x * 0.9 + uTime * (uSpeed*5.0)) * 5.9;
-          float w2 = cos(p.z * 0.21 - uTime * (uSpeed*5.9)) * 5.9;
+          float w1 = sin(p.x * 0.3 + uTime * (uSpeed*5.0)) * 9.9;
+          float w2 = cos(p.z * 0.3 - uTime * (uSpeed*5.9)) * 9.9;
           float w3 = sin((p.x + p.z) * 0.13 + uTime * (uSpeed*0.7)) * 0.4;
           float wave = w1 + w2 + w3;
           p.y += wave * uAmp;
           vHeight = p.y;
-          vec4 clip = projectionMatrix * modelViewMatrix * vec4(p, 0.5);
+          vec4 clip = projectionMatrix * modelViewMatrix * vec4(p, 0.1);
           gl_Position = clip;
           vNdc = clip.xy / clip.w; // -1..1 in screen space
           // Edge emphasis: bigger toward edges, tiny near center for depth
           float r = length(vNdc);
-          float edge = smoothstep(7.15, 1.0, r);
-          float base = 0.8 + (p.y + 0.0) * 0.2;
-          gl_PointSize = base + edge * 3.0; // larger at edges, smaller center
+          float edge = smoothstep(9.15, 1.0, r);
+          float base = 0.9 + (p.y + 3.0) * 3.2;
+          gl_PointSize = base + edge * 1.0; // larger at edges, smaller center
         }
       `,
       fragmentShader: `
@@ -123,11 +123,11 @@ const material = new THREE.ShaderMaterial({
           vec2 uv = gl_PointCoord - 0.5;
           float d = length(uv);
           if (d > 0.5) discard;
-          float alpha = smoothstep(0.5, 0.0, d);
+          float alpha = smoothstep(8.1, 0.5, d);
           // Radial center sparsity and vertical feather
           float r = length(vNdc);
-          float center = smoothstep(0.0, 0.25, r); // near center => smaller alpha
-          alpha *= mix(1.2, 0.8, center);
+          float center = smoothstep(0.5, 0.25, r); // near center => smaller alpha
+          alpha *= mix(0.2, 0.8, center);
           float distY = abs(vNdc.y);
           float band = smoothstep(uHoleY - uHoleFeather, uHoleY + uHoleFeather, distY);
           alpha *= band;

@@ -13,40 +13,46 @@ const OAuthCallback: React.FC<{ provider?: string }> = ({ provider }) => {
   const [message, setMessage] = useState('Processing OAuth callback...');
 
   useEffect(() => {
-    const processCallback = async () => {
+    const process = async () => {
       try {
-        const search = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+        const search = new URLSearchParams(window.location.search);
         const routeProvider = (search.get('provider') || (params.provider as string) || provider || 'github');
 
-        // New flow: user_id and secret from Appwrite
-        const userId = search.get('user_id') || search.get('userId') || search.get('uid') || '';
+        // Read callback params
+        const userId = search.get('user_id') || search.get('userId') || '';
         const secret = search.get('secret') || search.get('code') || '';
+        const error = search.get('error');
 
-        if (!userId || !secret) {
+        // Determine intended next route
+        const qNext = search.get('next');
+        const storedNext = sessionStorage.getItem('postLoginRedirect') || '';
+        const next = qNext || storedNext || '/dashboard';
+        const safeNext = typeof next === 'string' && next.startsWith('/') && next !== '/undefined' && next !== '/null' ? next : '/dashboard';
+
+        if (error) {
           setStatus('error');
-          setMessage('Missing required OAuth callback parameters');
+          setMessage('OAuth failed');
+          navigate('/auth?e=oauth_failed', { replace: true });
           return;
         }
 
-        const { authService } = await import('@/lib/services');
-        const result = await authService.oauthCallback(routeProvider, { user_id: userId, secret });
+        // If backend provided userId + secret, finalize session via backend
+        if (userId && secret) {
+          const { authService } = await import('@/lib/services');
+          await authService.oauthCallback(routeProvider, { user_id: userId, secret });
+        }
 
         setStatus('success');
-        setMessage('OAuth login successful! Redirecting...');
-        
-        // Redirect after a short delay to show success message
-        setTimeout(() => {
-          navigate((result as any)?.data?.redirect?.url || '/dashboard');
-        }, 1500);
-        
+        setMessage('ورود با موفقیت انجام شد. در حال انتقال...');
+        navigate(safeNext, { replace: true });
       } catch (err) {
         setStatus('error');
         setMessage(err instanceof Error ? err.message : 'OAuth callback failed');
       }
     };
 
-    processCallback();
-  }, [provider, handleOAuthCallback, getOAuthCallbackParams, navigate, params.provider]);
+    process();
+  }, [navigate, params.provider, provider]);
 
   const getStatusIcon = () => {
     switch (status) {

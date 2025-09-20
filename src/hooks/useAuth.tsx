@@ -29,7 +29,7 @@ interface AuthContextType {
   getCurrentUser: () => Promise<void>;
   clearError: () => void;
   handleAuthError: (error: Error) => boolean;
-  startOAuth: (provider: string) => Promise<OAuthResponse>;
+  startOAuth: (provider: string, nextPath?: string) => Promise<OAuthResponse>;
   handleOAuthCallback: (provider: string, code: string, state?: string) => Promise<{ user: UserProfile; redirect?: { url: string; message: string } }>;
   getOAuthUser: () => Promise<OAuthUser | null>;
   logoutOAuth: () => Promise<void>;
@@ -186,9 +186,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return true;
   };
 
-  const startOAuth = async (provider: string) => {
-    const successUrl = `${window.location.origin}/auth/oauth/callback`;
-    const failureUrl = `${window.location.origin}/auth?oauth=failed`;
+  const startOAuth = async (provider: string, nextPath?: string) => {
+    // Determine and persist intended redirect after login
+    const urlParams = new URLSearchParams(window.location.search);
+    const next = typeof nextPath === 'string'
+      ? nextPath
+      : (urlParams.get('next') || '/dashboard');
+    try { sessionStorage.setItem('postLoginRedirect', next); } catch {}
+
+    // Build ABSOLUTE URLs and carry `next` forward to the callback
+    const baseSuccess = `${window.location.origin}/auth/oauth/callback`;
+    const baseFailure = `${window.location.origin}/auth?oauth=failed`;
+    const successUrl = `${baseSuccess}?next=${encodeURIComponent(next)}`;
+    const failureUrl = `${baseFailure}&next=${encodeURIComponent(next)}`;
+
     return authService.oauthStart(provider, { successUrl, failureUrl });
   };
 

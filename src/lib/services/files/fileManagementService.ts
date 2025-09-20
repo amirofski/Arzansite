@@ -171,7 +171,7 @@ export class FileManagementService extends BaseApiService {
       const bucketParam = resolveBucket(request.bucket || request.bucketType || 'project-files');
       // If orderId is provided, prefer wizard-scoped listing
       if (request.orderId) {
-        const res = await withRetry(() => this.request<any>(`/wizard/orders/${encodeURIComponent(request.orderId!)}/files`));
+        const res = await withRetry(() => this.request<any>(`/storage/projects/${encodeURIComponent(request.orderId!)}/files`));
         const items = Array.isArray(res?.items) ? res.items : (Array.isArray(res) ? res : (Array.isArray(res?.files) ? res.files : []));
         const files: UploadedFile[] = (items as any[]).map((it) => {
           const id = it.file_id || it.id || it.$id || '';

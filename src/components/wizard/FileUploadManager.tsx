@@ -4,12 +4,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Image, FileIcon, Trash2, Download } from 'lucide-react';
 import { fileManagementService, type UploadedFile } from "@/lib/services";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { useLocation } from 'react-router-dom';
 
 
 
@@ -34,21 +33,14 @@ interface FileUploadManagerProps {
 }
 
 const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
+  const location = useLocation();
   const { user } = useAuth();
   const [uploading, setUploading] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState('general');
   const [fileDescription, setFileDescription] = useState('');
   const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const categories = [
-    { value: 'general', label: 'عمومی', icon: FileIcon },
-    { value: 'documents', label: 'اسناد', icon: FileText },
-    { value: 'images', label: 'تصاویر', icon: Image },
-    { value: 'logos', label: 'لوگو و برند', icon: Image },
-    { value: 'content', label: 'محتوا و متن', icon: FileText },
-  ];
 
   const loadUploadedFiles = async () => {
     if (!user) return;
@@ -63,34 +55,23 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
       }
     } catch {}
     try {
-      const orderId = typeof (data as Record<string, unknown> | null)?.orderId === 'string'
-        ? ((data as Record<string, unknown>)?.orderId as string)
-        : undefined;
+      // Resolve orderId from wizard data or URL (edit mode)
+      const orderId = (() => {
+        const fromData = typeof (data as Record<string, unknown> | null)?.orderId === 'string'
+          ? ((data as Record<string, unknown>)?.orderId as string)
+          : undefined;
+        if (fromData) return fromData;
+        try {
+          const p = new URLSearchParams(location.search);
+          return (p.get('orderId') || p.get('order_id') || undefined) as string | undefined;
+        } catch {
+          return undefined;
+        }
+      })();
 
-      if (!orderId) {
-        setUploadedFiles([]);
-        return;
-      }
-
-      const { wizardService } = await import('@/lib/services');
-      const res = await wizardService.listOrderFiles(orderId);
-      const items = Array.isArray(res?.items) ? res.items : [];
-
-      const mapped: UploadedFile[] = items.map((it: any) => {
-        const id = String(it.file_id || it.id || it.$id || '');
-        return {
-          id,
-          file_name: String(it.original_name || it.file_name || it.name || id || 'file'),
-          file_path: String(it.file_path || ''),
-          file_type: String(it.mime_type || it.file_type || ''),
-          file_size: Number(it.file_size || it.size || 0),
-          category: String(it.file_type || it.category || 'general'),
-          description: typeof it.description === 'string' ? it.description : undefined,
-          created_at: String(it.created_at || it.createdAt || ''),
-        } as UploadedFile;
-      });
-
-      setUploadedFiles(mapped);
+      const res = await fileManagementService.listUploads({ orderId, bucket: 'project-files' });
+      const files = Array.isArray(res?.files) ? res.files : [];
+      setUploadedFiles(files as unknown as UploadedFile[]);
     } catch (error) {
       console.error('Error loading files:', error);
       toast.error('خطا در بارگذاری فایل‌ها');
@@ -101,7 +82,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
   useEffect(() => {
     loadUploadedFiles();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, location.search, (data as any)?.orderId]);
 
   const validateFile = (file: File): string | null => {
     if (file.size > 10 * 1024 * 1024) {
@@ -109,14 +90,11 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     }
     
     const allowedTypes = [
-      'application/pdf',
-      'application/msword',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'image/jpeg',
-      'image/jpg',
       'image/png',
-      'image/gif',
-      'image/svg+xml'
+      'image/jpeg',
+      'image/webp',
+      'application/pdf',
+      'text/plain'
     ];
     
     if (!allowedTypes.includes(file.type)) {
@@ -130,12 +108,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
 
   const handleDeleteFile = async (fileId: string) => {
     try {
-      const orderId = typeof (data as Record<string, unknown> | null)?.orderId === 'string'
-        ? ((data as Record<string, unknown>)?.orderId as string)
-        : undefined;
-      if (!orderId) throw new Error('شناسه سفارش نامعتبر است');
-      const { wizardService } = await import('@/lib/services');
-      await wizardService.deleteOrderFile(fileId, orderId);
+      await fileManagementService.deleteStorageFile('project-files', fileId);
       toast.success('فایل حذف شد');
       await loadUploadedFiles();
     } catch (error) {
@@ -154,7 +127,14 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     if (!user) return;
 
     // Validate all files first
-    const fileArray = Array.from(files);
+    let fileArray = Array.from(files);
+    // Enforce backend limit: up to 10 files per request
+    if (fileArray.length > 10) {
+      toast.warning(`حداکثر 10 فایل در هر بار آپلود مجاز است. ${fileArray.length - 10} فایل نادیده گرفته شد.`);
+      fileArray = fileArray.slice(0, 10);
+    }
+
+    // Validate all files first
     for (const file of fileArray) {
       const validationError = validateFile(file);
       if (validationError) {
@@ -168,18 +148,36 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
     setUploadError(null);
 
     try {
-      const orderId = typeof (data as Record<string, unknown> | null)?.orderId === 'string'
-        ? ((data as Record<string, unknown>)?.orderId as string)
-        : undefined;
-      const sessionId = typeof (data as Record<string, unknown> | null)?.sessionId === 'string'
-        ? ((data as Record<string, unknown>)?.sessionId as string)
-        : localStorage.getItem('wizard_session_id') || undefined;
-      if (!orderId) throw new Error('شناسه سفارش نامعتبر است');
+      // Resolve orderId from wizard data or URL (edit mode). Optional for backend.
+      const orderId = (() => {
+        const fromData = typeof (data as Record<string, unknown> | null)?.orderId === 'string'
+          ? ((data as Record<string, unknown>)?.orderId as string)
+          : undefined;
+        if (fromData) return fromData;
+        try {
+          const p = new URLSearchParams(location.search);
+          return (p.get('orderId') || p.get('order_id') || undefined) as string | undefined;
+        } catch {
+          return undefined;
+        }
+      })();
 
-      const { wizardService } = await import('@/lib/services');
-      await wizardService.uploadFiles({ orderId, files: fileArray, sessionId: sessionId || undefined, description: fileDescription || undefined });
+      const res = await fileManagementService.uploadMany('project-files', fileArray, {
+        orderId,
+        description: fileDescription || undefined,
+      });
+
+      const successCount = Array.isArray(res.uploaded) ? res.uploaded.length : 0;
+      const errorCount = Array.isArray(res.errors) ? res.errors.length : 0;
+
+      if (successCount > 0) {
+        toast.success(`${successCount} فایل با موفقیت آپلود شد`);
+      }
+      if (errorCount > 0) {
+        toast.error(`${errorCount} فایل با خطا مواجه شد`);
+      }
+
       if (fileDescription) setFileDescription('');
-      toast.success(`${files.length} فایل با موفقیت آپلود شد`);
       await loadUploadedFiles();
     } catch (error) {
       console.error('FileUploadManager: Error uploading files:', error);
@@ -259,37 +257,15 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
-              {/* Category Selection */}
-              <div className="space-y-2">
-                <Label>دسته‌بندی</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((category) => (
-                      <SelectItem key={category.value} value={category.value}>
-                        <div className="flex items-center gap-2">
-                          <category.icon className="w-4 h-4" />
-                          {category.label}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Description */}
-              <div className="space-y-2">
-                <Label>توضیحات (اختیاری)</Label>
-                <Textarea
-                  placeholder="توضیحات فایل را وارد کنید..."
-                  value={fileDescription}
-                  onChange={(e) => setFileDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
+            {/* Description */}
+            <div className="space-y-2">
+              <Label>توضیحات (اختیاری)</Label>
+              <Textarea
+                placeholder="توضیحات فایل را وارد کنید..."
+                value={fileDescription}
+                onChange={(e) => setFileDescription(e.target.value)}
+                rows={3}
+              />
             </div>
 
             {/* File Input (multiple only) */}
@@ -302,7 +278,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
                   disabled={uploading}
                   className="hidden"
                   id="bulk-file-upload"
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.svg"
+                  accept=".png,.jpg,.jpeg,.webp,.pdf,.txt"
                 />
                 <Label htmlFor="bulk-file-upload">
                   <Button 
@@ -340,7 +316,7 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
               )}
 
               <p className="text-xs text-muted-foreground">
-                فرمت‌های مجاز: PDF, Word, تصاویر (حداکثر 10MB برای هر فایل)
+                فرمت‌های مجاز: PNG, JPEG, WEBP, PDF, TXT (حداکثر 10MB برای هر فایل)
               </p>
             </div>
           </div>
@@ -354,8 +330,6 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
           <div className="grid gap-4">
             {uploadedFiles.map((file) => {
               const FileIconComponent = getFileIcon(file.file_type);
-              const category = categories.find(c => c.value === file.category);
-
               return (
                 <Card key={file.id} className="hover:shadow-medium transition-shadow">
                   <CardContent className="p-4">
@@ -365,9 +339,8 @@ const FileUploadManager = ({ data, updateData }: FileUploadManagerProps) => {
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium truncate">{file.file_name}</h4>
                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Badge variant="outline" className="text-xs">
-                              {category?.label}
-                            </Badge>
+                            <span className="text-xs">{file.file_type || '—'}</span>
+                            <span>•</span>
                             <span>{formatFileSize(file.file_size)}</span>
                           </div>
                           {file.description && (

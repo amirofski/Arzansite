@@ -70,12 +70,12 @@ const Index = () => {
             </motion.p>
             <motion.h1 
               className="animated-text-shadow mb-6" 
-              data-shadow="سایت اختصاصی‌تان را در کمتر از ۳ روز با هوش مصنوعی بسازید 🚀"
+              data-shadow="سایت اختصاصی‌تان را با  کمک هوش مصنوعی بسازید 🚀"
               initial={{ y: 50, opacity: 0 }} 
               animate={{ y: 0, opacity: 1 }} 
               transition={{ duration: 0.8, delay: 0.05 }}
             >
-            سایت اختصاصی‌تان را در کمتر از ۳ روز با هوش مصنوعی بسازید 🚀
+            سایت اختصاصی‌تان را با کمک هوش مصنوعی بسازید 🚀
             </motion.h1>
             <motion.p className="text-white/90 text-lg md:text-xl leading-8 mb-7 max-w-2xl" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 0.15 }}>
             بدون مراجعه حضوری، بدون دردسر و با مالکیت ۱۰۰٪ سورس کد.

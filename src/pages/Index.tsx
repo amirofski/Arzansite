@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { siteConfig } from "@/lib/siteConfig";
+import "@/styles/animated-text.css";
 import { 
   Globe, 
   Shield, 
@@ -67,7 +68,13 @@ const Index = () => {
             <motion.p className="text-accent font-semibold tracking-wide mb-3" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.7 }}>
             انسان + هوش مصنوعی = وب‌سایتی که برای رشد شما ساخته می‌شود
             </motion.p>
-            <motion.h1 className="text-4xl md:text-6xl font-extrabold !leading-[1.5] mb-6" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 0.05 }}>
+            <motion.h1 
+              className="animated-text-shadow mb-6" 
+              data-shadow="سایت اختصاصی‌تان را در کمتر از ۳ روز با هوش مصنوعی بسازید 🚀"
+              initial={{ y: 50, opacity: 0 }} 
+              animate={{ y: 0, opacity: 1 }} 
+              transition={{ duration: 0.8, delay: 0.05 }}
+            >
             سایت اختصاصی‌تان را در کمتر از ۳ روز با هوش مصنوعی بسازید 🚀
             </motion.h1>
             <motion.p className="text-white/90 text-lg md:text-xl leading-8 mb-7 max-w-2xl" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 0.15 }}>

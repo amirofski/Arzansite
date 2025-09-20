@@ -120,7 +120,7 @@ const Header: React.FC = () => {
                       <span className="hidden md:inline">حساب کاربری</span>
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuContent align="start" className="w-48 place-items-end">
                     <DropdownMenuItem onClick={() => navigate("/dashboard")}>
                       داشبورد
                     </DropdownMenuItem>

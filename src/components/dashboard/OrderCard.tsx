@@ -7,7 +7,6 @@ import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { Palette, Trash2, Edit2, CreditCard, Eye, Calendar, Layers, Globe } from 'lucide-react';
 import DesignPreview from '@/components/wizard/DesignPreview';
-import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import { ordersService, paymentService, type Order } from '@/lib/services';
 
 interface OrderCardProps {
@@ -122,14 +121,9 @@ const OrderCard: React.FC<OrderCardProps> = ({ order, onDeleted, onRefresh, hide
             </div>
           </div>
           <div className="flex gap-2">
-            <OrderDesignPreview
-              orderId={order.id}
-              orderTitle={order.title || ''}
-              orderPrice={order.price || 0}
-              paymentStatus={(order as any).payment_status || (order as any).paymentStatus || order.status}
-              onStatusUpdate={onRefresh}
-              initialDesign={dynamic || null}
-            />
+            <Button variant="outline" size="sm" className="flex items-center gap-1">
+              <Eye className="w-3 h-3" />مشاهده
+            </Button>
             <Button variant="outline" size="sm" onClick={handleEdit} className="flex items-center gap-1"><Edit2 className="w-3 h-3" />ویرایش</Button>
             {order.status === 'pending' && (
               <Button variant="destructive" size="sm" onClick={handleDelete} className="flex items-center gap-1"><Trash2 className="w-3 h-3" />حذف</Button>

@@ -25,7 +25,6 @@ import WalletCard from '@/components/dashboard/WalletCard';
 import InvoiceList from '@/components/dashboard/InvoiceList';
 import ReceiptList from '@/components/dashboard/ReceiptList';
 import DesignPreview from '@/components/wizard/DesignPreview';
-import OrderDesignPreview from '@/components/dashboard/OrderDesignPreview';
 import OrderCard from '@/components/dashboard/OrderCard';
 
 // Services layer

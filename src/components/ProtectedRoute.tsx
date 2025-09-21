@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
+import { AnimatedLoader } from './ui/AnimatedLoader';
 import { useEffect, useState } from 'react';
 
 interface ProtectedRouteProps {
@@ -39,7 +40,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps)
     console.log('ProtectedRoute: Showing loading state (awaiting user profile)...');
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <AnimatedLoader size="md" />
       </div>
     );
   }

@@ -167,21 +167,6 @@ const Header: React.FC = () => {
             <Mail className="w-4 h-4" /> info@arzansite.com
           </a>
         </div>
-        {/* Mobile menu/socials */}
-        {/* <div className="hidden lg:inline-flex items-center gap-2">
-          {socials.map(({ icon: Icon, label, href }) => (
-            <a
-              key={label}
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-full p-2 hover:bg-accent/20 transition-colors"
-              aria-label={label}
-            >
-              <Icon className="w-5 h-5 text-accent" />
-            </a>
-          ))}
-        </div> */}
       </div>
     </motion.header>
   );

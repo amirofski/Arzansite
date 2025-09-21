@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { AnimatedLoader } from './ui/AnimatedLoader';
 
 const OAuthCallback: React.FC<{ provider?: string }> = ({ provider }) => {
   const { error } = useAuth();
@@ -57,7 +58,7 @@ const OAuthCallback: React.FC<{ provider?: string }> = ({ provider }) => {
   const getStatusIcon = () => {
     switch (status) {
       case 'loading':
-        return <Loader2 className="w-8 h-8 animate-spin text-blue-500" />;
+        return <AnimatedLoader size="md" />;
       case 'success':
         return <CheckCircle className="w-8 h-8 text-green-500" />;
       case 'error':

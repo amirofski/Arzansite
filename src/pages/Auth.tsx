@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmailVerificationPrompt } from "@/components/EmailVerificationPrompt";
 import OAuthButton from "@/components/ui/OAuthButton";
+import { AnimatedLoader } from "@/components/ui/AnimatedLoader";
 
 const Auth = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -276,7 +277,7 @@ const Auth = () => {
                 className="w-full h-12 bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover text-white font-semibold text-lg transition-all duration-300"
               >
                 {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <AnimatedLoader size="sm" />
                 ) : (
                   <span className="flex items-center gap-2">
                     {isLogin ? "ورود" : "ثبت‌نام"}

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { tokenManager } from '@/lib/tokenManager';
 import { RefreshCw, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { AnimatedLoader } from './ui/AnimatedLoader';
 
 const AuthenticationStatus = () => {
   const { user, isAuthenticated, loading } = useAuth();
@@ -83,7 +84,7 @@ const AuthenticationStatus = () => {
     const status = getOverallStatus();
     switch (status) {
       case 'loading':
-        return <RefreshCw className="w-5 h-5 animate-spin text-blue-500" />;
+        return <AnimatedLoader size="sm" />;
       case 'authenticated':
         return <CheckCircle className="w-5 h-5 text-green-500" />;
       case 'expired':

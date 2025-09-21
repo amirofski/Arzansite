@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { paymentService, walletService, ordersService } from '@/lib/services';
 import { SafeTransactionDescription } from './SafeTransactionDescription';
+import { AnimatedLoader } from './ui/AnimatedLoader';
 
 export interface PaymentCallbackData {
   authority: string;
@@ -396,11 +397,7 @@ export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <motion.div 
-          className="loading-spinner"
-          animate={{ rotate: 360 }} 
-          transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-        />
+        <AnimatedLoader size="lg" />
         <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>در حال تأیید پرداخت...</motion.h2>
         <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>لطفاً صبر کنید، در حال بررسی وضعیت پرداخت شما هستیم.</motion.p>
       </motion.div>

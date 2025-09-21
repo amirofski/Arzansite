@@ -8,6 +8,7 @@ import { authService, useApi } from "@/lib/services";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnimatedLoader } from "@/components/ui/AnimatedLoader";
 
 const EmailVerification = () => {
   const [verificationStatus, setVerificationStatus] = useState<'loading' | 'success' | 'error' | 'pending'>('loading');
@@ -94,7 +95,7 @@ const EmailVerification = () => {
       case 'loading':
         return (
           <div className="space-y-4 text-center">
-            <Loader2 className="w-16 h-16 mx-auto animate-spin text-primary" />
+            <AnimatedLoader size="lg" />
             <p className="text-muted-foreground">در حال تایید ایمیل...</p>
           </div>
         );
@@ -141,7 +142,7 @@ const EmailVerification = () => {
                 className="w-full"
               >
                 {resending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <AnimatedLoader size="sm" />
                 ) : (
                   <RefreshCw className="w-4 h-4" />
                 )}
@@ -177,7 +178,7 @@ const EmailVerification = () => {
                 className="w-full"
               >
                 {resending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <AnimatedLoader size="sm" />
                 ) : (
                   <RefreshCw className="w-4 h-4" />
                 )}

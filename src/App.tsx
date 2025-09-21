@@ -21,6 +21,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { useSiteMode } from "@/hooks/useSiteMode";
 import SiteModeDisplay from "@/components/ui/SiteModeDisplay";
 import React from "react";
+import { AnimatedLoader } from "./components/ui/AnimatedLoader";
 
 const queryClient = new QueryClient();
 
@@ -36,7 +37,7 @@ const SiteModeWrapper = React.memo(() => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <AnimatedLoader size="lg" />
       </div>
     );
   }

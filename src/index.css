@@ -235,3 +235,40 @@
     transform: scale(1);
   }
 }
+
+/* Animated Loader Styles */
+.animated-loader {
+  position: relative;
+  display: inline-block;
+}
+
+.animated-loader svg {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+}
+
+.animated-loader .path {
+  fill: none;
+  stroke-miterlimit: 10;
+  stroke-width: 1.75px;
+  opacity: 0.4;
+  animation: dash 1.75s ease-out infinite;
+  stroke-linecap: round;
+}
+
+@keyframes dash {
+  0% {
+    stroke-dasharray: 0, 158;
+    stroke-dashoffset: 0;
+  }
+  50% {
+    stroke-dasharray: 79, 158;
+    stroke-dashoffset: -30px;
+  }
+  100% {
+    stroke-dasharray: 0, 158;
+    stroke-dashoffset: -158px;
+  }
+}

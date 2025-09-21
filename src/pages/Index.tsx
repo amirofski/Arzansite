@@ -78,8 +78,8 @@ const Index = () => {
             سایت اختصاصی‌تان را با کمک هوش مصنوعی بسازید 🚀
             </motion.h1>
             <motion.p className="text-white/90 text-lg md:text-xl leading-8 mb-7 max-w-2xl" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 0.15 }}>
-            بدون مراجعه حضوری، بدون دردسر و با مالکیت ۱۰۰٪ سورس کد.
-            از طراحی بصری تا دیپلوی روی کلود، همه‌چیز خودکار، سریع و امن.
+            مالکیت ۱۰۰٪ سورس کد.
+            از طراحی بصری تا دیپلوی روی کلود، همه‌چیز را خودتان کنترل کنید، سریع و امن.
             </motion.p>
             <motion.ul className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-white/90 mb-8" initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8, delay: 0.25 }}>
               {[
@@ -100,9 +100,12 @@ const Index = () => {
               <Button className="px-6 py-3 text-base font-bold bg-accent text-black hover:opacity-90" onClick={() => navigate('/wizard')}>
                 شروع طراحی
               </Button>
-              <Button variant="outline" className="px-6 py-3 text-base font-bold bg-white/10 text-white border-white/30 hover:bg-white/20" onClick={() => navigate('/contact')}>
-                 تماس با ما  
-              </Button>
+              
+                <Button variant="outline" className="px-6 py-3 text-base font-bold bg-white/10 text-white border-white/30 hover:bg-white/20" onClick={() => navigate('/contact')}>
+                  تماس با ما  
+                </Button>
+              
+              
             </motion.div>
           </div>
           <motion.div className="relative" initial={{ opacity: 0, scale: 0.98, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.15 }} whileHover={{ rotateX: 2, rotateY: -2, scale: 1.02 }} style={{ transformStyle: 'preserve-3d' }}>

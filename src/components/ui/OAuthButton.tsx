@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from './button';
 import { Loader2 } from 'lucide-react';
+import { AnimatedLoader } from './AnimatedLoader';
 
 interface OAuthButtonProps {
   provider: 'github' | 'google' | 'facebook';
@@ -97,7 +98,7 @@ const OAuthButton: React.FC<OAuthButtonProps> = ({
       disabled={isLoading}
     >
       {isLoading ? (
-        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+        <AnimatedLoader size="sm" />
       ) : (
         getProviderIcon()
       )}

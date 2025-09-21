@@ -37,7 +37,7 @@ const SiteModeWrapper = React.memo(() => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <AnimatedLoader size="lg" />
+        <AnimatedLoader size="lg" variant="gradient2"/>
       </div>
     );
   }

@@ -51,6 +51,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import AnimatedLoader from '@/components/ui/AnimatedLoader';
 
 
 const AdminDashboard = () => {
@@ -565,7 +566,7 @@ const AdminDashboard = () => {
       <Layout>
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <AnimatedLoader size='lg' />
             <p className="mt-4 text-muted-foreground">در حال بارگیری...</p>
           </div>
         </div>
@@ -593,7 +594,7 @@ const AdminDashboard = () => {
         <title>داشبورد مدیریت - ارزان سایت</title>
       </Helmet>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 mt-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

@@ -4,8 +4,8 @@ import { Sparkles, Instagram, Linkedin, Github, Phone, Mail, Heart } from "lucid
 import BlackHoleBackground from "./BlackHoleBackground";
 
 const socials = [
-  { icon: Instagram, label: "Instagram", href: "https://instagram.com/arzansite" },
-  { icon: Linkedin, label: "LinkedIn", href: "https://linkedin.com/company/arzansite" },
+  { icon: Instagram, label: "Instagram", href: "https://instagram.com/arzansite_ai" },
+  { icon: Linkedin, label: "LinkedIn", href: "https://linkedin.com/company/arzansite_ai" },
   { icon: Github, label: "GitHub", href: "https://github.com/arzansite" },
 ];
 
@@ -76,10 +76,10 @@ const Footer: React.FC = () => {
           <div className="relative z-50 mt-auto">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 pb-6">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/20 pt-6">
-                <span className="text-xs sm:text-sm text-white/70 text-center sm:text-left">
+                <span className="text-xs sm:text-sm text-white/70 text-center sm:text-left flex-row-reverse">
                   © {new Date().getFullYear()} ارزان سایت | Arzan Site. همه حقوق محفوظ است.
                 </span>
-                <span className="flex items-center gap-1 text-xs sm:text-sm text-white/70">
+                <span className="flex items-center gap-1 text-xs sm:text-sm text-white/70 flex-row-reverse">
                   Made with <Heart className="w-4 h-4 text-red-400" /> in Iran
                 </span>
               </div>

@@ -18,11 +18,13 @@ import {
   FileText,
   AlertTriangle,
   CheckCircle,
-  Loader2
+  Loader2,
+  ExternalLink
 } from 'lucide-react';
 import { paymentService, adminService } from '@/lib/services';
 import { formatAmount } from '@/lib/currencyUtils';
 import { useToast } from '@/hooks/use-toast';
+import { AnimatedLoader } from '@/components/ui/AnimatedLoader';
 
 interface AdminPaymentManagerProps {
   orderId: string;

@@ -40,6 +40,7 @@ export interface CreateDomainExtensionRequest {
   price: number;
   description: string;
   category: 'generic' | 'country' | 'specialized';
+  available: boolean;
 }
 
 export interface CheckDomainRequest {

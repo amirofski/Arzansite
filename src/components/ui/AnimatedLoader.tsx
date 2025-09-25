@@ -23,7 +23,7 @@ export const AnimatedLoader: React.FC<AnimatedLoaderProps> = ({
     lg: { width: '64', height: '28.64' }
   };
 
-  const currentSize = sizeValues[size];
+  const currentSize = sizeValues[size] || sizeValues['md'];
 
   return (
     <div className={`animated-loader flex items-center justify-center ${className}`}>

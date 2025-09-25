@@ -100,23 +100,25 @@ const Dashboard: React.FC = () => {
 
       // Invoices count (best effort)
       try {
-        const invoices = await invoiceService.getInvoices();
+        const invoices = await invoiceService.getInvoices({ limit: 100 });
         const count = Array.isArray(invoices)
           ? invoices.length
           : (Array.isArray((invoices as any)?.items) ? (invoices as any).items.length : 0);
         setInvoiceCount(count);
-      } catch {
+      } catch (error) {
+        console.warn('Failed to fetch invoice count:', error);
         setInvoiceCount(0);
       }
 
       // Receipts count (best effort)
       try {
-        const receipts = await receiptService.getReceipts();
+        const receipts = await receiptService.getReceipts({ limit: 100 });
         const arr = Array.isArray(receipts)
           ? receipts
           : (Array.isArray((receipts as any)?.items) ? (receipts as any).items : (Array.isArray((receipts as any)?.receipts) ? (receipts as any).receipts : []));
         setReceiptCount(arr.length);
-      } catch {
+      } catch (error) {
+        console.warn('Failed to fetch receipt count:', error);
         setReceiptCount(0);
       }
 

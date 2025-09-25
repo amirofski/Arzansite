@@ -95,7 +95,7 @@ const AdminDashboard = () => {
   const [newDomainDialog, setNewDomainDialog] = useState(false);
   const [deleteUserDialog, setDeleteUserDialog] = useState<{ open: boolean; user: AdminUser | null }>({ open: false, user: null });
   const [domainToCheck, setDomainToCheck] = useState({ domain: '', extension: '.ir' });
-  const [newDomainData, setNewDomainData] = useState({ extension: '', price: '', description: '', category: 'generic' as 'generic' | 'country' | 'specialized' });
+  const [newDomainData, setNewDomainData] = useState({ extension: '', price: '', description: '', category: 'generic' as 'generic' | 'country' | 'specialized', available: true });
   const [deleteUserReason, setDeleteUserReason] = useState('');
   const [loadingDomains, setLoadingDomains] = useState(false);
   const [loadingSystemMetrics, setLoadingSystemMetrics] = useState(false);
@@ -120,44 +120,59 @@ const AdminDashboard = () => {
     setOrdersLoading(true);
     try {
       const ordersData = await adminService.getOrders({ admin: true });
-      setOrders(ordersData.items || []);
+      setOrders(Array.isArray(ordersData.items) ? ordersData.items : []);
     } catch (error) {
       console.error('Error fetching orders:', error);
+      toast({
+        title: 'خطا در دریافت سفارشات',
+        description: 'مشکلی در دریافت اطلاعات سفارشات پیش آمد',
+        variant: 'destructive',
+      });
     } finally {
       setOrdersLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   const fetchUsers = useCallback(async () => {
     setUsersLoading(true);
     try {
       const usersData = await adminService.getAllProfiles();
-      setUsers((usersData as any)?.items || []);
+      setUsers(Array.isArray(usersData.items) ? usersData.items : []);
     } catch (error) {
       console.error('Error fetching users:', error);
+      toast({
+        title: 'خطا در دریافت کاربران',
+        description: 'مشکلی در دریافت اطلاعات کاربران پیش آمد',
+        variant: 'destructive',
+      });
     } finally {
       setUsersLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   const fetchEmailLogs = useCallback(async () => {
     setEmailLogsLoading(true);
     try {
       const logsData = await adminService.getEmailLogs(100, 0);
-      setEmailLogs(logsData.items || []);
+      setEmailLogs(Array.isArray(logsData.items) ? logsData.items : []);
     } catch (error) {
       console.error('Error fetching email logs:', error);
+      toast({
+        title: 'خطا در دریافت لاگ ایمیل‌ها',
+        description: 'مشکلی در دریافت اطلاعات ایمیل‌ها پیش آمد',
+        variant: 'destructive',
+      });
     } finally {
       setEmailLogsLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   // Wallets fetchers
   const fetchWallets = useCallback(async () => {
     setWalletsLoading(true);
     try {
       const resp = await adminService.getWallets({ page: walletsPage, limit: walletsLimit, search: walletsSearchTerm || undefined });
-      setWallets(resp.items || []);
+      setWallets(Array.isArray(resp.items) ? resp.items : []);
       setWalletsPagination(resp.pagination || null);
     } catch (error) {
       console.error('Error fetching wallets:', error);
@@ -172,7 +187,7 @@ const AdminDashboard = () => {
     setAdjustmentsLoading(true);
     try {
       const resp = await adminService.getWalletAdjustments(wallet.$id, { page: 1, limit: 10 });
-      setAdjustments(resp.items || []);
+      setAdjustments(Array.isArray(resp.items) ? resp.items : []);
     } catch (error) {
       console.error('Error fetching wallet adjustments:', error);
       toast({ title: 'خطا در دریافت سوابق تنظیم', variant: 'destructive' });
@@ -183,41 +198,58 @@ const AdminDashboard = () => {
 
   const calculateStats = useCallback(async () => {
     try {
-      const allOrders = await adminService.getOrders({ admin: true });
-      const allUsersRaw = await adminService.getAllProfiles();
-      const allUsers = allUsersRaw.items || [];
-      const orders = allOrders.items || [];
-      
-      const totalOrders = orders.length;
-      const totalUsers = allUsers.length;
-      const totalRevenue = orders.reduce((sum, order) => sum + (order.price || 0), 0);
-      const pendingOrders = orders.filter(order => order.status === 'pending').length;
-      const completedOrders = orders.filter(order => order.status === 'completed').length;
-      const activeUsers = allUsers.filter(user => user.role === 'user').length;
-      
-      // Calculate email sent today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const emailLogsArray = Array.isArray(emailLogs) ? emailLogs : [];
-      const emailSentToday = emailLogsArray.filter(log => {
-        const logDate = new Date(log.sent_at);
-        return logDate >= today;
-      }).length;
-
-      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
+      // Use the new admin stats endpoint for better performance
+      const adminStats = await adminService.getAdminStats();
       setStats({
-        totalOrders,
-        totalUsers,
-        totalRevenue,
-        pendingOrders,
-        completedOrders,
-        activeUsers,
-        emailSentToday,
-        averageOrderValue
+        totalOrders: adminStats.totalOrders || 0,
+        totalUsers: adminStats.totalUsers || 0,
+        totalRevenue: adminStats.totalRevenue || 0,
+        pendingOrders: adminStats.pendingOrders || 0,
+        completedOrders: adminStats.completedOrders || 0,
+        activeUsers: adminStats.activeUsers || 0,
+        emailSentToday: adminStats.emailSentToday || 0,
+        averageOrderValue: adminStats.averageOrderValue || 0
       });
     } catch (error) {
       console.error('Error calculating stats:', error);
+      // Fallback to manual calculation if admin stats endpoint fails
+      try {
+        const allOrders = await adminService.getOrders({ admin: true });
+        const allUsersRaw = await adminService.getAllProfiles();
+        const allUsers = allUsersRaw.items || [];
+        const orders = allOrders.items || [];
+        
+        const totalOrders = orders.length;
+        const totalUsers = allUsers.length;
+        const totalRevenue = orders.reduce((sum, order) => sum + (order.price || 0), 0);
+        const pendingOrders = orders.filter(order => order.status === 'pending').length;
+        const completedOrders = orders.filter(order => order.status === 'completed').length;
+        const activeUsers = allUsers.filter(user => user.role === 'user').length;
+        
+        // Calculate email sent today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const emailLogsArray = Array.isArray(emailLogs) ? emailLogs : [];
+        const emailSentToday = emailLogsArray.filter(log => {
+          const logDate = new Date(log.sent_at);
+          return logDate >= today;
+        }).length;
+
+        const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+        setStats({
+          totalOrders,
+          totalUsers,
+          totalRevenue,
+          pendingOrders,
+          completedOrders,
+          activeUsers,
+          emailSentToday,
+          averageOrderValue
+        });
+      } catch (fallbackError) {
+        console.error('Error in fallback stats calculation:', fallbackError);
+      }
     }
   }, [emailLogs]);
 
@@ -251,6 +283,7 @@ const AdminDashboard = () => {
         description: 'وضعیت سفارش با موفقیت تغییر یافت',
       });
     } catch (error) {
+      console.error('Error updating order status:', error);
       toast({
         title: 'خطا در بروزرسانی وضعیت',
         description: 'مشکلی در تغییر وضعیت سفارش پیش آمد',
@@ -268,6 +301,7 @@ const AdminDashboard = () => {
         description: 'سفارش با موفقیت حذف شد',
       });
     } catch (error) {
+      console.error('Error deleting order:', error);
       toast({
         title: 'خطا در حذف سفارش',
         description: 'مشکلی در حذف سفارش پیش آمد',
@@ -276,7 +310,24 @@ const AdminDashboard = () => {
     }
   };
 
-
+  const handleDeleteUser = async (user: AdminUser) => {
+    try {
+      await adminService.deleteUser(user.id);
+      await fetchUsers();
+      setDeleteUserDialog({ open: false, user: null });
+      toast({
+        title: 'کاربر حذف شد',
+        description: 'کاربر با موفقیت حذف شد',
+      });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: 'خطا در حذف کاربر',
+        description: 'مشکلی در حذف کاربر پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const testEmailService = async () => {
     try {
@@ -364,10 +415,10 @@ const AdminDashboard = () => {
 
   // Lazy-load email logs when Emails tab is opened
   useEffect(() => {
-    if (selectedTab === 'emails' && !emailLogsLoading && (!emailLogs || emailLogs.length === 0)) {
+    if (selectedTab === 'emails' && !emailLogsLoading && emailLogs.length === 0) {
       fetchEmailLogs();
     }
-  }, [selectedTab, emailLogsLoading, emailLogs, fetchEmailLogs]);
+  }, [selectedTab, emailLogsLoading, fetchEmailLogs]);
 
   const updateDomainPrice = async (extensionId: string, newPrice: number) => {
     try {
@@ -401,12 +452,13 @@ const AdminDashboard = () => {
         extension: newDomainData.extension,
         price: parseInt(newDomainData.price),
         description: newDomainData.description,
-        category: newDomainData.category
+        category: newDomainData.category,
+        available: newDomainData.available
       });
       
       await fetchDomainPrices();
       setNewDomainDialog(false);
-      setNewDomainData({ extension: '', price: '', description: '', category: 'generic' });
+      setNewDomainData({ extension: '', price: '', description: '', category: 'generic', available: true });
       
       toast({
         title: 'دامنه جدید اضافه شد',
@@ -452,11 +504,12 @@ const AdminDashboard = () => {
       const res = await adminService.banUser(u.id);
       if (res.success) {
         toast({ title: 'کاربر مسدود شد', description: `وضعیت: ${res.status}` });
-        fetchUsers();
+        await fetchUsers();
       } else {
         throw new Error('Ban failed');
       }
     } catch (error: any) {
+      console.error('Error banning user:', error);
       toast({ title: 'خطا در مسدودسازی', description: error?.message || 'مشکلی پیش آمد', variant: 'destructive' });
     }
   };
@@ -466,11 +519,12 @@ const AdminDashboard = () => {
       const res = await adminService.unbanUser(u.id);
       if (res.success) {
         toast({ title: 'کاربر آزاد شد', description: `وضعیت: ${res.status}` });
-        fetchUsers();
+        await fetchUsers();
       } else {
         throw new Error('Unban failed');
       }
     } catch (error: any) {
+      console.error('Error unbanning user:', error);
       toast({ title: 'خطا در رفع انسداد', description: error?.message || 'مشکلی پیش آمد', variant: 'destructive' });
     }
   };
@@ -1493,6 +1547,19 @@ const AdminDashboard = () => {
                   <SelectItem value="specialized">تخصصی</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="available"
+                checked={newDomainData.available}
+                onChange={(e) => setNewDomainData(prev => ({ ...prev, available: e.target.checked }))}
+                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+              />
+              <Label htmlFor="available" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                دامنه فعال است
+              </Label>
             </div>
           </div>
 

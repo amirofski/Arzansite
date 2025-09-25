@@ -9,8 +9,12 @@ import {
   FileText, 
   AlertTriangle, 
   TrendingUp, 
-  RefreshCw 
+  RefreshCw,
+  ShoppingCart,
+  Mail,
+  Clock
 } from 'lucide-react';
+import { AnimatedLoader } from '@/components/ui/AnimatedLoader';
 
 const AdminDashboardStats: React.FC = () => {
   const { toast } = useToast();
@@ -23,7 +27,7 @@ const AdminDashboardStats: React.FC = () => {
     try {
       const [dashboardStats, metrics] = await Promise.all([
         adminService.getAdminStats(),
-        adminService.getSystemMetrics()
+        adminService.getSystemMetrics().catch(() => null) // Gracefully handle if metrics not available
       ]);
       setStats(dashboardStats);
       setSystemMetrics(metrics);
@@ -53,21 +57,8 @@ const AdminDashboardStats: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        {[...Array(5)].map((_, i) => (
-          <Card key={i}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                <div className="h-4 bg-muted rounded w-20 animate-pulse"></div>
-              </CardTitle>
-              <div className="h-4 w-4 bg-muted rounded animate-pulse"></div>
-            </CardHeader>
-            <CardContent>
-              <div className="h-8 bg-muted rounded w-16 animate-pulse"></div>
-              <div className="h-3 bg-muted rounded w-24 mt-2 animate-pulse"></div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="flex items-center justify-center py-12">
+        <AnimatedLoader size="xl" variant="gradient2" />
       </div>
     );
   }
@@ -117,6 +108,20 @@ const AdminDashboardStats: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* Total Orders */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">کل سفارشات</CardTitle>
+            <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatNumber(stats.totalOrders)}</div>
+            <p className="text-xs text-muted-foreground">
+              سفارشات ثبت شده
+            </p>
+          </CardContent>
+        </Card>
+
         {/* Total Revenue */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -131,73 +136,89 @@ const AdminDashboardStats: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Pending Invoices */}
+        {/* Pending Orders */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">فاکتورهای در انتظار</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">سفارشات در انتظار</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(stats.pendingInvoices)}</div>
+            <div className="text-2xl font-bold">{formatNumber(stats.pendingOrders)}</div>
             <p className="text-xs text-muted-foreground">
-              فاکتورهای پرداخت نشده
+              سفارشات در حال پردازش
             </p>
           </CardContent>
         </Card>
 
-        {/* Overdue Invoices */}
+        {/* Email Stats */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">فاکتورهای سررسید</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">ایمیل‌های ارسالی</CardTitle>
+            <Mail className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(stats.overdueInvoices)}</div>
+            <div className="text-2xl font-bold">{formatNumber(stats.emailSentToday || 0)}</div>
             <p className="text-xs text-muted-foreground">
-              فاکتورهای منقضی شده
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Total Transactions */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">کل تراکنش‌ها</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatNumber(stats.totalTransactions)}</div>
-            <p className="text-xs text-muted-foreground">
-              تراکنش‌های مالی
+              ایمیل‌های امروز
             </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Additional Insights */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">وضعیت فاکتورها</CardTitle>
+            <CardTitle className="text-lg">وضعیت سفارشات</CardTitle>
             <CardDescription>
-              خلاصه وضعیت فاکتورهای سیستم
+              خلاصه وضعیت سفارشات سیستم
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <span className="text-sm">فاکتورهای در انتظار:</span>
-                <span className="font-medium">{formatNumber(stats.pendingInvoices)}</span>
+                <span className="text-sm">سفارشات در انتظار:</span>
+                <span className="font-medium">{formatNumber(stats.pendingOrders)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm">فاکتورهای سررسید:</span>
-                <span className="font-medium text-red-600">{formatNumber(stats.overdueInvoices)}</span>
+                <span className="text-sm">سفارشات تکمیل شده:</span>
+                <span className="font-medium text-green-600">{formatNumber(stats.completedOrders)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm">نسبت سررسید:</span>
+                <span className="text-sm">میانگین ارزش سفارش:</span>
                 <span className="font-medium">
-                  {stats.pendingInvoices > 0 
-                    ? `${((stats.overdueInvoices / stats.pendingInvoices) * 100).toFixed(1)}%`
+                  {stats.totalOrders > 0 
+                    ? formatAmount(Math.round(stats.totalRevenue / stats.totalOrders))
+                    : '0 تومان'
+                  }
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">آمار کاربران</CardTitle>
+            <CardDescription>
+              خلاصه وضعیت کاربران سیستم
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm">کل کاربران:</span>
+                <span className="font-medium">{formatNumber(stats.totalUsers)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm">کاربران فعال:</span>
+                <span className="font-medium text-green-600">{formatNumber(stats.activeUsers)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm">نرخ فعالیت:</span>
+                <span className="font-medium">
+                  {stats.totalUsers > 0 
+                    ? `${((stats.activeUsers / stats.totalUsers) * 100).toFixed(1)}%`
                     : '0%'
                   }
                 </span>
@@ -220,22 +241,54 @@ const AdminDashboardStats: React.FC = () => {
                 <span className="font-medium">{formatAmount(stats.totalRevenue)}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm">کل تراکنش‌ها:</span>
-                <span className="font-medium">{formatNumber(stats.totalTransactions)}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm">میانگین تراکنش:</span>
+                <span className="text-sm">میانگین سفارش:</span>
                 <span className="font-medium">
-                  {stats.totalTransactions > 0 
-                    ? formatAmount(Math.round(stats.totalRevenue / stats.totalTransactions))
+                  {stats.totalOrders > 0 
+                    ? formatAmount(Math.round(stats.totalRevenue / stats.totalOrders))
                     : '0 تومان'
                   }
                 </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm">ایمیل‌های امروز:</span>
+                <span className="font-medium">{formatNumber(stats.emailSentToday || 0)}</span>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* System Metrics (if available) */}
+      {systemMetrics && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">وضعیت سیستم</CardTitle>
+            <CardDescription>
+              آمار عملکرد سیستم
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{systemMetrics.uptime}</div>
+                <div className="text-sm text-muted-foreground">زمان فعالیت</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{formatNumber(systemMetrics.total_users)}</div>
+                <div className="text-sm text-muted-foreground">کاربران کل</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{formatNumber(systemMetrics.total_orders)}</div>
+                <div className="text-sm text-muted-foreground">سفارشات کل</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold">{formatAmount(systemMetrics.total_revenue)}</div>
+                <div className="text-sm text-muted-foreground">درآمد کل</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

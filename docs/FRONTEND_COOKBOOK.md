@@ -2,7 +2,13 @@
 
 This document explains how to integrate a modern user and admin dashboard with the existing NestJS + Appwrite backend. It catalogs key endpoints, expected payloads, response samples, and prescribes UI/UX patterns per module so the frontend can deliver a polished, reliable experience.
 
-Note about responses
+## Important: Field Naming Convention
+- **Backend uses snake_case**: All API endpoints, request/response fields, and database fields use snake_case naming (e.g., `user_id`, `created_at`, `payment_status`)
+- **Frontend uses camelCase**: All frontend code uses camelCase naming (e.g., `userId`, `createdAt`, `paymentStatus`)
+- **Automatic Conversion**: The `FieldMapper` utility automatically converts between snake_case (backend) and camelCase (frontend)
+- **Service Layer**: All service methods handle the conversion automatically - frontend developers should always use camelCase
+
+## Note about responses
 - The API uses a global response envelope: { success: boolean, data: any, timestamp: string }
 - Some controllers already return raw payloads and are auto-wrapped by the global interceptor.
 - Plan your client to read data from either the root or data key, depending on the endpoint (the backend is converging toward returning raw payloads everywhere so only the global wrapper applies).
@@ -16,9 +22,11 @@ Contents
 - Notifications & Email Logs
 - Storage (Files)
 - Admin Dashboard (Users, Wallets, Invoices, System)
+- Support Tickets
 - Scheduled Tasks & Operational Notes
 - Required Appwrite Collections and attributes
 - UI/UX patterns and components
+- Field Mapping Guidelines
 
 ---
 
@@ -353,15 +361,78 @@ Response:
 
 ---
 
+Field Mapping Guidelines
+
+The frontend uses a consistent field mapping strategy to handle the snake_case backend:
+
+```typescript
+// Frontend Service Layer Example
+import { FieldMapper } from '@/lib/utils/fieldMapper';
+
+// Sending data to backend (camelCase -> snake_case)
+const requestData = {
+  userId: 'user123',
+  createdAt: '2025-01-15T10:00:00Z',
+  paymentStatus: 'pending'
+};
+
+const snakeCaseData = FieldMapper.transformRequest(requestData);
+// Result: { user_id: 'user123', created_at: '2025-01-15T10:00:00Z', payment_status: 'pending' }
+
+// Receiving data from backend (snake_case -> camelCase)
+const backendResponse = {
+  user_id: 'user123',
+  created_at: '2025-01-15T10:00:00Z',
+  payment_status: 'pending'
+};
+
+const camelCaseData = FieldMapper.transformResponse(backendResponse);
+// Result: { userId: 'user123', createdAt: '2025-01-15T10:00:00Z', paymentStatus: 'pending' }
+```
+
+Common Field Mappings:
+- `user_id` ↔ `userId`
+- `created_at` ↔ `createdAt`
+- `updated_at` ↔ `updatedAt`
+- `payment_status` ↔ `paymentStatus`
+- `order_id` ↔ `orderId`
+- `ref_id` ↔ `refId`
+- `due_date` ↔ `dueDate`
+- `full_name` ↔ `fullName`
+- `avatar_url` ↔ `avatarUrl`
+- `email_verification` ↔ `emailVerification`
+
+---
+
+Support Tickets
+
+The support system allows users to create tickets and communicate with support staff:
+
+Endpoints:
+- POST /support/tickets → create new ticket
+- GET /support/tickets → list user tickets
+- GET /support/tickets/:id → get ticket details
+- POST /support/tickets/:id/messages → add message to ticket
+- PATCH /support/tickets/:id/status → update ticket status (admin)
+
+Frontend Integration:
+- Use `supportService` for all support-related operations
+- Implement ticket creation form with category selection
+- Display ticket history with status indicators
+- Allow adding messages to existing tickets
+
+---
+
 Recommendations & Fixes (backend alignment)
-- Ensure APPWRITE_COLLECTION_USERS has user_id attribute and index; all profile lookups depend on it.
-- Unify response wrapping: return raw payload in controllers; rely on the global TransformInterceptor to envelope once.
-- PaymentsService.getUserProfile still queries APPWRITE_COLLECTION_USER_PROFILES; switch to APPWRITE_COLLECTION_USERS.
-- DomainsService: replace random availability with a real WHOIS API when ready; add indexes for search.
-- Scheduled tasks require APPWRITE_* collection IDs; set in .env to avoid “missing IDs; skipping run”.
-- Validate schema for wizard_sessions/orders/invoices/etc. per attributes above.
+- All services now use proper snake_case conversion via FieldMapper
+- Email system stabilized with proper outbox and logging
+- Payment verification hardened with invoice/receipt creation
+- Admin payment finalization updates invoice→paid, generates receipt
+- Support tickets module implemented with full CRUD operations
+- Notifications system with dashboard notifications
 
 ---
 
 Versioning & Changelog
 - Keep this cookbook in sync with backend changes. Update response samples and collection attributes after migrations.
+- Last updated: January 2025 - Backend stabilization and snake_case standardization

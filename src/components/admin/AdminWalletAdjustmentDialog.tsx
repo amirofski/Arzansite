@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { adminService } from '@/lib/services';
 import { formatAmount } from '@/lib/currencyUtils';
+import { Loader2, AlertTriangle } from 'lucide-react';
 
 interface AdminWalletAdjustmentDialogProps {
   open: boolean;
@@ -55,11 +56,21 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
       return;
     }
 
-    // Check if debit would result in negative balance
+    // Check if debit would result in negative balance (unless it's a correction)
     if (type === 'debit' && adjustmentAmount > currentBalance) {
       toast({
         title: 'خطا',
         description: 'موجودی کیف پول برای این عملیات کافی نیست',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // For correction type, ensure amount is positive
+    if (type === 'correction' && adjustmentAmount < 0) {
+      toast({
+        title: 'خطا',
+        description: 'موجودی تصحیحی نمی‌تواند منفی باشد',
         variant: 'destructive',
       });
       return;
@@ -77,7 +88,7 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
       if (result.success) {
         toast({
           title: 'عملیات موفق',
-description: `موجودی کیف پول ${userName} با موفقیت تنظیم شد. موجودی قبلی: ${formatAmount(result.balanceBefore, 'RIAL')}، موجودی جدید: ${formatAmount(result.balanceAfter, 'RIAL')}`
+          description: `موجودی کیف پول ${userName} با موفقیت تنظیم شد. موجودی قبلی: ${formatAmount(result.balanceBefore, 'RIAL')}، موجودی جدید: ${formatAmount(result.balanceAfter, 'RIAL')}`
         });
         
         // Reset form
@@ -191,8 +202,14 @@ value={formatAmount(currentBalance, 'RIAL')}
             <div className="p-3 bg-muted rounded-lg">
               <div className="text-sm font-medium">موجودی جدید:</div>
               <div className="text-lg font-bold text-primary">
-{formatAmount(getNewBalance(), 'RIAL')}
+                {formatAmount(getNewBalance(), 'RIAL')}
               </div>
+              {type === 'debit' && getNewBalance() < currentBalance * 0.1 && (
+                <div className="flex items-center gap-2 mt-2 text-yellow-600 text-sm">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>موجودی پس از عملیات کمتر از 10% موجودی فعلی خواهد بود</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -206,7 +223,14 @@ value={formatAmount(currentBalance, 'RIAL')}
               انصراف
             </Button>
             <Button type="submit" disabled={processing}>
-              {processing ? 'در حال پردازش...' : 'اعمال تغییرات'}
+              {processing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  در حال پردازش...
+                </>
+              ) : (
+                'اعمال تغییرات'
+              )}
             </Button>
           </div>
         </form>

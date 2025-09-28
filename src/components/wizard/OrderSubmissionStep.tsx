@@ -107,20 +107,18 @@ const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const handleOrderComplete = (orderId: string) => {
     toast({
       title: 'سفارش با موفقیت ایجاد شد',
-      description: 'در حال انتقال به داشبورد...',
+      description: 'در حال انتقال به درگاه پرداخت...',
       variant: 'default'
     });
     
-    // Navigate to dashboard after successful order creation
-    setTimeout(() => {
-      navigate('/dashboard');
-    }, 2000);
+    // Don't navigate to dashboard immediately for payment flow
+    // User will be redirected to payment gateway
   };
 
   const handleOrderSaved = (orderId: string) => {
     toast({
       title: 'سفارش برای بعد ذخیره شد',
-      description: 'می‌توانید از داشبورد آن را پرداخت کنید',
+      description: 'در حال انتقال به داشبورد...',
       variant: 'default'
     });
     

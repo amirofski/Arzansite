@@ -71,6 +71,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
   const editingOrderId = params.get('orderId') || undefined;
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [actionType, setActionType] = useState<'payment' | 'save' | null>(null);
   const [orderData, setOrderData] = useState({
     title: `وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${wizardData.userInfo.domain}`,
     description: `پروژه وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} با دامنه ${wizardData.userInfo.domain}`,
@@ -80,7 +81,11 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
   });
 
   const handleCompleteOrder = async () => {
+    if (loading || actionType) return; // Prevent double submission
+    
     setLoading(true);
+    setActionType('payment');
+    
     try {
       if (!orderData.priceTomans || Number(orderData.priceTomans) <= 0) {
         toast({ title: 'قیمت نامعتبر است', description: 'لطفاً ابتدا قیمت را محاسبه کنید', variant: 'destructive' });
@@ -171,6 +176,10 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
           };
           sessionStorage.setItem('orderPaymentInfo', JSON.stringify(info));
         } catch {}
+        
+        // Call completion callback before redirect
+        onOrderComplete?.(unified?.orderId || '');
+        
         window.location.href = String(unified.payment.redirectUrl);
         return;
       }
@@ -210,11 +219,16 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
       });
     } finally {
       setLoading(false);
+      setActionType(null);
     }
   };
 
   const handleSaveForLater = async () => {
+    if (loading || actionType) return; // Prevent double submission
+    
     setLoading(true);
+    setActionType('save');
+    
     try {
       if (!orderData.priceTomans || Number(orderData.priceTomans) <= 0) {
         toast({ title: 'قیمت نامعتبر است', description: 'لطفاً ابتدا قیمت را محاسبه کنید', variant: 'destructive' });
@@ -293,6 +307,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
       });
     } finally {
       setLoading(false);
+      setActionType(null);
     }
   };
 
@@ -379,10 +394,10 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
             className="flex-1 flex items-center gap-2"
             size="lg"
           >
-            {loading ? (
+            {loading && actionType === 'payment' ? (
               <>
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                <span>در حال ایجاد سفارش...</span>
+                <span>در حال ایجاد سفارش و انتقال به پرداخت...</span>
               </>
             ) : (
               <>
@@ -399,10 +414,10 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
             className="flex-1 flex items-center gap-2"
             size="lg"
           >
-            {loading ? (
+            {loading && actionType === 'save' ? (
               <>
                 <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                <span>در حال ذخیره...</span>
+                <span>در حال ذخیره سفارش...</span>
               </>
             ) : (
               <>

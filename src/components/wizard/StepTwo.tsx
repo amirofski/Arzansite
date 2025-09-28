@@ -33,8 +33,55 @@ import {
   Grid3X3,
   PenTool
 } from 'lucide-react';
-import { useTemplateLoader, SkeletonTemplate } from './templates-del';
 import DynamicDesignCanvas from './DynamicDesignCanvas';
+import { getSectionImages } from '@/lib/imageLoader';
+
+// Define SkeletonTemplate interface
+interface SkeletonTemplate {
+  id: string;
+  name: string;
+  previewImage: string;
+  component?: React.ComponentType<any>;
+}
+
+// Hook to load templates
+const useTemplateLoader = () => {
+  const [templates, setTemplates] = useState<Record<string, SkeletonTemplate[]>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const getTemplatesByCategory = async (category: string): Promise<SkeletonTemplate[]> => {
+    if (templates[category]) {
+      return templates[category];
+    }
+
+    try {
+      setLoading(true);
+      const images = await getSectionImages(category);
+
+      const skeletonTemplates: SkeletonTemplate[] = images.map(img => ({
+        id: img.id,
+        name: img.name,
+        previewImage: img.path,
+        component: undefined // We'll use previewImage instead
+      }));
+
+      setTemplates(prev => ({
+        ...prev,
+        [category]: skeletonTemplates
+      }));
+
+      return skeletonTemplates;
+    } catch (err) {
+      setError(err.message);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { templates, loading, error, getTemplatesByCategory };
+};
 
 interface PageSection {
   id: string;
@@ -170,7 +217,7 @@ const StepTwo = ({ data, updateData, onAutoAdvance }: StepTwoProps) => {
   });
 
   // Template loader hook
-  const { templates, loading, error } = useTemplateLoader();
+  const { templates } = useTemplateLoader();
 
   // Handle design changes
   const handleDesignChange = (newDesign: { pages: PageDesign[]; currentPageId: string }) => {

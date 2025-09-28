@@ -28,10 +28,7 @@ const OAuthButton: React.FC<OAuthButtonProps> = ({
       // Determine intended redirect path (from query or default)
       const urlParams = new URLSearchParams(window.location.search);
       const next = (urlParams.get('next') as string) || '/dashboard';
-      const response = await startOAuth(provider, next);
-      
-      // Redirect to OAuth provider
-      window.location.href = response.redirectUrl;
+      await startOAuth(provider, next);
       
       if (onSuccess) {
         onSuccess();

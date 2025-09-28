@@ -19,9 +19,55 @@ import {
   BarChart3,
   Monitor
 } from 'lucide-react';
-import { useTemplateLoader, getImageTemplatesByCategory } from './templates-del';
-import { getAdjacentImage, SECTION_NAMES } from '@/lib/imageLoader';
+import { getAdjacentImage, SECTION_NAMES, getSectionImages } from '@/lib/imageLoader';
 import LazyImage from '@/components/ui/lazy-image';
+
+// Define SkeletonTemplate interface
+interface SkeletonTemplate {
+  id: string;
+  name: string;
+  previewImage: string;
+  component?: React.ComponentType<any>;
+}
+
+// Hook to load templates
+const useTemplateLoader = () => {
+  const [templates, setTemplates] = useState<Record<string, SkeletonTemplate[]>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const getTemplatesByCategory = async (category: string): Promise<SkeletonTemplate[]> => {
+    if (templates[category]) {
+      return templates[category];
+    }
+
+    try {
+      setLoading(true);
+      const images = await getSectionImages(category);
+
+      const skeletonTemplates: SkeletonTemplate[] = images.map(img => ({
+        id: img.id,
+        name: img.name,
+        previewImage: img.path,
+        component: undefined // We'll use previewImage instead
+      }));
+
+      setTemplates(prev => ({
+        ...prev,
+        [category]: skeletonTemplates
+      }));
+
+      return skeletonTemplates;
+    } catch (err) {
+      setError(err.message);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { templates, loading, error, getTemplatesByCategory };
+};
 
 interface PageSection {
   id: string;
@@ -60,8 +106,8 @@ const DesignPreview = ({
   onShare, 
   onViewLive 
 }: DesignPreviewProps) => {
-  const { templates, getTemplatesByCategory } = useTemplateLoader();
-  const [imageTemplates, setImageTemplates] = useState<Record<string, any[]>>({});
+  const { templates } = useTemplateLoader();
+  const [imageTemplates, setImageTemplates] = useState<Record<string, SkeletonTemplate[]>>({});
   const [fullPreview, setFullPreview] = useState<string | null>(null);
   const [generatingPreview, setGeneratingPreview] = useState(false);
 
@@ -74,22 +120,22 @@ const DesignPreview = ({
 
     try {
       console.log(`🔄 Loading templates for ${category} in preview...`);
-      const temps = await getImageTemplatesByCategory(category);
-      
+      const temps = await getTemplatesByCategory(category);
+
       setImageTemplates(prev => ({
         ...prev,
         [category]: temps
       }));
-      
+
       return temps;
     } catch (error) {
       console.error(`Failed to load image templates for ${category}:`, error);
-      
+
       setImageTemplates(prev => ({
         ...prev,
         [category]: []
       }));
-      
+
       return [];
     }
   };

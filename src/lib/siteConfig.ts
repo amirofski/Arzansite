@@ -43,7 +43,7 @@ export const siteConfig = {
     phone: "+982191030981"
   },
   social: {
-    instagram: "https://instagram.com/arzansite",
+    instagram: "https://instagram.com/arzansite_ai",
     linkedin: "https://linkedin.com/company/arzansite",
     github: "https://github.com/arzansite"
   },

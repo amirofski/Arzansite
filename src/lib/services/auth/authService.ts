@@ -464,6 +464,42 @@ export class AuthService extends BaseApiService {
     }
   }
 
+  async exchangeJwt(appwriteJwt: string): Promise<AuthResponse> {
+    try {
+      const response = await withRetry(() =>
+        this.request<any>('/auth/exchange-jwt', {
+          method: 'POST',
+          body: JSON.stringify({ appwriteJwt }),
+        })
+      );
+      
+      const responseCamel = FieldMapper.transformResponse<any>(response ?? {}) || {};
+      const payload = (responseCamel && typeof responseCamel === 'object' && 'data' in responseCamel)
+        ? (responseCamel as any).data
+        : responseCamel || {};
+
+      const accessToken = (payload as any).accessToken || (payload as any).access_token;
+      const refreshToken = (payload as any).refreshToken || (payload as any).refresh_token;
+      const expiresAt = (payload as any).expiresAt || (payload as any).expires_at;
+
+      if (accessToken && refreshToken) {
+        tokenManager.setTokens({ access_token: accessToken, refresh_token: refreshToken, expires_at: expiresAt });
+      }
+
+      return {
+        success: Boolean((responseCamel as any).success ?? true),
+        message: String((responseCamel as any).message || ''),
+        data: {
+          user: (payload as any).user || {},
+          tokens: (accessToken && refreshToken) ? { accessToken, refreshToken, expiresAt } : undefined,
+        },
+      } as AuthResponse;
+    } catch (error) {
+      ErrorHandler.logError(error, 'AuthService.exchangeJwt');
+      throw error;
+    }
+  }
+
   /**
    * Get all user profiles (admin only)
    */
@@ -480,7 +516,8 @@ export class AuthService extends BaseApiService {
     }
   }
 
-  // OAuth methods
+  // OAuth methods - These are now deprecated in favor of direct Appwrite SDK calls
+  /*
   async oauthStart(provider: string, params: { successUrl: string; failureUrl: string }): Promise<{ redirectUrl: string; state?: string }> {
     try {
       const response = await withRetry(() =>
@@ -547,6 +584,7 @@ export class AuthService extends BaseApiService {
       throw error;
     }
   }
+  */
 
   // Magic link methods
   async requestMagicLink(args: { email: string; redirectUrl?: string }): Promise<{ success: boolean; message?: string }> {

@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { authService, type UserProfile } from '@/lib/services';
 import { tokenManager } from '@/lib/tokenManager';
+import { account } from '@/lib/appwrite';
+import { OAuthProvider } from 'appwrite';
 
-type OAuthResponse = { redirectUrl: string; state?: string };
+type OAuthResponse = void;
 type OAuthUser = { id: string; email: string; name?: string; avatar?: string; provider: string };
 type UserRole = 'user' | 'admin';
 
@@ -29,7 +31,7 @@ interface AuthContextType {
   getCurrentUser: () => Promise<void>;
   clearError: () => void;
   handleAuthError: (error: Error) => boolean;
-  startOAuth: (provider: string, nextPath?: string) => Promise<OAuthResponse>;
+  startOAuth: (provider: string, nextPath?: string) => Promise<void>;
   handleOAuthCallback: (provider: string, code: string, state?: string) => Promise<{ user: UserProfile; redirect?: { url: string; message: string } }>;
   getOAuthUser: () => Promise<OAuthUser | null>;
   logoutOAuth: () => Promise<void>;
@@ -98,17 +100,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!res.success) throw new Error(res.message || 'Login failed');
 
     // Prefer user from login payload for immediate return
-    const u: any = (res as any).data?.user || {};
+    const u = (res as AuthResponse).data?.user || {};
     const normalizedUser: UserProfile = {
       id: String(u.id || ''),
       email: String(u.email || ''),
-      role: (String(u.role || 'user') as any),
+      role: (String(u.role || 'user') as UserRole),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     // Trust login payload; avoid immediate /auth/me call to prevent race with initial loadUser
     setUser(normalizedUser);
-    return { user: normalizedUser, redirect: (res as any).data?.redirect };
+    return { user: normalizedUser, redirect: (res as AuthResponse).data?.redirect };
   };
 
   const signUp: AuthContextType['signUp'] = async (email, password) => {
@@ -192,7 +194,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const next = typeof nextPath === 'string'
       ? nextPath
       : (urlParams.get('next') || '/dashboard');
-    try { sessionStorage.setItem('postLoginRedirect', next); } catch {}
+    try { sessionStorage.setItem('postLoginRedirect', next); } catch (e) {
+      console.warn('Failed to set postLoginRedirect in sessionStorage', e);
+    }
 
     // Build ABSOLUTE URLs and carry `next` forward to the callback
     const baseSuccess = `${window.location.origin}/auth/oauth/callback`;
@@ -200,7 +204,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const successUrl = `${baseSuccess}?next=${encodeURIComponent(next)}`;
     const failureUrl = `${baseFailure}&next=${encodeURIComponent(next)}`;
 
-    return authService.oauthStart(provider, { successUrl, failureUrl });
+    account.createOAuth2Session(provider as OAuthProvider, successUrl, failureUrl);
   };
 
   const handleOAuthCallback = async () => {
@@ -212,11 +216,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const getOAuthUser = async () => {
-    try { const me = await authService.oauthMe(); return { id: me.id, email: me.email, provider: 'oauth' }; } catch { return null; }
+    // This function is deprecated with the new flow
+    return null;
   };
 
   const logoutOAuth = async () => {
-    try { await authService.oauthLogout(); } finally { tokenManager.clearTokens(); setUser(null); }
+    // This function is deprecated with the new flow
   };
 
   const checkOAuthSuccess = () => new URLSearchParams(window.location.search).get('oauth_success') === 'true';

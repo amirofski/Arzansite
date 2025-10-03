@@ -32,6 +32,22 @@ No results found
 
 Tool use: **grep**
 
+<details>
+<summary>Grep for "templates-del" in "src" • 4 matches</summary>
+
+Output mode: content
+
+
+| Content | Line |
+|------|------|
+| `import \{ useTemplateLoader, getImageTemplatesByCategory \} from './templates-del';` | L22 |
+| `import \{ useTemplateLoader, SkeletonTemplate, getImageTemplatesByCategory \} from './templates-del';` | L34 |
+| `import \{ getImageTemplatesByCategory, SkeletonTemplate \} from './templates-del';` | L7 |
+| `import \{ useTemplateLoader, SkeletonTemplate \} from './templates-del';` | L36 |
+
+
+</details>
+
 ---
 
 
@@ -79,6 +95,31 @@ Read file: src/components/wizard/ImageSystemTest.tsx
 ---
 
 Tool use: **grep**
+
+<details>
+<summary>Grep for "useTemplateLoader|getImageTemplatesByCategory|SkeletonTemplate" in "src" • 13 matches</summary>
+
+Output mode: content
+
+
+| Content | Line |
+|------|------|
+| `import \{ useTemplateLoader, getImageTemplatesByCategory \} from './templates-del';` | L22 |
+| `const \{ templates, getTemplatesByCategory \} = useTemplateLoader();` | L63 |
+| `const temps = await getImageTemplatesByCategory(category);` | L77 |
+| `import \{ useTemplateLoader, SkeletonTemplate, getImageTemplatesByCategory \} from './templates-del';` | L34 |
+| `const [imageTemplates, setImageTemplates] = useState<Record<string, SkeletonTemplate[]>>(\{});` | L93 |
+| `const \{ templates, loading, getTemplatesByCategory \} = useTemplateLoader();` | L95 |
+| `const temps = await getImageTemplatesByCategory(category);` | L118 |
+| `import \{ getImageTemplatesByCategory, SkeletonTemplate \} from './templates-del';` | L7 |
+| `const [imageTemplates, setImageTemplates] = useState<Record<string, SkeletonTemplate[]>>(\{});` | L12 |
+| `const templates: Record<string, SkeletonTemplate[]> = \{};` | L33 |
+| `const temps = await getImageTemplatesByCategory(category);` | L37 |
+| `import \{ useTemplateLoader, SkeletonTemplate \} from './templates-del';` | L36 |
+| `const \{ templates, loading, error \} = useTemplateLoader();` | L173 |
+
+
+</details>
 
 ---
 

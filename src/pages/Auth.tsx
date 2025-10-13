@@ -16,6 +16,7 @@ import { authService } from "@/lib/services";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const Auth = () => {
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -38,13 +39,12 @@ const Auth = () => {
     }
   }, [user, userRole, authLoading, navigate]);
 
-  const handleUnifiedAuth = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
     setLoading(true);
 
     try {
-      // Try sign-in first
       const response = await signIn(email, password);
       if (response?.user) {
         toast({ title: "ورود موفق", description: "به حساب کاربری خود خوش آمدید" });
@@ -53,43 +53,43 @@ const Auth = () => {
         } else {
           setTimeout(() => navigate("/dashboard"), 800);
         }
-        return;
       }
-    } catch (err) {
-      // Fallthrough to detection below
+    } catch (err: any) {
+      const errorMessage = err?.message || "خطا در ورود";
+      toast({ 
+        title: "ورود ناموفق", 
+        description: errorMessage.includes("verify") 
+          ? "لطفاً ابتدا ایمیل خود را تایید کنید"
+          : "ایمیل یا رمز عبور اشتباه است",
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+    setLoading(true);
 
     try {
-      // Detect user existence and verification status
-      let exists = false; let verified: boolean | undefined = undefined;
-      try {
-        const check = await authService.checkEmailVerification(email);
-        exists = Boolean(check?.userId);
-        verified = check?.emailVerified;
-      } catch {}
-
-      if (exists) {
-        // User exists but sign-in failed
-        if (verified === false) {
-          toast({
-            title: "ایمیل تایید نشده است",
-            description: "لطفاً ایمیل خود را تایید کنید یا از لینک جادویی استفاده کنید",
-            variant: "destructive",
-          });
-        } else {
-          toast({ title: "ورود ناموفق", description: "رمز عبور نادرست است", variant: "destructive" });
-        }
-        return;
-      }
-
-      // User not found -> auto sign up
       const res = await signUp(email, password);
       toast({
-        title: "ثبت‌نام انجام شد",
+        title: "ثبت‌نام موفق",
         description: res?.message || "لطفاً ایمیل خود را برای تایید بررسی کنید",
       });
-    } catch (e) {
-      toast({ title: "خطا", description: "مشکلی پیش آمد. دوباره تلاش کنید", variant: "destructive" });
+      // Switch to signin mode after successful signup
+      setTimeout(() => setMode("signin"), 2000);
+    } catch (err: any) {
+      const errorMessage = err?.message || "خطا در ثبت‌نام";
+      toast({ 
+        title: "ثبت‌نام ناموفق", 
+        description: errorMessage.includes("exists") 
+          ? "این ایمیل قبلاً ثبت شده است"
+          : "مشکلی پیش آمد. دوباره تلاش کنید",
+        variant: "destructive" 
+      });
     } finally {
       setLoading(false);
     }
@@ -175,15 +175,38 @@ const Auth = () => {
               <User className="w-8 h-8 text-white" />
             </motion.div>
             <CardTitle className="text-2xl font-bold text-foreground">
-              ورود یا ثبت‌نام
+              {mode === "signin" ? "ورود به حساب کاربری" : "ثبت‌نام"}
             </CardTitle>
             <CardDescription>
-              با ایمیل و رمز عبور وارد شوید؛ اگر حساب ندارید، به‌صورت خودکار ساخته می‌شود
+              {mode === "signin" 
+                ? "با ایمیل و رمز عبور خود وارد شوید"
+                : "برای ساخت حساب کاربری جدید اطلاعات خود را وارد کنید"
+              }
             </CardDescription>
+
+            {/* Mode Toggle */}
+            <div className="flex gap-2 pt-2">
+              <Button
+                type="button"
+                variant={mode === "signin" ? "default" : "outline"}
+                onClick={() => setMode("signin")}
+                className="flex-1"
+              >
+                ورود
+              </Button>
+              <Button
+                type="button"
+                variant={mode === "signup" ? "default" : "outline"}
+                onClick={() => setMode("signup")}
+                className="flex-1"
+              >
+                ثبت‌نام
+              </Button>
+            </div>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleUnifiedAuth} className="space-y-4">
+            <form onSubmit={mode === "signin" ? handleSignIn : handleSignUp} className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium text-foreground">
                   ایمیل
@@ -204,9 +227,20 @@ const Auth = () => {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium text-foreground">
-                  رمز عبور
-                </label>
+                <div className="flex justify-between items-center">
+                  <label htmlFor="password" className="text-sm font-medium text-foreground">
+                    رمز عبور
+                  </label>
+                  {mode === "signin" && (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/forgot-password")}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      فراموش کرده‌اید؟
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
@@ -238,14 +272,29 @@ const Auth = () => {
                   <AnimatedLoader size="sm" />
                 ) : (
                   <span className="flex items-center gap-2">
-                    ادامه
+                    {mode === "signin" ? "ورود" : "ثبت‌نام"}
                     <ArrowRight className="w-4 h-4" />
                   </span>
                 )}
               </Button>
             </form>
 
-            {/* Alternative sign-in methods */}
+            {/* Switch mode helper text */}
+            <div className="mt-4 text-center text-sm">
+              <span className="text-muted-foreground">
+                {mode === "signin" ? "حساب کاربری ندارید؟" : "قبلاً ثبت‌نام کرده‌اید؟"}
+              </span>
+              {" "}
+              <button
+                type="button"
+                onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+                className="text-primary hover:underline font-medium"
+              >
+                {mode === "signin" ? "ثبت‌نام کنید" : "وارد شوید"}
+              </button>
+            </div>
+
+            {/* Alternative authentication methods */}
             <div className="mt-6">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -258,16 +307,19 @@ const Auth = () => {
                 </div>
               </div>
 
-              <div className="mt-4 space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" className="w-full" onClick={sendMagicLink} disabled={!email || loading}>
-                    ورود با لینک جادویی
-                  </Button>
-                  <Button variant="outline" className="w-full" onClick={startEmailOtp} disabled={!email || loading}>
-                    کد یکبارمصرف ایمیل
-                  </Button>
+              {/* Magic Link and OTP - Only for signin mode */}
+              {mode === "signin" && (
+                <div className="mt-4 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="w-full" onClick={sendMagicLink} disabled={!email || loading}>
+                      ورود با لینک
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={startEmailOtp} disabled={!email || loading}>
+                      ارسال کد یکبارمصرف به ایمیل
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {otpStep !== 'idle' && (
                 <div className="mt-4 space-y-3">
@@ -288,7 +340,8 @@ const Auth = () => {
                 </div>
               )}
 
-              <div className="mt-6 space-y-2">
+              {/* OAuth Buttons - Available for both signin and signup */}
+              <div className={`${mode === "signup" ? "mt-4" : "mt-6"} space-y-2`}>
                 <OAuthButton 
                   provider="github"
                   onSuccess={() => {
@@ -297,7 +350,9 @@ const Auth = () => {
                   onError={(error) => {
                     toast({ title: "خطا در OAuth", description: error, variant: "destructive" });
                   }}
-                />
+                >
+                  {mode === "signin" ? "ورود با GitHub" : "ثبت‌نام با GitHub"}
+                </OAuthButton>
                 <OAuthButton 
                   provider="google"
                   onSuccess={() => {
@@ -306,7 +361,9 @@ const Auth = () => {
                   onError={(error) => {
                     toast({ title: "خطا در OAuth", description: error, variant: "destructive" });
                   }}
-                />
+                >
+                  {mode === "signin" ? "ورود با Google" : "ثبت‌نام با Google"}
+                </OAuthButton>
               </div>
             </div>
 

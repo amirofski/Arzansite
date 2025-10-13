@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { authService, useApi } from "@/lib/services";
+import { getErrorMessage } from "@/lib/utils/errorMessages";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -28,10 +29,11 @@ const ForgotPassword = () => {
           description: "ایمیل بازنشانی رمز عبور به آدرس شما ارسال شد",
         });
       },
-      onError: () => {
+      onError: (error) => {
+        const errorMessage = getErrorMessage(error);
         toast({
           title: "خطا در ارسال ایمیل",
-          description: "مشکلی در ارسال ایمیل بازنشانی رمز عبور پیش آمد. لطفاً دوباره تلاش کنید",
+          description: errorMessage,
           variant: "destructive",
         });
       }

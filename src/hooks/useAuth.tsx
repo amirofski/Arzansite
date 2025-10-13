@@ -86,18 +86,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signIn: AuthContextType['signIn'] = async (email, password) => {
     setError(null);
-    // Optional pre-check; do not block if endpoint fails
-    try {
-      const verify = await authService.checkEmailVerification(email);
-      if (verify && verify.emailVerified === false) {
-        throw new Error('برای ورود ابتدا باید ایمیل خود را تأیید کنید. لطفاً ایمیل خود را بررسی کنید یا لینک تأیید را دوباره ارسال کنید.');
-      }
-    } catch {
-      // proceed to login
-    }
-
+    
     const res = await authService.signIn({ email, password });
-    if (!res.success) throw new Error(res.message || 'Login failed');
+    if (!res.success) {
+      // The error message from API will be properly extracted and translated by baseApiService
+      throw new Error(res.message || 'Login failed');
+    }
 
     // Prefer user from login payload for immediate return
     const u = (res as AuthResponse).data?.user || {};

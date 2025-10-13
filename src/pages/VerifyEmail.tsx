@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { getErrorMessage } from '@/lib/utils/errorMessages';
 
 const VerifyEmail: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -50,7 +51,8 @@ const VerifyEmail: React.FC = () => {
     } catch (error) {
       console.error('Verification error:', error);
       setVerificationStatus('error');
-      setMessage(error instanceof Error ? error.message : 'Verification failed. Please try again or request a new verification email.');
+      const errorMessage = getErrorMessage(error);
+      setMessage(errorMessage);
     }
   }, [token, userId, verifyEmailWithUserId, toast, navigate]);
 
@@ -101,9 +103,10 @@ const VerifyEmail: React.FC = () => {
       }
     } catch (error) {
       console.error('Resend verification error:', error);
+      const errorMessage = getErrorMessage(error);
       toast({
         title: 'خطا در ارسال ایمیل',
-        description: 'مشکلی در ارسال ایمیل تایید پیش آمد',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {

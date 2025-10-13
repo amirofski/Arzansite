@@ -1,6 +1,8 @@
 // Error Handler Utility for ArzanSite
 // Provides standardized error handling and retry logic for API calls
 
+import { extractErrorMessage, translateErrorMessage } from './errorMessages';
+
 export interface ApiError {
   message: string;
   code?: string;
@@ -15,19 +17,8 @@ export class ErrorHandler {
    * Handle and format API errors
    */
   static handle(error: any): string {
-    if (error.message) {
-      return error.message;
-    }
-
-    if (error.response?.data?.message) {
-      return error.response.data.message;
-    }
-
-    if (typeof error === 'string') {
-      return error;
-    }
-
-    return 'An unexpected error occurred. Please try again.';
+    const extractedMessage = extractErrorMessage(error);
+    return extractedMessage;
   }
 
   /**
@@ -99,24 +90,11 @@ export class ErrorHandler {
   }
 
   /**
-   * Get user-friendly error message
+   * Get user-friendly error message in Persian
    */
   static getUserFriendlyMessage(error: any): string {
     const errorObj = this.createError(error);
-    
-    // Map common error codes to user-friendly messages
-    const errorMessages: Record<string, string> = {
-      'NETWORK_ERROR': 'Connection failed. Please check your internet connection and try again.',
-      'TIMEOUT_ERROR': 'Request timed out. Please try again.',
-      'UNAUTHORIZED': 'Please log in to continue.',
-      'FORBIDDEN': 'You don\'t have permission to perform this action.',
-      'VALIDATION_ERROR': 'Please check your input and try again.',
-      'SERVER_ERROR': 'Server error. Please try again later.',
-      'NOT_FOUND': 'The requested resource was not found.',
-      'RATE_LIMITED': 'Too many requests. Please wait a moment and try again.',
-    };
-
-    return errorMessages[errorObj.code || ''] || errorObj.message;
+    return translateErrorMessage(errorObj.message);
   }
 
   /**

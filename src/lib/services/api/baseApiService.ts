@@ -141,7 +141,27 @@ export class BaseApiService {
           throw new Error('Unauthorized - please log in again');
         }
 
-        const message = typeof body === 'string' ? body : body?.message || `HTTP ${response.status}`;
+        // Extract error message properly from various response formats
+        let message: string;
+        if (typeof body === 'string') {
+          message = body;
+        } else if (body?.error && typeof body.error === 'string') {
+          // Prefer 'error' field if it exists (common API format)
+          message = body.error;
+        } else if (body?.message && typeof body.message === 'string') {
+          // Fall back to 'message' field
+          message = body.message;
+        } else if (body?.data?.error && typeof body.data.error === 'string') {
+          // Check nested data.error
+          message = body.data.error;
+        } else if (body?.data?.message && typeof body.data.message === 'string') {
+          // Check nested data.message
+          message = body.data.message;
+        } else {
+          // Default HTTP error message
+          message = `HTTP ${response.status}`;
+        }
+        
         throw new Error(message);
       }
 

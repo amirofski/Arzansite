@@ -12,6 +12,7 @@ import Auth from "./pages/Auth";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
+import MagicLinkCallback from "./pages/MagicLinkCallback";
 import PaymentCallback from "./pages/PaymentCallback";
 import OAuthCallback from "./components/OAuthCallback";
 import NotFound from "./pages/NotFound";
@@ -67,6 +68,8 @@ const SiteModeWrapper = React.memo(() => {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/auth/magic-link/callback" element={<MagicLinkCallback />} />
+        <Route path="/auth/magic" element={<MagicLinkCallback />} />
         <Route path="/auth/oauth/callback" element={<OAuthCallback provider="github" />} />
         <Route path="/auth/oauth/callback/:provider" element={<OAuthCallback />} />
         <Route path="/dashboard" element={

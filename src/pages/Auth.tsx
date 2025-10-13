@@ -14,6 +14,7 @@ import { AnimatedLoader } from "@/components/ui/AnimatedLoader";
 import { account } from "@/lib/appwrite";
 import { authService } from "@/lib/services";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { getErrorMessage } from "@/lib/utils/errorMessages";
 
 const Auth = () => {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -46,7 +47,7 @@ const Auth = () => {
 
     try {
       const response = await signIn(email, password);
-      if (response?.user) {
+      if (response && response.user) {
         toast({ title: "ورود موفق", description: "به حساب کاربری خود خوش آمدید" });
         if (response.redirect?.url) {
           setTimeout(() => navigate(response.redirect!.url), 800);
@@ -54,13 +55,11 @@ const Auth = () => {
           setTimeout(() => navigate("/dashboard"), 800);
         }
       }
-    } catch (err: any) {
-      const errorMessage = err?.message || "خطا در ورود";
+    } catch (err) {
+      const errorMessage = getErrorMessage(err);
       toast({ 
         title: "ورود ناموفق", 
-        description: errorMessage.includes("verify") 
-          ? "لطفاً ابتدا ایمیل خود را تایید کنید"
-          : "ایمیل یا رمز عبور اشتباه است",
+        description: errorMessage,
         variant: "destructive" 
       });
     } finally {
@@ -81,13 +80,11 @@ const Auth = () => {
       });
       // Switch to signin mode after successful signup
       setTimeout(() => setMode("signin"), 2000);
-    } catch (err: any) {
-      const errorMessage = err?.message || "خطا در ثبت‌نام";
+    } catch (err) {
+      const errorMessage = getErrorMessage(err);
       toast({ 
         title: "ثبت‌نام ناموفق", 
-        description: errorMessage.includes("exists") 
-          ? "این ایمیل قبلاً ثبت شده است"
-          : "مشکلی پیش آمد. دوباره تلاش کنید",
+        description: errorMessage,
         variant: "destructive" 
       });
     } finally {
@@ -106,7 +103,8 @@ const Auth = () => {
       await authService.requestMagicLink({ email, redirectUrl });
       toast({ title: "لینک ارسال شد", description: "لطفاً ایمیل خود را چک کنید" });
     } catch (e) {
-      toast({ title: "ارسال ناموفق", description: "ارسال لینک جادویی با مشکل مواجه شد", variant: "destructive" });
+      const errorMessage = getErrorMessage(e);
+      toast({ title: "ارسال ناموفق", description: errorMessage, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -120,15 +118,19 @@ const Auth = () => {
     try {
       setLoading(true);
       // Create email OTP via Appwrite
-      const token = await account.createEmailToken(email as any);
+      const token = await account.createEmailToken(
+        email,
+        undefined as never // SDK type mismatch workaround
+      );
       // Some SDKs return { userId }, store it for session creation
-      const uid = (token as any)?.userId || (token as any)?.user_id || '';
+      const uid = (token as { userId?: string; user_id?: string })?.userId || (token as { userId?: string; user_id?: string })?.user_id || '';
       if (!uid) throw new Error('OTP userId missing');
       setOtpUserId(uid);
       setOtpStep('code_sent');
       toast({ title: "کد ارسال شد", description: "کد تایید به ایمیل شما ارسال شد" });
     } catch (e) {
-      toast({ title: "خطا در ارسال کد", description: "ارسال کد یکبارمصرف ناموفق بود", variant: "destructive" });
+      const errorMessage = getErrorMessage(e);
+      toast({ title: "خطا در ارسال کد", description: errorMessage, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -139,7 +141,6 @@ const Auth = () => {
     try {
       setOtpStep('verifying');
       // Complete session using Appwrite Email OTP
-      // @ts-expect-error type overloading varies by SDK versions
       await account.createSession(otpUserId, otpCode);
       const jwt = await account.createJWT();
       await authService.exchangeJwt(jwt.jwt);
@@ -147,7 +148,8 @@ const Auth = () => {
       navigate('/dashboard');
     } catch (e) {
       setOtpStep('code_sent');
-      toast({ title: "کد نامعتبر", description: "کد وارد شده صحیح نیست", variant: "destructive" });
+      const errorMessage = getErrorMessage(e);
+      toast({ title: "کد نامعتبر", description: errorMessage, variant: "destructive" });
     }
   };
 

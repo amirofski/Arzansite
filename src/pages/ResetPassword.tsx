@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { authService, useApi } from "@/lib/services";
+import { getErrorMessage } from "@/lib/utils/errorMessages";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -33,10 +34,11 @@ const ResetPassword = () => {
         });
         setTimeout(() => navigate("/auth"), 3000);
       },
-      onError: () => {
+      onError: (error) => {
+        const errorMessage = getErrorMessage(error);
         toast({
           title: "خطا در بازنشانی رمز عبور",
-          description: "مشکلی در بازنشانی رمز عبور پیش آمد. لطفاً دوباره تلاش کنید",
+          description: errorMessage,
           variant: "destructive",
         });
       }

@@ -255,7 +255,14 @@ export class OrdersService extends BaseApiService {
           status: 'pending',
           paymentStatus: 'pending',
         });
-        return { orderId: (legacy as any)?.id, status: (legacy as any)?.status || 'pending' };
+        // Extract orderId from various possible response shapes
+        const legacyData = legacy as any;
+        const orderId = legacyData?.id || legacyData?.orderId || legacyData?.order_id || 
+                       legacyData?.$id || legacyData?.order?.id || legacyData?.data?.id || '';
+        const status = legacyData?.status || legacyData?.order?.status || 'pending';
+        
+        console.log('Legacy order creation response:', { orderId, status, fullResponse: legacyData });
+        return { orderId, status };
       }
     } catch (error) {
       ErrorHandler.logError(error, 'OrdersService.createOrderUnified');

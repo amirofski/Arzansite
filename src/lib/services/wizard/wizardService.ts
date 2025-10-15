@@ -154,13 +154,24 @@ export interface PriceCalculationResponse {
 
 export interface DomainAvailabilityResponse {
   available: boolean;
-  domain: string;
-  extension: string;
-  price: number;
-  description: string;
-  message: string;
-  error?: string;
-  checkedAt?: string;
+  domain: string; // Full domain (e.g., "example.com")
+  extension?: string; // Domain extension (e.g., ".com", ".ir") - added by frontend
+  reason?: string; // Reason why domain is not available or other info
+  message?: string; // Legacy field, mapped from reason
+  whoisData?: {
+    status?: string;
+    createDate?: string;
+    updateDate?: string;
+    expireDate?: string;
+    domainAge?: number;
+    registrar?: {
+      iana_id?: string;
+      name?: string;
+      url?: string;
+    };
+    nameservers?: string[];
+  };
+  checkedAt?: string; // Added by frontend
 }
 
 export interface DesignResponse {
@@ -452,6 +463,8 @@ export class WizardService extends BaseApiService {
   async checkDomainAvailability(request: CheckDomainRequest): Promise<DomainAvailabilityResponse> {
     try {
       const snakeCaseRequest = FieldMapper.transformRequest(request);
+      let response: DomainAvailabilityResponse;
+      
       try {
         const primary = await withRetry(() =>
           this.request<DomainAvailabilityResponse>('/wizard/domains/check-availability', {
@@ -459,7 +472,7 @@ export class WizardService extends BaseApiService {
             body: JSON.stringify(snakeCaseRequest),
           })
         );
-        return FieldMapper.transformResponse(primary);
+        response = FieldMapper.transformResponse(primary);
       } catch (err) {
         const fallback = await withRetry(() =>
           this.request<DomainAvailabilityResponse>('/domains/check-availability', {
@@ -467,8 +480,15 @@ export class WizardService extends BaseApiService {
             body: JSON.stringify(snakeCaseRequest),
           })
         );
-        return FieldMapper.transformResponse(fallback);
+        response = FieldMapper.transformResponse(fallback);
       }
+      
+      // Normalize response: map reason to message for backward compatibility
+      return {
+        ...response,
+        message: response.message || response.reason || (response.available ? 'دامنه در دسترس است' : 'دامنه ثبت شده است'),
+        checkedAt: new Date().toISOString()
+      };
     } catch (error) {
       ErrorHandler.logError(error, 'WizardService.checkDomainAvailability');
       throw error;

@@ -72,6 +72,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [actionType, setActionType] = useState<'payment' | 'save' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Extra guard against double submission
   const [orderData, setOrderData] = useState({
     title: `وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} - ${wizardData.userInfo.domain}`,
     description: `پروژه وب‌سایت ${wizardData.siteType === 'personal' ? 'شخصی' : 'تجاری'} با دامنه ${wizardData.userInfo.domain}`,
@@ -81,14 +82,18 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
   });
 
   const handleCompleteOrder = async () => {
-    if (loading || actionType) return; // Prevent double submission
+    if (loading || actionType || isSubmitting) return; // Prevent double submission
     
     setLoading(true);
     setActionType('payment');
+    setIsSubmitting(true);
     
     try {
       if (!orderData.priceTomans || Number(orderData.priceTomans) <= 0) {
         toast({ title: 'قیمت نامعتبر است', description: 'لطفاً ابتدا قیمت را محاسبه کنید', variant: 'destructive' });
+        setLoading(false);
+        setActionType(null);
+        setIsSubmitting(false);
         return;
       }
       // Require token for protected endpoints
@@ -98,6 +103,9 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         token = tokenManager.getAccessToken();
         if (!token) {
           toast({ title: 'لطفاً ابتدا وارد شوید', variant: 'destructive' });
+          setLoading(false);
+          setActionType(null);
+          setIsSubmitting(false);
           return;
         }
       }
@@ -110,7 +118,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         additionalServicesList: wizardData.pricing.additionalServicesList || [],
         domains: {
           primaryDomain: wizardData.userInfo.domain,
-          domainExtension: wizardData.userInfo.domainExtension,
+          domainExtension: wizardData.userInfo.domainExtension || 'ir', // Default to 'ir' if not provided
           additionalDomains: wizardData.userInfo.additionalDomains || [],
         },
         pricing: {
@@ -148,6 +156,10 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
             };
             sessionStorage.setItem('orderPaymentInfo', JSON.stringify(info));
           } catch {}
+          
+          // Call completion callback before redirect
+          onOrderComplete?.(editingOrderId);
+          
           window.location.href = String(url);
           return;
         }
@@ -166,29 +178,38 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         siteType: orderData.site_type,
       });
 
+      // Store order ID immediately to prevent duplicate orders
+      const createdOrderId = unified?.orderId || '';
+      
       if (unified?.payment?.redirectUrl) {
         try {
           const info = {
-            orderId: unified?.orderId,
+            orderId: createdOrderId,
             amount: orderData.priceTomans || 0,
-            description: `پرداخت سفارش ${unified?.orderId || 'سفارش'}`,
+            description: `پرداخت سفارش ${createdOrderId || 'سفارش'}`,
             timestamp: Date.now(),
           };
           sessionStorage.setItem('orderPaymentInfo', JSON.stringify(info));
         } catch {}
         
         // Call completion callback before redirect
-        onOrderComplete?.(unified?.orderId || '');
+        onOrderComplete?.(createdOrderId);
         
         window.location.href = String(unified.payment.redirectUrl);
         return;
       }
 
-      // Fallback: request payment via payments service
+      // Only fallback to payment service if unified didn't provide redirect URL
+      // AND order was actually created
+      if (!createdOrderId) {
+        throw new Error('سفارش ایجاد نشد');
+      }
+
+      // Fallback: request payment via payments service using the existing order ID
       const payment = await paymentService.requestPayment({
         amount: orderData.priceTomans || 0,
-        description: `پرداخت سفارش ${unified?.orderId || 'سفارش'}`,
-        orderId: unified?.orderId,
+        description: `پرداخت سفارش ${createdOrderId}`,
+        orderId: createdOrderId,
         paymentMethod: 'zarinpal',
         callbackUrl: `${window.location.origin}/payment/callback`,
         returnUrl: `${window.location.origin}/dashboard`,
@@ -198,13 +219,17 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
       if (url) {
         try {
           const info = {
-            orderId: unified?.orderId,
+            orderId: createdOrderId,
             amount: orderData.priceTomans || 0,
-            description: `پرداخت سفارش ${unified?.orderId || 'سفارش'}`,
+            description: `پرداخت سفارش ${createdOrderId}`,
             timestamp: Date.now(),
           };
           sessionStorage.setItem('orderPaymentInfo', JSON.stringify(info));
         } catch {}
+        
+        // Call completion callback before redirect
+        onOrderComplete?.(createdOrderId);
+        
         window.location.href = String(url);
         return;
       }
@@ -220,18 +245,23 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
     } finally {
       setLoading(false);
       setActionType(null);
+      setIsSubmitting(false);
     }
   };
 
   const handleSaveForLater = async () => {
-    if (loading || actionType) return; // Prevent double submission
+    if (loading || actionType || isSubmitting) return; // Prevent double submission
     
     setLoading(true);
     setActionType('save');
+    setIsSubmitting(true);
     
     try {
       if (!orderData.priceTomans || Number(orderData.priceTomans) <= 0) {
         toast({ title: 'قیمت نامعتبر است', description: 'لطفاً ابتدا قیمت را محاسبه کنید', variant: 'destructive' });
+        setLoading(false);
+        setActionType(null);
+        setIsSubmitting(false);
         return;
       }
       // Require token for protected endpoints
@@ -241,6 +271,9 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         token = tokenManager.getAccessToken();
         if (!token) {
           toast({ title: 'لطفاً ابتدا وارد شوید', variant: 'destructive' });
+          setLoading(false);
+          setActionType(null);
+          setIsSubmitting(false);
           return;
         }
       }
@@ -252,7 +285,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         additionalServicesList: wizardData.pricing.additionalServicesList || [],
         domains: {
           primaryDomain: wizardData.userInfo.domain,
-          domainExtension: wizardData.userInfo.domainExtension,
+          domainExtension: wizardData.userInfo.domainExtension || 'ir', // Default to 'ir' if not provided
           additionalDomains: wizardData.userInfo.additionalDomains || [],
         },
         pricing: {
@@ -308,6 +341,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
     } finally {
       setLoading(false);
       setActionType(null);
+      setIsSubmitting(false);
     }
   };
 
@@ -390,7 +424,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         <div className="flex flex-col sm:flex-row gap-3">
           <Button
             onClick={handleCompleteOrder}
-            disabled={loading}
+            disabled={loading || actionType !== null || isSubmitting}
             className="flex-1 flex items-center gap-2"
             size="lg"
           >
@@ -409,7 +443,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
           
           <Button
             onClick={handleSaveForLater}
-            disabled={loading}
+            disabled={loading || actionType !== null || isSubmitting}
             variant="outline"
             className="flex-1 flex items-center gap-2"
             size="lg"

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // Orders Service for ArzanSite
 // Handles all order-related API operations with proper field mapping and error handling
 
@@ -5,6 +6,15 @@ import { BaseApiService } from '../api/baseApiService';
 import { FieldMapper } from '@/lib/utils/fieldMapper';
 import { ErrorHandler } from '@/lib/utils/errorHandler';
 import { withRetry } from '@/lib/utils/retry';
+
+// Extract paymentCycle from opaque wizardData safely without using any
+function extractPaymentCycle(wizardData: unknown): 'monthly' | 'annual' | undefined {
+  if (wizardData && typeof wizardData === 'object') {
+    const maybe = (wizardData as Record<string, unknown>)['paymentCycle'];
+    if (maybe === 'monthly' || maybe === 'annual') return maybe;
+  }
+  return undefined;
+}
 
 // Request interfaces
 export interface CreateOrderRequest {
@@ -15,6 +25,7 @@ export interface CreateOrderRequest {
   totalPages?: number;
   totalSections?: number;
   siteType?: string;
+  paymentCycle?: 'monthly' | 'annual';
   sessionId?: string;
   wizardData?: unknown;
   userId?: string;
@@ -42,6 +53,7 @@ export interface UpdateOrderRequest {
   totalPages?: number;
   totalSections?: number;
   siteType?: string;
+  paymentCycle?: 'monthly' | 'annual';
   wizardData?: unknown;
 }
 
@@ -164,7 +176,7 @@ export class OrdersService extends BaseApiService {
 
       // Extract array of orders from multiple possible shapes
       const root = t?.data ?? t;
-      let items: any[] = [];
+      let items: unknown[] = [];
       if (Array.isArray(root?.orders)) items = root.orders;
       else if (Array.isArray(root?.items)) items = root.items;
       else if (Array.isArray(t)) items = t as any[];
@@ -172,13 +184,14 @@ export class OrdersService extends BaseApiService {
       else if (Array.isArray(raw?.data?.items)) items = raw.data.items;
 
       // Normalize each order to always have id, status, price, wizardData
-      const normalized = (items || []).map((o: any) => {
+      const normalized = (items || []).map((oUnknown) => {
+        const o = oUnknown as Record<string, any>;
         const id = o.id || o.orderId || o.order_id || o._id || o.$id || o?.order?.id || '';
         const status = o.status || o?.order?.status || (o?.data?.status) || 'pending';
         const price = o.price ?? o.totalAmount ?? o.total_amount ?? o?.order?.totalAmount ?? 0;
-        let wizardData: any = o.wizardData || o.wizard_data || o?.metadata?.wizardData || undefined;
+        let wizardData: unknown = o.wizardData || o.wizard_data || o?.metadata?.wizardData || undefined;
         if (typeof wizardData === 'string') {
-          try { wizardData = JSON.parse(wizardData); } catch {}
+          try { wizardData = JSON.parse(wizardData); } catch { /* ignore invalid JSON in legacy field */ }
         }
         const createdAt = o.createdAt || o.created_at || o.$createdAt || o.$created_at;
         const updatedAt = o.updatedAt || o.updated_at || o.$updatedAt || o.$updated_at;
@@ -212,6 +225,7 @@ export class OrdersService extends BaseApiService {
     description?: string;
     comments?: string;
     siteType?: string;
+    paymentCycle?: 'monthly' | 'annual';
   }): Promise<{
     orderId: string;
     status: string;
@@ -228,20 +242,21 @@ export class OrdersService extends BaseApiService {
         description: args.description,
         comments: args.comments,
         siteType: args.siteType || 'personal',
+        paymentCycle: args.paymentCycle || extractPaymentCycle(args.wizardData),
       };
 
       try {
         const res = await withRetry(() =>
-          this.request<any>('/orders/create', {
+          this.request<Record<string, unknown>>('/orders/create', {
             method: 'POST',
             body: JSON.stringify(camelPayload),
           })
         );
-        const data = FieldMapper.transformResponse(res) as any;
+        const data = FieldMapper.transformResponse(res) as Record<string, unknown>;
         // Normalize diverse backend shapes
-        const orderId = data?.orderId || data?.order_id || data?.order?.id || data?.id;
-        const status = data?.status || data?.order?.status || 'pending';
-        const payment = data?.payment || (data?.paymentUrl ? { redirectUrl: data.paymentUrl } : undefined);
+        const orderId = (data as any)?.orderId || (data as any)?.order_id || (data as any)?.order?.id || (data as any)?.id;
+        const status = (data as any)?.status || (data as any)?.order?.status || 'pending';
+        const payment = (data as any)?.payment || ((data as any)?.paymentUrl ? { redirectUrl: (data as any).paymentUrl } : undefined);
         return { orderId, status, payment };
       } catch (primaryErr) {
         // Fallback to legacy /orders
@@ -251,15 +266,16 @@ export class OrdersService extends BaseApiService {
           price: Number(args.totalAmount) || 0,
           comments: args.comments,
           siteType: args.siteType || 'personal',
+          paymentCycle: args.paymentCycle || extractPaymentCycle(camelPayload.wizardData),
           wizardData: camelPayload.wizardData,
           status: 'pending',
           paymentStatus: 'pending',
         });
         // Extract orderId from various possible response shapes
-        const legacyData = legacy as any;
-        const orderId = legacyData?.id || legacyData?.orderId || legacyData?.order_id || 
-                       legacyData?.$id || legacyData?.order?.id || legacyData?.data?.id || '';
-        const status = legacyData?.status || legacyData?.order?.status || 'pending';
+        const legacyData = legacy as unknown as Record<string, unknown>;
+        const orderId = (legacyData as any)?.id || (legacyData as any)?.orderId || (legacyData as any)?.order_id || 
+                       (legacyData as any)?.$id || (legacyData as any)?.order?.id || (legacyData as any)?.data?.id || '';
+        const status = (legacyData as any)?.status || (legacyData as any)?.order?.status || 'pending';
         
         console.log('Legacy order creation response:', { orderId, status, fullResponse: legacyData });
         return { orderId, status };
@@ -342,6 +358,7 @@ export class OrdersService extends BaseApiService {
         description: request.description,
         totalAmount: request.price,
         siteType: request.siteType || 'personal',
+        paymentCycle: request.paymentCycle || (request.wizardData as any)?.paymentCycle,
         comments: request.comments,
         sessionId: request.sessionId,
         wizardData: request.wizardData,
@@ -351,6 +368,7 @@ export class OrdersService extends BaseApiService {
           description: request.description,
           totalAmount: request.price,
           siteType: request.siteType || 'personal',
+          paymentCycle: request.paymentCycle || (request.wizardData as any)?.paymentCycle,
           comments: request.comments,
           totalPages: request.totalPages,
           totalSections: request.totalSections,
@@ -399,25 +417,29 @@ export class OrdersService extends BaseApiService {
     paymentGateway?: string;
     callbackUrl?: string;
     returnUrl?: string;
+    paymentCycle?: 'monthly' | 'annual';
   }): Promise<Order> {
     try {
       // Compute optional totals if wizardData contains design structure
       let totalPages: number | undefined;
       let totalSections: number | undefined;
       try {
-        const wf = (args.wizardData as any)?.websiteFramework;
+        const wf = (args.wizardData && typeof args.wizardData === 'object')
+          ? (args.wizardData as Record<string, unknown>)['websiteFramework'] as any
+          : undefined;
         const pages = wf?.dynamicDesign?.pages as Array<{ sections?: any[] }> | undefined;
         if (Array.isArray(pages)) {
           totalPages = pages.length;
           totalSections = pages.reduce((sum, p) => sum + (Array.isArray(p.sections) ? p.sections.length : 0), 0);
         }
-      } catch {}
+      } catch { /* ignore totals calculation failure */ }
 
       const payload = {
         title: args.order.title,
         description: args.order.description,
         totalAmount: args.order.totalAmountTomans,
         siteType: args.order.siteType || 'personal',
+        paymentCycle: args.paymentCycle || extractPaymentCycle(args.wizardData),
         comments: args.order.comments,
         sessionId: args.sessionId,
         wizardData: args.wizardData,
@@ -427,6 +449,7 @@ export class OrdersService extends BaseApiService {
           description: args.order.description,
           totalAmount: args.order.totalAmountTomans,
           siteType: args.order.siteType || 'personal',
+          paymentCycle: args.paymentCycle || extractPaymentCycle(args.wizardData),
           comments: args.order.comments,
           totalPages,
           totalSections,

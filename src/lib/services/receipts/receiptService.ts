@@ -35,6 +35,21 @@ export class ReceiptService extends BaseApiService {
   }
 
   /**
+   * Get a direct URL for downloading a receipt PDF
+   * Endpoint: GET /receipts/:id/url
+   * Returns: { url: string }
+   */
+  async getReceiptUrl(receiptId: string): Promise<{ url: string }> {
+    const response = await this.request<{ url: string }>(`/receipts/${encodeURIComponent(receiptId)}/url`);
+    // Normalize in case backend wraps response
+    const mapped = FieldMapper.transformResponse(response) as any;
+    if (mapped?.url && typeof mapped.url === 'string') return { url: mapped.url };
+    if (mapped?.data?.url && typeof mapped.data.url === 'string') return { url: mapped.data.url };
+    // As a fallback, construct the standard download URL shape
+    return { url: `${this.baseUrl}/receipts/${encodeURIComponent(receiptId)}/download?format=pdf` };
+  }
+
+  /**
    * Get user receipts with optional filtering
    * Returns either an array or a wrapped { items, pagination } depending on backend.
    */

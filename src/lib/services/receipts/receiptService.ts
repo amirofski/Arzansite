@@ -53,6 +53,8 @@ export class ReceiptService extends BaseApiService {
     if (Array.isArray(response)) return response as Receipt[];
     if (response?.items) return { items: FieldMapper.transformResponse(response.items), pagination: FieldMapper.transformResponse(response.pagination) };
     if (response?.receipts) return { items: FieldMapper.transformResponse(response.receipts), pagination: FieldMapper.transformResponse(response.pagination) };
+    // Handle wrapped { success, data: { items, pagination } }
+    if (response?.data?.items) return { items: FieldMapper.transformResponse(response.data.items), pagination: FieldMapper.transformResponse(response.data.pagination) };
     if (response?.data && Array.isArray(response.data)) return response.data as Receipt[];
     return [] as Receipt[];
   }

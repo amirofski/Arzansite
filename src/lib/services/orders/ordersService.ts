@@ -282,33 +282,30 @@ export class OrdersService extends BaseApiService {
     } = {}
   ): Promise<any> {
     try {
-      // Some backends expect camelCase 'orderId' on this specific endpoint. Keep orderId as-is.
-      const body = {
-        orderId: String(orderId),
-        ...FieldMapper.transformRequest({
-          status: updates.status,
-          paymentStatus: updates.paymentStatus,
-          reason: updates.reason,
-        }),
-      };
+      // Prefer user-scoped RESTful endpoint first
+      const patchBody = FieldMapper.transformRequest({
+        status: updates.status,
+        paymentStatus: updates.paymentStatus,
+        reason: updates.reason,
+      });
       try {
         const res = await withRetry(() =>
-          this.request<any>('/orders/update-status', {
-            method: 'POST',
-            body: JSON.stringify(body),
+          this.request<any>(`/orders/${encodeURIComponent(orderId)}/status`, {
+            method: 'PATCH',
+            body: JSON.stringify(patchBody),
           })
         );
         return res;
       } catch {
-        // Fallback to RESTful style if available
+        // Fallback to legacy admin endpoint (may require admin role)
+        const legacyBody = {
+          orderId: String(orderId),
+          ...patchBody,
+        };
         const res = await withRetry(() =>
-          this.request<any>(`/orders/${encodeURIComponent(orderId)}/status`, {
-            method: 'PATCH',
-            body: JSON.stringify(FieldMapper.transformRequest({
-              status: updates.status,
-              paymentStatus: updates.paymentStatus,
-              reason: updates.reason,
-            })),
+          this.request<any>('/orders/update-status', {
+            method: 'POST',
+            body: JSON.stringify(legacyBody),
           })
         );
         return res;

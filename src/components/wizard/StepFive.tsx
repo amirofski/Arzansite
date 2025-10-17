@@ -574,7 +574,7 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                 </p>
                 <div className="mt-1 text-success font-medium flex items-center gap-1 text-xs sm:text-sm">
                   <Check className="w-3 h-3" />
-                  <span>رایگان برای یک سال (ارزش 0 تومان)</span>
+                  <span>رایگان برای یک سال</span>
                 </div>
               </div>
             </div>

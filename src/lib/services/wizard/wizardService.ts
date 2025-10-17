@@ -207,7 +207,7 @@ export class WizardService extends BaseApiService {
   /**
    * Upload files for an order via wizard endpoint
    */
-  async uploadFiles(args: { orderId: string; files: File[]; sessionId?: string; description?: string }): Promise<{ success: boolean; items?: any[] }> {
+  async uploadFiles(args: { orderId: string; files: File[]; sessionId?: string; description?: string }): Promise<{ success: boolean; items?: unknown[] }> {
     try {
       const fd = new FormData();
       fd.append('order_id', args.orderId);
@@ -216,7 +216,7 @@ export class WizardService extends BaseApiService {
       args.files.forEach((f) => fd.append('files[]', f, f.name));
 
       const response = await withRetry(() =>
-        this.request<{ success: boolean; items?: any[] }>('/wizard/upload-files', {
+        this.request<{ success: boolean; items?: unknown[] }>('/wizard/upload-files', {
           method: 'POST',
           body: fd,
         })
@@ -231,12 +231,16 @@ export class WizardService extends BaseApiService {
   /**
    * List files for an order via wizard endpoint
    */
-  async listOrderFiles(orderId: string): Promise<{ items: any[] }> {
+  async listOrderFiles(orderId: string): Promise<{ items: unknown[] }> {
     try {
       const response = await withRetry(() =>
-        this.request<any>(`/wizard/orders/${encodeURIComponent(orderId)}/files`)
+        this.request<{ items?: unknown[]; files?: unknown[] }>(`/wizard/orders/${encodeURIComponent(orderId)}/files`)
       );
-      const items = Array.isArray(response?.items) ? response.items : (Array.isArray(response) ? response : (Array.isArray(response?.files) ? response.files : []));
+      const items = Array.isArray(response?.items)
+        ? response.items
+        : (Array.isArray((response as unknown as unknown[]))
+          ? (response as unknown as unknown[])
+          : (Array.isArray(response?.files) ? response.files : []));
       return { items: FieldMapper.transformResponse(items) };
     } catch (error) {
       ErrorHandler.logError(error, 'WizardService.listOrderFiles');
@@ -467,20 +471,27 @@ export class WizardService extends BaseApiService {
       
       try {
         const primary = await withRetry(() =>
-          this.request<DomainAvailabilityResponse>('/wizard/domains/check-availability', {
+          this.request<{
+            success: boolean;
+            data: DomainAvailabilityResponse;
+          }>('/wizard/domains/check-availability', {
             method: 'POST',
             body: JSON.stringify(snakeCaseRequest),
           })
         );
-        response = FieldMapper.transformResponse(primary);
+        // Backend wraps payload under { success, data: {...} }
+        response = FieldMapper.transformWrappedResponse<DomainAvailabilityResponse>(primary);
       } catch (err) {
         const fallback = await withRetry(() =>
-          this.request<DomainAvailabilityResponse>('/domains/check-availability', {
+          this.request<{
+            success: boolean;
+            data: DomainAvailabilityResponse;
+          }>('/domains/check-availability', {
             method: 'POST',
             body: JSON.stringify(snakeCaseRequest),
           })
         );
-        response = FieldMapper.transformResponse(fallback);
+        response = FieldMapper.transformWrappedResponse<DomainAvailabilityResponse>(fallback);
       }
       
       // Normalize response: map reason to message for backward compatibility

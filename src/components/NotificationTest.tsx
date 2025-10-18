@@ -3,17 +3,71 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useNotifications } from '@/hooks/useNotifications';
 import { useNotificationPreferences } from '@/hooks/useNotificationPreferences';
-import { Bell, TestTube, Settings } from 'lucide-react';
+import { notificationsService } from '@/lib/services';
+import { useToast } from '@/hooks/use-toast';
+import { Bell, TestTube, Settings, Send } from 'lucide-react';
 
 export const NotificationTest: React.FC = () => {
   const { unseenCount, messages, markAllRead, markAsRead, refresh } = useNotifications();
   const { preferences } = useNotificationPreferences();
+  const { toast } = useToast();
   const [testMode, setTestMode] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
 
   const handleTestNotification = async () => {
-    // This would typically be called by the backend when creating a test notification
-    // For now, we'll just refresh to see if any notifications come through
-    await refresh();
+    setSendingTest(true);
+    try {
+      const response = await notificationsService.sendTestNotification({
+        title: 'تست اعلان',
+        message: 'این یک اعلان تستی است که از فرانت‌اند ارسال شده است.',
+        type: 'test'
+      });
+      
+      if (response.success) {
+        toast({
+          title: 'اعلان تستی ارسال شد',
+          description: 'اعلان تستی با موفقیت ارسال شد',
+        });
+        // Refresh notifications to show the new one
+        await refresh();
+      }
+    } catch (error) {
+      toast({
+        title: 'خطا در ارسال اعلان تستی',
+        description: error instanceof Error ? error.message : 'خطای نامشخص',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
+  const handleOrderStatusNotification = async () => {
+    setSendingTest(true);
+    try {
+      const response = await notificationsService.sendOrderStatusNotification({
+        orderId: 'test-order-123',
+        status: 'completed',
+        message: 'سفارش شما با موفقیت تکمیل شد',
+        notificationType: 'order_completed'
+      });
+      
+      if (response.success) {
+        toast({
+          title: 'اعلان وضعیت سفارش ارسال شد',
+          description: 'اعلان وضعیت سفارش با موفقیت ارسال شد',
+        });
+        await refresh();
+      }
+    } catch (error) {
+      toast({
+        title: 'خطا در ارسال اعلان وضعیت',
+        description: error instanceof Error ? error.message : 'خطای نامشخص',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingTest(false);
+    }
   };
 
   return (
@@ -48,9 +102,21 @@ export const NotificationTest: React.FC = () => {
           </div>
 
           <div className="flex gap-2 flex-wrap">
-            <Button onClick={handleTestNotification} variant="outline">
+            <Button 
+              onClick={handleTestNotification} 
+              variant="outline"
+              disabled={sendingTest}
+            >
               <TestTube className="w-4 h-4 ml-1" />
-              تست اعلان
+              {sendingTest ? 'در حال ارسال...' : 'تست اعلان'}
+            </Button>
+            <Button 
+              onClick={handleOrderStatusNotification} 
+              variant="outline"
+              disabled={sendingTest}
+            >
+              <Send className="w-4 h-4 ml-1" />
+              {sendingTest ? 'در حال ارسال...' : 'اعلان وضعیت سفارش'}
             </Button>
             <Button onClick={refresh} variant="outline">
               <Bell className="w-4 h-4 ml-1" />

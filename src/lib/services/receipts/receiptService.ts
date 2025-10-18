@@ -129,6 +129,146 @@ export class ReceiptService extends BaseApiService {
 
     return response;
   }
+
+  /**
+   * List user receipts with pagination
+   */
+  async listReceipts(params?: {
+    page?: number;
+    limit?: number;
+    from?: string;
+    to?: string;
+  }): Promise<{
+    success: boolean;
+    receipts: Receipt[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  }> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.from) queryParams.append('from', params.from);
+      if (params?.to) queryParams.append('to', params.to);
+
+      const queryString = queryParams.toString();
+      const endpoint = `/receipts${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await this.request<{
+        success: boolean;
+        receipts: Receipt[];
+        pagination: {
+          page: number;
+          limit: number;
+          total: number;
+          pages: number;
+        };
+      }>(endpoint);
+
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'ReceiptService.listReceipts');
+      throw error;
+    }
+  }
+
+  /**
+   * Get receipt details by ID
+   */
+  async getReceiptDetails(receiptId: string): Promise<{
+    success: boolean;
+    receipt: Receipt;
+    order?: {
+      id: string;
+      title: string;
+      status: string;
+      totalAmount: number;
+    };
+    invoice?: {
+      id: string;
+      amount: number;
+      dueDate: string;
+      status: string;
+    };
+  }> {
+    try {
+      const response = await this.request<{
+        success: boolean;
+        receipt: Receipt;
+        order?: {
+          id: string;
+          title: string;
+          status: string;
+          totalAmount: number;
+        };
+        invoice?: {
+          id: string;
+          amount: number;
+          dueDate: string;
+          status: string;
+        };
+      }>(`/receipts/${encodeURIComponent(receiptId)}`);
+
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'ReceiptService.getReceiptDetails');
+      throw error;
+    }
+  }
+
+  /**
+   * Admin: Get all receipts
+   */
+  async getAllReceipts(params?: {
+    page?: number;
+    limit?: number;
+    userId?: string;
+    from?: string;
+    to?: string;
+    status?: string;
+  }): Promise<{
+    success: boolean;
+    receipts: Receipt[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  }> {
+    try {
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.userId) queryParams.append('userId', params.userId);
+      if (params?.from) queryParams.append('from', params.from);
+      if (params?.to) queryParams.append('to', params.to);
+      if (params?.status) queryParams.append('status', params.status);
+
+      const queryString = queryParams.toString();
+      const endpoint = `/receipts/admin/all${queryString ? `?${queryString}` : ''}`;
+      
+      const response = await this.request<{
+        success: boolean;
+        receipts: Receipt[];
+        pagination: {
+          page: number;
+          limit: number;
+          total: number;
+          pages: number;
+        };
+      }>(endpoint);
+
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'ReceiptService.getAllReceipts');
+      throw error;
+    }
+  }
 }
 
 export const receiptService = new ReceiptService();

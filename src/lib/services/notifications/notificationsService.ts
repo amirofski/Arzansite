@@ -219,6 +219,80 @@ export class NotificationsService extends BaseApiService {
       throw error;
     }
   }
+
+  /**
+   * Send order status notification
+   */
+  async sendOrderStatusNotification(data: {
+    orderId: string;
+    status: string;
+    message?: string;
+    notificationType?: 'order_created' | 'order_updated' | 'payment_received' | 'order_completed' | 'order_cancelled';
+  }): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await withRetry(() =>
+        this.request<{ success: boolean; message: string }>('/notifications/order-status', {
+          method: 'POST',
+          body: JSON.stringify(data),
+        })
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'NotificationsService.sendOrderStatusNotification');
+      throw error;
+    }
+  }
+
+  /**
+   * Send test notification
+   */
+  async sendTestNotification(data?: {
+    title?: string;
+    message?: string;
+    type?: string;
+  }): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await withRetry(() =>
+        this.request<{ success: boolean; message: string }>('/notifications/test', {
+          method: 'POST',
+          body: JSON.stringify(data || {}),
+        })
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'NotificationsService.sendTestNotification');
+      throw error;
+    }
+  }
+
+  /**
+   * Get channel status
+   */
+  async getChannelStatus(): Promise<{
+    success: boolean;
+    channels: {
+      email: { enabled: boolean; status: string };
+      push: { enabled: boolean; status: string };
+      inApp: { enabled: boolean; status: string };
+    };
+  }> {
+    try {
+      const response = await withRetry(() =>
+        this.request<{
+          success: boolean;
+          channels: {
+            email: { enabled: boolean; status: string };
+            push: { enabled: boolean; status: string };
+            inApp: { enabled: boolean; status: string };
+          };
+        }>('/notifications/channels/status')
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'NotificationsService.getChannelStatus');
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

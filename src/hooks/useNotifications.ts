@@ -1,6 +1,7 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { notificationsService, type Notification } from '@/lib/services';
+import { client } from '@/lib/appwrite';
 
 export function useNotifications() {
   const { user } = useAuth();
@@ -8,6 +9,7 @@ export function useNotifications() {
   const [error, setError] = useState<string | null>(null);
   const [unseenCount, setUnseenCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   // Load notifications
   const loadNotifications = useCallback(async () => {
@@ -82,6 +84,62 @@ export function useNotifications() {
   useEffect(() => {
     loadNotifications();
   }, [loadNotifications]);
+
+  // Set up real-time subscription to Appwrite notifications collection
+  useEffect(() => {
+    if (!user?.id) return;
+
+    // Appwrite collection IDs from environment or defaults
+    const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID || 'main';
+    const collectionId = import.meta.env.VITE_APPWRITE_COLLECTION_NOTIFICATIONS || 'notifications';
+    
+    const channel = `databases.${databaseId}.collections.${collectionId}.documents`;
+    
+    try {
+      const unsubscribe = client.subscribe(channel, (event) => {
+        const doc = event.payload as any;
+        if (!doc) return;
+        
+        // Filter by user_id to only show notifications for current user
+        if (doc.user_id !== user.id && doc.userId !== user.id) return;
+        
+        // Only react to create events for new notifications
+        if (event.events?.some((e) => e.endsWith('.create'))) {
+          const newNotification: Notification = {
+            id: doc.$id || doc.id,
+            userId: doc.user_id || doc.userId,
+            type: doc.type || 'general',
+            title: doc.title || 'اعلان جدید',
+            message: doc.message || doc.body || '',
+            data: doc.data || {},
+            isRead: doc.isRead || doc.read || false,
+            createdAt: doc.$createdAt || doc.createdAt,
+            updatedAt: doc.$updatedAt || doc.updatedAt,
+          };
+          
+          // Add to notifications list
+          setNotifications(prev => [newNotification, ...prev]);
+          
+          // Update unread count if notification is unread
+          if (!newNotification.isRead) {
+            setUnseenCount(prev => prev + 1);
+          }
+        }
+      });
+      
+      unsubscribeRef.current = unsubscribe;
+      
+      return () => {
+        try {
+          unsubscribeRef.current?.();
+        } catch (error) {
+          console.warn('Error unsubscribing from notifications:', error);
+        }
+      };
+    } catch (error) {
+      console.warn('Error setting up notifications subscription:', error);
+    }
+  }, [user?.id]);
 
   // Convert notifications to the format expected by NotificationsBell
   const safeNotifications = Array.isArray(notifications) ? notifications : [];

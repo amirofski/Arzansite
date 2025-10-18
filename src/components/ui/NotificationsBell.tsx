@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export const NotificationsBell: React.FC = () => {
-  const { unseenCount, messages, markAllRead } = useNotifications();
+  const { unseenCount, messages, markAllRead, markAsRead } = useNotifications();
 
   return (
     <DropdownMenu>
@@ -35,10 +35,15 @@ export const NotificationsBell: React.FC = () => {
             <div className="text-center py-6 text-sm text-muted-foreground">اعلانی وجود ندارد</div>
           ) : (
             messages.map((m) => (
-              <div key={m.id} className="px-2 py-2 hover:bg-accent/10 rounded-md">
+              <div 
+                key={m.id} 
+                className={`px-2 py-2 hover:bg-accent/10 rounded-md cursor-pointer ${!m.isRead ? 'bg-blue-50 dark:bg-blue-950/20' : ''}`}
+                onClick={() => !m.isRead && markAsRead(m.id)}
+              >
                 <div className="text-sm font-medium">{m.title}</div>
                 {m.body ? <div className="text-xs text-muted-foreground mt-0.5">{m.body}</div> : null}
                 <div className="text-[10px] text-muted-foreground mt-1">{new Date(m.date).toLocaleString('fa-IR')}</div>
+                {!m.isRead && <div className="w-2 h-2 bg-blue-500 rounded-full mt-1"></div>}
               </div>
             ))
           )}

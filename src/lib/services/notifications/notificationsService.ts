@@ -156,6 +156,69 @@ export class NotificationsService extends BaseApiService {
       throw error;
     }
   }
+
+  /**
+   * Get notification preferences
+   */
+  async getPreferences(): Promise<{
+    success: boolean;
+    preferences: {
+      email: boolean;
+      push: boolean;
+      inApp: boolean;
+      paymentReminders: {
+        monthly: { days: number[]; enabled: boolean };
+        annual: { days: number[]; enabled: boolean };
+      };
+    };
+  }> {
+    try {
+      const response = await withRetry(() =>
+        this.request<{
+          success: boolean;
+          preferences: {
+            email: boolean;
+            push: boolean;
+            inApp: boolean;
+            paymentReminders: {
+              monthly: { days: number[]; enabled: boolean };
+              annual: { days: number[]; enabled: boolean };
+            };
+          };
+        }>('/notifications/preferences')
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'NotificationsService.getPreferences');
+      throw error;
+    }
+  }
+
+  /**
+   * Update notification preferences
+   */
+  async updatePreferences(preferences: {
+    email?: boolean;
+    push?: boolean;
+    inApp?: boolean;
+    paymentReminders?: {
+      monthly?: { days?: number[]; enabled?: boolean };
+      annual?: { days?: number[]; enabled?: boolean };
+    };
+  }): Promise<{ success: boolean; message: string }> {
+    try {
+      const response = await withRetry(() =>
+        this.request<{ success: boolean; message: string }>('/notifications/preferences', {
+          method: 'PUT',
+          body: JSON.stringify(preferences),
+        })
+      );
+      return FieldMapper.transformResponse(response);
+    } catch (error) {
+      ErrorHandler.logError(error, 'NotificationsService.updatePreferences');
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

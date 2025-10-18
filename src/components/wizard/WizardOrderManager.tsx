@@ -46,6 +46,7 @@ interface WizardOrderManagerProps {
       rushDelivery: boolean;
       totalPrice: number;
     };
+    paymentCycle?: 'monthly' | 'annual';
     userInfo: {
       domain: string;
       domainExtension?: string;
@@ -176,6 +177,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         description: orderData.description,
         comments: orderData.comments,
         siteType: orderData.site_type,
+        paymentCycle: wizardData.paymentCycle || 'monthly',
       });
 
       // Store order ID immediately to prevent duplicate orders
@@ -316,6 +318,7 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
           description: orderData.description,
           comments: orderData.comments,
           siteType: orderData.site_type,
+          paymentCycle: wizardData.paymentCycle || 'monthly',
         });
 
       // Treat HTTP 201 with success but without orderId as success

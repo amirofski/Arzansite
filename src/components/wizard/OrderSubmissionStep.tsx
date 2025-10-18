@@ -279,6 +279,7 @@ const [showAuthPrompt, setShowAuthPrompt] = useState(false);
              rushDelivery: wizardData.pricing?.rushDelivery || false,
              totalPrice: wizardData.pricing?.totalPrice || 0
            },
+           paymentCycle: wizardData.paymentCycle || 'monthly',
            userInfo: {
              domain: wizardData.userInfo?.domain || '',
              domainExtension: wizardData.userInfo?.domainExtension,

@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { notificationsService, type Notification } from '@/lib/services';
-import { client } from '@/lib/appwrite';
+import { useNotificationPolling } from '@/hooks/useNotificationPolling';
 
 export function useNotifications() {
   const { user } = useAuth();
@@ -9,7 +9,6 @@ export function useNotifications() {
   const [error, setError] = useState<string | null>(null);
   const [unseenCount, setUnseenCount] = useState(0);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const unsubscribeRef = useRef<(() => void) | null>(null);
 
   // Load notifications
   const loadNotifications = useCallback(async () => {
@@ -85,61 +84,38 @@ export function useNotifications() {
     loadNotifications();
   }, [loadNotifications]);
 
-  // Set up real-time subscription to Appwrite notifications collection
-  useEffect(() => {
-    if (!user?.id) return;
-
-    // Appwrite collection IDs from environment or defaults
-    const databaseId = import.meta.env.VITE_APPWRITE_DATABASE_ID || 'main';
-    const collectionId = import.meta.env.VITE_APPWRITE_COLLECTION_NOTIFICATIONS || 'notifications';
-    
-    const channel = `databases.${databaseId}.collections.${collectionId}.documents`;
-    
-    try {
-      const unsubscribe = client.subscribe(channel, (event) => {
-        const doc = event.payload as any;
-        if (!doc) return;
-        
-        // Filter by user_id to only show notifications for current user
-        if (doc.user_id !== user.id && doc.userId !== user.id) return;
-        
-        // Only react to create events for new notifications
-        if (event.events?.some((e) => e.endsWith('.create'))) {
-          const newNotification: Notification = {
-            id: doc.$id || doc.id,
-            userId: doc.user_id || doc.userId,
-            type: doc.type || 'general',
-            title: doc.title || 'اعلان جدید',
-            message: doc.message || doc.body || '',
-            data: doc.data || {},
-            isRead: doc.isRead || doc.read || false,
-            createdAt: doc.$createdAt || doc.createdAt,
-            updatedAt: doc.$updatedAt || doc.updatedAt,
-          };
-          
-          // Add to notifications list
-          setNotifications(prev => [newNotification, ...prev]);
-          
-          // Update unread count if notification is unread
-          if (!newNotification.isRead) {
-            setUnseenCount(prev => prev + 1);
-          }
-        }
-      });
+  // Set up polling for notifications using the dedicated hook
+  useNotificationPolling({
+    enabled: true,
+    interval: 30000, // 30 seconds
+    onNewNotification: (notification) => {
+      console.log('New notification received via polling:', notification);
       
-      unsubscribeRef.current = unsubscribe;
-      
-      return () => {
-        try {
-          unsubscribeRef.current?.();
-        } catch (error) {
-          console.warn('Error unsubscribing from notifications:', error);
-        }
+      const newNotification: Notification = {
+        id: notification.$id || notification.id,
+        userId: notification.user_id || notification.userId,
+        type: notification.type || 'general',
+        title: notification.title || 'اعلان جدید',
+        message: notification.message || notification.body || '',
+        data: notification.data || {},
+        isRead: notification.isRead || notification.read || false,
+        createdAt: notification.$createdAt || notification.createdAt,
+        updatedAt: notification.$updatedAt || notification.updatedAt,
       };
-    } catch (error) {
-      console.warn('Error setting up notifications subscription:', error);
+      
+      // Add to notifications list
+      setNotifications(prev => [newNotification, ...prev]);
+      
+      // Update unread count if notification is unread
+      if (!newNotification.isRead) {
+        setUnseenCount(prev => prev + 1);
+      }
+    },
+    onError: (error) => {
+      console.error('Notification polling error:', error);
+      setError('خطا در دریافت اعلان‌ها');
     }
-  }, [user?.id]);
+  });
 
   // Convert notifications to the format expected by NotificationsBell
   const safeNotifications = Array.isArray(notifications) ? notifications : [];

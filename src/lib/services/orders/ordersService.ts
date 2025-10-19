@@ -253,10 +253,26 @@ export class OrdersService extends BaseApiService {
           })
         );
         const data = FieldMapper.transformResponse(res) as Record<string, unknown>;
-        // Normalize diverse backend shapes
+        
+        console.log('Raw API response:', data);
+        
+        // Handle new backend response format: { success: true, data: { orderId, status, payment } }
+        if ((data as any)?.success && (data as any)?.data) {
+          const responseData = (data as any).data;
+          const orderId = responseData?.orderId || responseData?.order_id || responseData?.id;
+          const status = responseData?.status || 'pending';
+          const payment = responseData?.payment || undefined;
+          
+          console.log('Parsed response data:', { orderId, status, payment });
+          return { orderId, status, payment };
+        }
+        
+        // Fallback to legacy response format
         const orderId = (data as any)?.orderId || (data as any)?.order_id || (data as any)?.order?.id || (data as any)?.id;
         const status = (data as any)?.status || (data as any)?.order?.status || 'pending';
         const payment = (data as any)?.payment || ((data as any)?.paymentUrl ? { redirectUrl: (data as any).paymentUrl } : undefined);
+        
+        console.log('Legacy format parsed:', { orderId, status, payment });
         return { orderId, status, payment };
       } catch (primaryErr) {
         // Fallback to legacy /orders

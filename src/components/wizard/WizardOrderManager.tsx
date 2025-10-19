@@ -168,6 +168,18 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
       }
 
       // Try unified endpoint with payment
+      console.log('Creating order with data:', {
+        submitMode: 'payment',
+        wizardData: wizardDataPayload,
+        totalAmount: orderData.priceTomans,
+        currency: 'IRR',
+        title: orderData.title,
+        description: orderData.description,
+        comments: orderData.comments,
+        siteType: orderData.site_type,
+        paymentCycle: wizardData.paymentCycle || 'monthly',
+      });
+
       const unified = await ordersService.createOrderUnified({
         submitMode: 'payment',
         wizardData: wizardDataPayload,
@@ -180,19 +192,41 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         paymentCycle: wizardData.paymentCycle || 'monthly',
       });
 
+      console.log('Order creation response:', unified);
+      console.log('Response structure:', {
+        hasOrderId: !!unified?.orderId,
+        hasStatus: !!unified?.status,
+        hasPayment: !!unified?.payment,
+        orderId: unified?.orderId,
+        status: unified?.status,
+        payment: unified?.payment
+      });
+
       // Store order ID immediately to prevent duplicate orders
       const createdOrderId = unified?.orderId || '';
       
+      // Check if we have a valid order ID
+      if (!createdOrderId) {
+        console.error('No order ID in response:', unified);
+        console.error('Available fields:', Object.keys(unified || {}));
+        throw new Error('شناسه سفارش در پاسخ دریافت نشد');
+      }
+
+      // Check if we have payment redirect URL
       if (unified?.payment?.redirectUrl) {
+        console.log('Payment redirect URL found:', unified.payment.redirectUrl);
+        
         try {
           const info = {
             orderId: createdOrderId,
             amount: orderData.priceTomans || 0,
-            description: `پرداخت سفارش ${createdOrderId || 'سفارش'}`,
+            description: `پرداخت سفارش ${createdOrderId}`,
             timestamp: Date.now(),
           };
           sessionStorage.setItem('orderPaymentInfo', JSON.stringify(info));
-        } catch {}
+        } catch (error) {
+          console.warn('Failed to store payment info:', error);
+        }
         
         // Call completion callback before redirect
         onOrderComplete?.(createdOrderId);
@@ -201,11 +235,23 @@ export const WizardOrderManager: React.FC<WizardOrderManagerProps> = ({
         return;
       }
 
-      // Only fallback to payment service if unified didn't provide redirect URL
-      // AND order was actually created
-      if (!createdOrderId) {
-        throw new Error('سفارش ایجاد نشد');
+      // If no redirect URL, check if order was created successfully
+      console.log('No payment redirect URL, checking if order was created successfully');
+      
+      if (unified?.status === 'pending' || unified?.status === 'created') {
+        console.log('Order created successfully but no payment URL provided');
+        toast({
+          title: 'سفارش ایجاد شد',
+          description: `شناسه سفارش: ${createdOrderId}. لطفاً برای پرداخت با پشتیبانی تماس بگیرید.`,
+          variant: 'default'
+        });
+        onOrderComplete?.(createdOrderId);
+        return;
       }
+
+      // If we reach here, something went wrong
+      console.error('Unexpected response format:', unified);
+      throw new Error('پاسخ نامعتبر از سرور دریافت شد');
 
       // Fallback: request payment via payments service using the existing order ID
       const payment = await paymentService.requestPayment({

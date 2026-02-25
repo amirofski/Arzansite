@@ -4,10 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient } from "@/lib/api-client";
-import { WalletService } from "@/lib/walletService";
+// import { apiClient } from "@/lib/api-client";
+// import { WalletService } from "@/lib/walletService";
 import { CheckCircle, XCircle, Loader2, RefreshCw, Home, Wallet, Receipt, AlertCircle, CreditCard } from 'lucide-react';
 import Layout from "@/components/ui/Layout";
+import { walletService } from '@/lib/services';
 
 // ZarinPal Payment Status Constants
 const PAYMENT_STATUS = {
@@ -61,6 +62,11 @@ interface WalletPaymentInfo {
 const WalletPaymentCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  // Redirect to unified callback route preserving query params
+  useEffect(() => {
+    const qs = window.location.search || '';
+    navigate(`/payment/callback${qs}`, { replace: true });
+  }, [navigate]);
   const { toast } = useToast();
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
   const [refId, setRefId] = useState<string>('');
@@ -108,7 +114,7 @@ const WalletPaymentCallback = () => {
 
              try {
          // Verify wallet deposit payment via backend JWT-only API
-         const verificationRes = await apiClient.verifyWalletDeposit({ 
+         const verificationRes = await walletService.verifyDeposit({ 
            orderId: orderId || undefined,
            authority: authority
           });
@@ -118,9 +124,9 @@ const WalletPaymentCallback = () => {
            setRefId(verificationRes.refId || '');
            setNewBalance(verificationRes.newBalance || null);
            
-           toast({
+             toast({
              title: "✅ شارژ کیف پول موفق",
-             description: `مبلغ ${WalletService.formatAmount(paymentInfo?.amount || 0)} با موفقیت به کیف پول شما اضافه شد`,
+             description: paymentInfo?.amount ? `مبلغ ${formatToman(paymentInfo.amount)} با موفقیت به کیف پول شما اضافه شد` : 'شارژ کیف پول با موفقیت انجام شد',
            });
          } else {
            setStatus('failed');
@@ -179,7 +185,7 @@ const WalletPaymentCallback = () => {
       } as { amount: number; description: string; callbackUrl: string };
       
       console.log('Requesting retry wallet deposit with payload:', depositPayload);
-      const res = await apiClient.requestWalletDeposit(depositPayload);
+      const res = await walletService.requestDeposit(depositPayload);
       console.log('Retry wallet deposit response:', res);
       
       // Update stored payment info
@@ -209,7 +215,7 @@ const WalletPaymentCallback = () => {
     }
   };
 
-  const formatAmount = (amount: number) => {
+  const formatToman = (amount: number) => {
     return new Intl.NumberFormat('fa-IR').format(amount) + ' تومان';
   };
 
@@ -251,12 +257,12 @@ const WalletPaymentCallback = () => {
                   </div>
                   {paymentInfo && (
                     <p className="text-green-700 mb-2">
-                      مبلغ {formatAmount(paymentInfo.amount)} با موفقیت به کیف پول شما اضافه شد
+                      مبلغ {formatToman(paymentInfo.amount)} با موفقیت به کیف پول شما اضافه شد
                     </p>
                   )}
                   {newBalance !== null && (
                     <p className="text-green-700">
-                      موجودی جدید: {formatAmount(newBalance)}
+                      موجودی جدید: {formatToman(newBalance)}
                     </p>
                   )}
                 </div>

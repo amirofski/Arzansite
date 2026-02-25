@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { authManager } from "@/lib/authManager";
+import { authService, useApi } from "@/lib/services";
+import { getErrorMessage } from "@/lib/utils/errorMessages";
 
 const ResetPassword = () => {
   const [password, setPassword] = useState("");
@@ -21,6 +22,28 @@ const ResetPassword = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
+  // useApi for reset password
+  const { execute: resetPasswordApi, loading: resetting } = useApi(
+    authService.resetPassword.bind(authService),
+    {
+      onSuccess: () => {
+        setSuccess(true);
+        toast({
+          title: "رمز عبور با موفقیت تغییر یافت",
+          description: "رمز عبور شما با موفقیت بازنشانی شد",
+        });
+        setTimeout(() => navigate("/auth"), 3000);
+      },
+      onError: (error) => {
+        const errorMessage = getErrorMessage(error);
+        toast({
+          title: "خطا در بازنشانی رمز عبور",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    }
+  );
 
   useEffect(() => {
     // NestJS backend sends 'token' as query parameter
@@ -56,33 +79,12 @@ const ResetPassword = () => {
 
     try {
       const token = searchParams.get('token');
-      
+      const email = searchParams.get('email') || undefined;
       if (!token) throw new Error('Reset token is missing');
 
-      // Complete password reset through auth manager
-      const result = await authManager.resetPassword(token, password);
-      
-      if (!result.success) {
-        throw new Error(result.data?.message || 'Failed to reset password');
-      }
-
-      setSuccess(true);
-      toast({
-        title: "رمز عبور با موفقیت تغییر یافت",
-        description: "رمز عبور شما با موفقیت بازنشانی شد",
-      });
-      
-      // Redirect to login after 3 seconds
-      setTimeout(() => {
-        navigate("/auth");
-      }, 3000);
+      await resetPasswordApi({ token, email, newPassword: password });
     } catch (error) {
       console.error('Password reset error:', error);
-      toast({
-        title: "خطا در بازنشانی رمز عبور",
-        description: "مشکلی در بازنشانی رمز عبور پیش آمد. لطفاً دوباره تلاش کنید",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
@@ -128,7 +130,7 @@ const ResetPassword = () => {
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
-              className="w-16 h-16 mx-auto bg-gradient-to-r from-primary to-secondary rounded-2xl flex items-center justify-center"
+              className="w-16 h-16 mx-auto bg-gradient-to-r from-primary to.secondary rounded-2xl flex items-center justify-center"
             >
               <Lock className="w-8 h-8 text-white" />
             </motion.div>
@@ -193,10 +195,10 @@ const ResetPassword = () => {
 
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || resetting}
                   className="w-full h-12 bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover text-white font-semibold text-lg transition-all duration-300"
                 >
-                  {loading ? (
+                  {loading || resetting ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <span className="flex items-center gap-2">
@@ -212,7 +214,7 @@ const ResetPassword = () => {
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ duration: 0.5, delay: 0.2 }}
-                  className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center"
+                  className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items.center justify-center"
                 >
                   <CheckCircle className="w-8 h-8 text-green-600" />
                 </motion.div>

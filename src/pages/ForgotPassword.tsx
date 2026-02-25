@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { authManager } from "@/lib/authManager";
+import { authService, useApi } from "@/lib/services";
+import { getErrorMessage } from "@/lib/utils/errorMessages";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -17,31 +18,36 @@ const ForgotPassword = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // New API hook for password reset email
+  const { execute: sendReset, loading: sending } = useApi(
+    authService.sendPasswordReset.bind(authService),
+    {
+      onSuccess: () => {
+        setEmailSent(true);
+        toast({
+          title: "ایمیل ارسال شد",
+          description: "ایمیل بازنشانی رمز عبور به آدرس شما ارسال شد",
+        });
+      },
+      onError: (error) => {
+        const errorMessage = getErrorMessage(error);
+        toast({
+          title: "خطا در ارسال ایمیل",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    }
+  );
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Use auth manager to request password reset
-      const result = await authManager.requestPasswordReset(email);
-      
-      if (result.success) {
-        setEmailSent(true);
-        toast({
-          title: "ایمیل ارسال شد",
-          description: "ایمیل بازنشانی رمز عبور به آدرس شما ارسال شد",
-        });
-      } else {
-        throw new Error(result.data?.message || 'Failed to send password reset email');
-      }
+      await sendReset({ email });
     } catch (error) {
       console.error('Password recovery error:', error);
-      toast({
-        title: "خطا در ارسال ایمیل",
-        description: "مشکلی در ارسال ایمیل بازنشانی رمز عبور پیش آمد. لطفاً دوباره تلاش کنید",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
@@ -105,10 +111,10 @@ const ForgotPassword = () => {
 
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || sending}
                   className="w-full h-12 bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover text-white font-semibold text-lg transition-all duration-300"
                 >
-                  {loading ? (
+                  {loading || sending ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     "ارسال ایمیل بازنشانی"

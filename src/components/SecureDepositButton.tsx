@@ -15,7 +15,7 @@ import {
 } from '../lib/secureRedirect';
 import { SafeTransactionDescription } from './SafeTransactionDescription';
 import { SafeContentRenderer } from '../lib/sanitizationUtils';
-import { apiClient } from '../lib/api-client';
+import { walletService, useApi } from '../lib/services';
 
 interface SecureDepositButtonProps {
   amount: number;
@@ -36,7 +36,38 @@ export const SecureDepositButton: React.FC<SecureDepositButtonProps> = ({
   className = '',
   disabled = false
 }) => {
-  const [isLoading, setIsLoading] = useState(false);
+  const { execute: requestDeposit, loading: isLoading } = useApi(
+    walletService.requestDeposit.bind(walletService),
+    { 
+      onSuccess: (result) => {
+        console.log('=== DEPOSIT RESPONSE ===');
+        console.log('Payment URL:', result.paymentUrl);
+        console.log('Order ID:', result.orderId);
+        
+        // Validate payment response data
+        const paymentData = {
+          orderId: result.orderId,
+          authority: result.authority || '', // Server should provide authority
+          paymentUrl: result.paymentUrl,
+          amount: normalizeToRials(amount, unit),
+          description: description || createAmountDescription(amount, unit)
+        };
+        
+        // Use secure redirect handler
+        SecurePaymentRedirect.getInstance().then(async (secureRedirect) => {
+          await secureRedirect.handlePaymentRedirect(paymentData);
+          
+          // Call success callback after successful redirect
+          onSuccess?.(result.paymentUrl, result.orderId);
+        });
+      },
+      onError: (error) => {
+        console.error('Deposit request failed:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Deposit failed';
+        onError?.(errorMessage);
+      }
+    }
+  );
 
   const handleDeposit = async () => {
     // Validate amount before making API call
@@ -46,53 +77,22 @@ export const SecureDepositButton: React.FC<SecureDepositButtonProps> = ({
       return;
     }
 
-    setIsLoading(true);
+    // Convert to Rials for API call
+    const amountInRials = normalizeToRials(amount, unit);
     
-    try {
-      // Convert to Rials for API call
-      const amountInRials = normalizeToRials(amount, unit);
-      
-             // Create description with both units for clarity and sanitize it
-       const rawDescription = description || createAmountDescription(amount, unit);
-       const depositDescription = SafeContentRenderer.renderText(rawDescription, 200);
-      
-      console.log('=== SECURE DEPOSIT REQUEST ===');
-      console.log('Original amount:', amount, unit);
-      console.log('Converted to Rials:', amountInRials);
-      console.log('Description:', depositDescription);
-      
-      const result = await apiClient.requestWalletDeposit({
-        amount: amountInRials,
-        description: depositDescription
-      });
-      
-      console.log('=== DEPOSIT RESPONSE ===');
-      console.log('Payment URL:', result.paymentUrl);
-      console.log('Order ID:', result.orderId);
-      
-      // Validate payment response data
-      const paymentData = {
-        orderId: result.orderId,
-        authority: result.authority || '', // Server should provide authority
-        paymentUrl: result.paymentUrl,
-        amount: amountInRials,
-        description: depositDescription
-      };
-      
-      // Use secure redirect handler
-      const secureRedirect = SecurePaymentRedirect.getInstance();
-      await secureRedirect.handlePaymentRedirect(paymentData);
-      
-      // Call success callback after successful redirect
-      onSuccess?.(result.paymentUrl, result.orderId);
-      
-    } catch (error) {
-      console.error('Deposit request failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Deposit failed';
-      onError?.(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
+    // Create description with both units for clarity and sanitize it
+    const rawDescription = description || createAmountDescription(amount, unit);
+    const depositDescription = SafeContentRenderer.renderText(rawDescription, 200);
+    
+    console.log('=== SECURE DEPOSIT REQUEST ===');
+    console.log('Original amount:', amount, unit);
+    console.log('Converted to Rials:', amountInRials);
+    console.log('Description:', depositDescription);
+    
+    await requestDeposit({
+      amount: amountInRials,
+      description: depositDescription
+    });
   };
 
   // Format display amount

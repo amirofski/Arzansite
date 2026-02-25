@@ -1,238 +1,80 @@
-import { apiClient } from '@/lib/api-client';
-export interface WalletBalanceResponse { balance: number }
-export interface WalletTransaction {
-  id: string;
-  wallet_id?: string;
-  user_id?: string;
-  type: string;
-  status: string;
-  amount: number;
-  description?: string;
-  reference_id?: string;
-  reference_type?: string;
-  metadata?: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-  balance_after?: number;
-}
+// Compatibility adapter for legacy imports
+// Prefer importing from '@/lib/services' directly in new code.
+import {
+  WalletService as BaseWalletService,
+  walletService as baseWalletService,
+  type WalletDepositRequest,
+  type WalletVerificationRequest,
+  type WalletTopUpRequest,
+  type CreateTransactionRequest,
+  type WalletBalanceResponse,
+  type WalletTransaction,
+  type WalletDepositResponse,
+  type WalletVerificationResponse,
+  type WalletTopUpResponse,
+  type WalletTransactionResponse,
+  type WalletTransactionsResponse,
+} from '@/lib/services/wallet/walletService';
 
-// Temporary type definitions until database types are regenerated
-export interface Wallet {
-  id: string;
-  user_id: string;
-  balance: number;
-  created_at: string;
-  updated_at: string;
-}
+export type Transaction = WalletTransaction;
+export type TransactionType = 'deposit' | 'withdrawal' | 'refund' | 'credit' | 'debit';
 
-export interface Transaction {
-  id: string;
-  wallet_id: string;
-  user_id: string;
-  type: string;
-  status: string;
-  amount: number;
-  balance_before: number;
-  balance_after: number;
-  description?: string;
-  reference_id?: string;
-  reference_type?: string;
-  metadata?: Record<string, unknown>;
-  created_at: string;
-  updated_at: string;
-}
-
-export type TransactionType = 'deposit' | 'withdrawal' | 'payment' | 'refund' | 'credit' | 'debit';
-
-export class WalletService {
-  // Get user's wallet balance
-  static async getWalletBalance(userId: string): Promise<number> {
-    try {
-      const data = await apiClient.getWalletBalance();
-      return typeof data.balance === 'number' ? data.balance : 0;
-    } catch (error) {
-      console.error('Error fetching wallet balance:', error);
-      return 0;
-    }
-  }
-
-  // Get user's wallet with transactions
-  static async getWallet(userId: string): Promise<Wallet | null> {
-    try {
-      // For now, backend exposes balance and transactions endpoints; wallet object isn't needed
-      const balance = await this.getWalletBalance(userId);
-      return { id: 'me', user_id: userId, balance, created_at: '', updated_at: '' } as Wallet;
-    } catch (error) {
-      console.error('Error fetching wallet:', error);
-      return null;
-    }
-  }
-
-  // Create wallet for user
-  static async createWallet(userId: string): Promise<Wallet | null> {
-    try {
-      // Backend ensures wallet existence automatically
-      return { id: 'me', user_id: userId, balance: 0, created_at: '', updated_at: '' } as Wallet;
-    } catch (error) {
-      console.error('Error creating wallet:', error);
-      return null;
-    }
-  }
-
-  // Get user's transactions
-  static async getTransactions(
-    userId: string,
-    limit: number = 20,
-    offset: number = 0
-  ): Promise<Transaction[]> {
-    try {
-      const data = await apiClient.getWalletTransactions(limit, offset);
-      return data as unknown as Transaction[];
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      return [];
-    }
-  }
-
-  // Process a wallet transaction using the database function
-  static async processTransaction(
-    userId: string,
-    type: TransactionType,
-    amount: number,
-    description?: string,
-    referenceId?: string,
-    referenceType?: string,
-    metadata?: Record<string, unknown>
-  ): Promise<string | null> {
-    try {
-      // First ensure wallet exists
-      const payload = {
-        type,
-        amount,
-        description,
-        referenceId,
-        referenceType,
-        metadata,
-      };
-      
-      console.log('Creating wallet transaction with payload:', payload);
-      const res = await apiClient.createWalletTransaction(payload);
-      console.log('Wallet transaction response:', res);
-      return res?.id ?? null;
-    } catch (error) {
-      console.error('Error processing transaction:', error);
-      return null;
-    }
-  }
-
-  // Add money to wallet (deposit)
-  static async deposit(
-    userId: string,
-    amount: number,
-    description?: string,
-    metadata?: Record<string, unknown>
-  ): Promise<string | null> {
-    return this.processTransaction(
-      userId,
-      'deposit',
-      amount,
-      description || 'Wallet deposit',
-      undefined,
-      undefined,
-      metadata
-    );
-  }
-
-  // Pay for order from wallet
-  static async payForOrder(
-    userId: string,
-    orderId: string,
-    amount: number,
-    orderTitle: string
-  ): Promise<string | null> {
-    return this.processTransaction(
-      userId,
-      'payment',
-      amount,
-      `Payment for order: ${orderTitle}`,
-      orderId,
-      'order',
-      { order_id: orderId, order_title: orderTitle }
-    );
-  }
-
-  // Refund order to wallet
-  static async refundOrder(orderId: string): Promise<string | null> {
-    try {
-      const res = await apiClient.refundOrder(orderId);
-      return res?.transactionId ?? null;
-    } catch (error) {
-      console.error('Error refunding order:', error);
-      return null;
-    }
-  }
-
-  // Admin credit to user wallet
-  static async creditUser(
-    userId: string,
-    amount: number,
-    description?: string,
-    metadata?: Record<string, unknown>
-  ): Promise<string | null> {
-    return this.processTransaction(
-      userId,
-      'credit',
-      amount,
-      description || 'Admin credit',
-      undefined,
-      undefined,
-      metadata
-    );
-  }
-
-  // Admin debit from user wallet
-  static async debitUser(
-    userId: string,
-    amount: number,
-    description?: string,
-    metadata?: Record<string, unknown>
-  ): Promise<string | null> {
-    return this.processTransaction(
-      userId,
-      'debit',
-      amount,
-      description || 'Admin debit',
-      undefined,
-      undefined,
-      metadata
-    );
-  }
-
-  // Check if user has sufficient balance
-  static async hasSufficientBalance(userId: string, requiredAmount: number): Promise<boolean> {
-    const balance = await this.getWalletBalance(userId);
-    return balance >= requiredAmount;
-  }
-
-  // Format amount for display
+export class WalletService extends BaseWalletService {
   static formatAmount(amount: number): string {
-    return new Intl.NumberFormat('fa-IR').format(amount) + ' تومان';
+    try {
+      return new Intl.NumberFormat('fa-IR').format(amount) + ' تومان';
+    } catch {
+      return `${amount} تومان`;
+    }
   }
 
-  // Get transaction type display text
+  static getTransactionStatusText(status: string): string {
+    switch (status) {
+      case 'completed':
+        return 'موفق';
+      case 'pending':
+        return 'در انتظار';
+      case 'failed':
+        return 'ناموفق';
+      case 'cancelled':
+        return 'لغو شده';
+      default:
+        return status;
+    }
+  }
+
+  static getTransactionStatusColor(status: string): string {
+    switch (status) {
+      case 'completed':
+        return 'bg-green-100 text-green-800';
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'failed':
+        return 'bg-red-100 text-red-800';
+      case 'cancelled':
+        return 'bg-gray-100 text-gray-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  }
+
   static getTransactionTypeText(type: TransactionType): string {
     switch (type) {
-      case 'deposit': return 'شارژ کیف پول';
-      case 'withdrawal': return 'برداشت از کیف پول';
-      case 'payment': return 'پرداخت سفارش';
-      case 'refund': return 'بازپرداخت';
-      case 'credit': return 'اعتبار ادمین';
-      case 'debit': return 'کسر ادمین';
-      default: return type;
+      case 'deposit':
+        return 'واریز';
+      case 'withdrawal':
+        return 'برداشت';
+      case 'refund':
+        return 'بازپرداخت';
+      case 'credit':
+        return 'افزایش موجودی';
+      case 'debit':
+        return 'کاهش موجودی';
+      default:
+        return type;
     }
   }
 
-  // Get transaction type color
   static getTransactionTypeColor(type: TransactionType): string {
     switch (type) {
       case 'deposit':
@@ -240,33 +82,28 @@ export class WalletService {
       case 'credit':
         return 'text-green-600';
       case 'withdrawal':
-      case 'payment':
       case 'debit':
         return 'text-red-600';
       default:
-        return 'text-gray-600';
+        return '';
     }
   }
+}
 
-  // Get transaction status text
-  static getTransactionStatusText(status: string): string {
-    switch (status) {
-      case 'pending': return 'در انتظار';
-      case 'completed': return 'تکمیل شده';
-      case 'failed': return 'ناموفق';
-      case 'cancelled': return 'لغو شده';
-      default: return status;
-    }
-  }
+export const walletService = baseWalletService;
 
-  // Get transaction status color
-  static getTransactionStatusColor(status: string): string {
-    switch (status) {
-      case 'completed': return 'text-green-600';
-      case 'pending': return 'text-yellow-600';
-      case 'failed': return 'text-red-600';
-      case 'cancelled': return 'text-gray-600';
-      default: return 'text-gray-600';
-    }
-  }
-} 
+export type {
+  WalletDepositRequest,
+  WalletVerificationRequest,
+  WalletTopUpRequest,
+  CreateTransactionRequest,
+  WalletBalanceResponse,
+  WalletTransaction,
+  WalletDepositResponse,
+  WalletVerificationResponse,
+  WalletTopUpResponse,
+  WalletTransactionResponse,
+  WalletTransactionsResponse,
+};
+
+

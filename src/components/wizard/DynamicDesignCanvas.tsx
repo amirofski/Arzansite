@@ -31,10 +31,56 @@ import {
   BarChart3,
   Share2
 } from 'lucide-react';
-import { useTemplateLoader, SkeletonTemplate, getImageTemplatesByCategory } from './templates-del';
-import { getAdjacentImage, SECTION_NAMES } from '@/lib/imageLoader';
+import { getAdjacentImage, SECTION_NAMES, getSectionImages } from '@/lib/imageLoader';
 import LazyImage from '@/components/ui/lazy-image';
 import CacheClearButton from '@/components/ui/cache-clear-button';
+
+// Define SkeletonTemplate interface
+interface SkeletonTemplate {
+  id: string;
+  name: string;
+  previewImage: string;
+  component?: React.ComponentType<any>;
+}
+
+// Hook to load templates
+const useTemplateLoader = () => {
+  const [templates, setTemplates] = useState<Record<string, SkeletonTemplate[]>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const getTemplatesByCategory = async (category: string): Promise<SkeletonTemplate[]> => {
+    if (templates[category]) {
+      return templates[category];
+    }
+
+    try {
+      setLoading(true);
+      const images = await getSectionImages(category);
+
+      const skeletonTemplates: SkeletonTemplate[] = images.map(img => ({
+        id: img.id,
+        name: img.name,
+        previewImage: img.path,
+        component: undefined // We'll use previewImage instead
+      }));
+
+      setTemplates(prev => ({
+        ...prev,
+        [category]: skeletonTemplates
+      }));
+
+      return skeletonTemplates;
+    } catch (err) {
+      setError(err.message);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { templates, loading, error, getTemplatesByCategory };
+};
 
 interface PageSection {
   id: string;
@@ -92,7 +138,7 @@ const DynamicDesignCanvas = ({
   const [canvasWidth, setCanvasWidth] = useState<number>(800);
   const [imageTemplates, setImageTemplates] = useState<Record<string, SkeletonTemplate[]>>({});
 
-  const { templates, loading, getTemplatesByCategory } = useTemplateLoader();
+  const { templates } = useTemplateLoader();
 
   // Update canvas width based on screen size
   useEffect(() => {
@@ -115,7 +161,7 @@ const DynamicDesignCanvas = ({
 
     try {
       console.log(`🔄 Loading templates for ${category}...`);
-      const temps = await getImageTemplatesByCategory(category);
+      const temps = await getTemplatesByCategory(category);
       
       setImageTemplates(prev => ({
         ...prev,

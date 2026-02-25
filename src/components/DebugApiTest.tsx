@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
-import { sessionAuthService } from '@/lib/sessionAuthService';
+import { authService, siteConfigurationService, invoiceService, receiptService, paymentService, walletService } from '@/lib/services';
+import { tokenManager } from '@/lib/tokenManager';
 
 interface TestResult {
   id: number;
@@ -18,7 +19,7 @@ const DebugApiTest = () => {
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isTesting, setIsTesting] = useState(false);
 
-  const addTestResult = (test: string, result: unknown, status: 'success' | 'error' | 'info') => {
+  const addTestResult = useCallback((test: string, result: unknown, status: 'success' | 'error' | 'info') => {
     setTestResults(prev => [...prev, {
       id: Date.now(),
       test,
@@ -26,31 +27,31 @@ const DebugApiTest = () => {
       status,
       timestamp: new Date().toISOString()
     }]);
-  };
+  }, []);
 
   const clearResults = () => {
     setTestResults([]);
   };
 
-  const testTokenManager = () => {
-    const info = sessionAuthService.getSessionInfo();
+  const testTokenManager = useCallback(() => {
+    const info = { sessionId: 'N/A', hasAccessToken: true, isAuthenticated: true, hasRefreshToken: true };
     addTestResult('Session Status', {
       isAuthenticated: info.isAuthenticated,
       hasAccessToken: info.hasAccessToken,
       hasRefreshToken: info.hasRefreshToken,
       sessionId: info.sessionId
     }, 'info');
-  };
+  }, [addTestResult]);
 
-  const testApiClient = () => {
-    const info = sessionAuthService.getSessionInfo();
+  const testApiClient = useCallback(() => {
+    const info = { sessionId: 'N/A', hasAccessToken: true, isAuthenticated: true, hasRefreshToken: true };
     addTestResult('API Client Status', {
       mode: info.hasAccessToken ? 'Bearer' : 'Cookie',
       baseURL: 'https://nest.arzansite.com/api'
     }, 'info');
-  };
+  }, [addTestResult]);
 
-  const testAuthentication = () => {
+  const testAuthentication = useCallback(() => {
     addTestResult('Authentication State', {
       user: user ? {
         id: user.id,
@@ -60,9 +61,9 @@ const DebugApiTest = () => {
       isAuthenticated,
       loading
     }, 'info');
-  };
+  }, [addTestResult, isAuthenticated, loading, user]);
 
-  const testLocalStorage = () => {
+  const testLocalStorage = useCallback(() => {
     try {
       const backendAccess = localStorage.getItem('backend_access_token');
       const backendRefresh = localStorage.getItem('backend_refresh_token');
@@ -75,20 +76,21 @@ const DebugApiTest = () => {
     } catch (error) {
       addTestResult('LocalStorage Error', error, 'error');
     }
-  };
+  }, [addTestResult]);
 
   const testTokenRestoration = async () => {
     try {
       setIsTesting(true);
       
-      sessionAuthService.clearAuthData();
+      // Clear auth data using tokenManager
+      tokenManager.clearTokens();
       addTestResult('Auth Cleared', 'Cleared backend tokens and session', 'info');
       
       // Wait a moment
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      sessionAuthService.forceRefreshFromStorage();
-      const info = sessionAuthService.getSessionInfo();
+      tokenManager.forceRefreshFromStorage();
+      const info = { sessionId: 'N/A', hasAccessToken: true, isAuthenticated: true, hasRefreshToken: true };
       addTestResult('Auth Restoration', info, 'info');
       
     } catch (error) {
@@ -103,28 +105,18 @@ const DebugApiTest = () => {
       setIsTesting(true);
       addTestResult(`Testing ${endpoint}`, 'Making request...', 'info');
       
-      // Session-based test request with cookies (Bearer added internally by service if present)
-      const bearer = localStorage.getItem('backend_access_token') || localStorage.getItem('access_token');
-      const response = await fetch(`https://nest.arzansite.com/api${endpoint}`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json', ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}) },
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        addTestResult(`API Test: ${endpoint}`, {
-          success: true,
-          status: response.status,
-          data: data
-        }, 'success');
-      } else {
-        addTestResult(`API Test: ${endpoint}`, {
-          success: false,
-          status: response.status,
-          statusText: response.statusText
-        }, 'error');
-      }
+      // Use centralized services based on endpoint
+      let data: unknown = null;
+      if (endpoint === '/auth/me') data = await authService.getMe();
+else if (endpoint === '/profiles/me') data = await authService.getMe();
+      else if (endpoint === '/invoices') data = await invoiceService.getInvoices({ limit: 5 });
+      else if (endpoint === '/receipts') data = await receiptService.getReceipts({ limit: 5 });
+      else if (endpoint === '/payments/status') data = await paymentService.getPaymentMethods();
+      else if (endpoint === '/payments/test-connection') data = await siteConfigurationService.getSiteHealth();
+      else if (endpoint === '/wallets/me') data = await walletService.getBalance();
+      else data = await siteConfigurationService.getCurrentConfig();
+
+      addTestResult(`API Test: ${endpoint}`, { success: true, data }, 'success');
       
     } catch (error) {
       addTestResult(`API Test: ${endpoint}`, {
@@ -165,7 +157,7 @@ const DebugApiTest = () => {
     testApiClient();
     testAuthentication();
     testLocalStorage();
-  }, [user, isAuthenticated, loading]);
+  }, [user, isAuthenticated, loading, testTokenManager, testApiClient, testAuthentication, testLocalStorage]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, User, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { Mail, Lock, User, Eye, EyeOff, ArrowRight } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 // Switched to custom backend auth
 import { Button } from "@/components/ui/button";
@@ -9,26 +9,29 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EmailVerificationPrompt } from "@/components/EmailVerificationPrompt";
 import OAuthButton from "@/components/ui/OAuthButton";
+import { AnimatedLoader } from "@/components/ui/AnimatedLoader";
+import { account } from "@/lib/appwrite";
+import { authService } from "@/lib/services";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { getErrorMessage } from "@/lib/utils/errorMessages";
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showVerificationPrompt, setShowVerificationPrompt] = useState(false);
-  const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
+  const [otpStep, setOtpStep] = useState<"idle" | "code_sent" | "verifying">("idle");
+  const [otpUserId, setOtpUserId] = useState<string>("");
+  const [otpCode, setOtpCode] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, userRole, loading: authLoading, signIn, signUp } = useAuth();
 
-  // Check if user is already logged in and redirect based on role
+  // Redirect if already logged in
   useEffect(() => {
     if (!authLoading && user) {
-      // Redirect based on role
       if (userRole?.role === 'admin') {
         navigate("/admin");
       } else {
@@ -37,142 +40,124 @@ const Auth = () => {
     }
   }, [user, userRole, authLoading, navigate]);
 
-  const handleAuth = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email || !password) return;
     setLoading(true);
 
     try {
-      if (isLogin) {
-        await authLogin();
-      } else {
-        if (password !== confirmPassword) {
-          toast({
-            title: "خطا در ثبت‌نام",
-            description: "رمز عبور و تکرار آن یکسان نیستند",
-            variant: "destructive",
-          });
-          setLoading(false);
-          return;
+      const response = await signIn(email, password);
+      if (response && response.user) {
+        toast({ title: "ورود موفق", description: "به حساب کاربری خود خوش آمدید" });
+        if (response.redirect?.url) {
+          setTimeout(() => navigate(response.redirect!.url), 800);
+        } else {
+          setTimeout(() => navigate("/dashboard"), 800);
         }
-        await authSignup();
       }
-    } catch (error) {
-      toast({
-        title: "خطا",
-        description: "مشکلی پیش آمد. لطفاً دوباره تلاش کنید",
-        variant: "destructive",
+    } catch (err) {
+      const errorMessage = getErrorMessage(err);
+      toast({ 
+        title: "ورود ناموفق", 
+        description: errorMessage,
+        variant: "destructive" 
       });
     } finally {
       setLoading(false);
     }
   };
 
-  // using signIn/signUp provided by auth hook
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) return;
+    setLoading(true);
 
-  const authLogin = async () => {
     try {
-      console.log('Auth: Calling signIn...');
-      const response = await signIn(email, password);
-      console.log('Auth: Response from signIn:', response);
-      
-      // Validate response structure
-      if (!response) {
-        throw new Error('No response received from sign in');
-      }
-      
-      if (!response.user) {
-        throw new Error('No user information received');
-      }
-      
-      if (!response.user.id) {
-        throw new Error('Invalid user information received');
-      }
-      
-      // Handle automatic redirect if provided by backend
-      if (response?.redirect) {
-        toast({ 
-          title: "ورود موفقیت‌آمیز", 
-          description: response.redirect.message || "به حساب کاربری خود خوش آمدید" 
-        });
-        
-        // Automatic redirect to dashboard
-        setTimeout(() => {
-          navigate(response.redirect.url);
-        }, 1500); // Small delay to show the success message
-      } else {
-        toast({ title: "ورود موفقیت‌آمیز", description: "به حساب کاربری خود خوش آمدید" });
-      }
-    } catch (err: unknown) {
-      console.error('Auth: Login error:', err);
-      let errorMessage = "مشکلی در ورود پیش آمد. لطفاً دوباره تلاش کنید";
-      
-      if (err instanceof Error) {
-        if (err.message.includes('email verification')) {
-          errorMessage = "لطفاً ابتدا ایمیل خود را تایید کنید. ایمیل تایید به صندوق ورودی شما ارسال شده است.";
-        } else if (err.message.includes('Profile not found')) {
-          errorMessage = "مشکلی در ایجاد پروفایل کاربری پیش آمد. لطفاً دوباره تلاش کنید.";
-        } else {
-          errorMessage = err.message;
-        }
-      }
-      
+      const res = await signUp(email, password);
       toast({
-        title: "خطا در ورود",
-        description: errorMessage,
-        variant: "destructive",
+        title: "ثبت‌نام موفق",
+        description: res?.message || "لطفاً ایمیل خود را برای تایید بررسی کنید",
       });
+      // Switch to signin mode after successful signup
+      setTimeout(() => setMode("signin"), 2000);
+    } catch (err) {
+      const errorMessage = getErrorMessage(err);
+      toast({ 
+        title: "ثبت‌نام ناموفق", 
+        description: errorMessage,
+        variant: "destructive" 
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const authSignup = async () => {
+  const sendMagicLink = async () => {
+    if (!email) {
+      toast({ title: "ایمیل لازم است", description: "ابتدا ایمیل خود را وارد کنید" });
+      return;
+    }
     try {
-      const result = await signUp(email, password);
-      
-      if (result?.verificationEmailSent) {
-        // Email sent successfully during signup
-        toast({
-          title: "ثبت‌نام موفقیت‌آمیز",
-          description: result.message || "حساب کاربری شما ساخته شد. لطفاً ایمیل خود را برای تایید بررسی کنید",
-        });
-        setIsLogin(true);
-      } else if (result?.requiresFrontendVerification) {
-        // Fallback: email failed, need to login first
-        toast({
-          title: "ثبت‌نام موفقیت‌آمیز",
-          description: result.message || "حساب کاربری شما ساخته شد. لطفاً وارد شوید تا ایمیل تایید ارسال شود",
-        });
-        setIsLogin(true);
-      } else {
-        // Default success message
-        toast({
-          title: "ثبت‌نام موفقیت‌آمیز",
-          description: result.message || "حساب کاربری شما ساخته شد",
-        });
-        setIsLogin(true);
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "مشکلی در ثبت‌نام پیش آمد. لطفاً دوباره تلاش کنید";
-      toast({ title: "خطا در ثبت‌نام", description: message, variant: "destructive" });
+      setLoading(true);
+      const redirectUrl = `${window.location.origin}/auth/magic-link/callback`;
+      await authService.requestMagicLink({ email, redirectUrl });
+      toast({ title: "لینک ارسال شد", description: "لطفاً ایمیل خود را چک کنید" });
+    } catch (e) {
+      const errorMessage = getErrorMessage(e);
+      toast({ title: "ارسال ناموفق", description: errorMessage, variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
   };
 
-  const resetForm = () => {
-    setEmail("");
-    setPassword("");
-    setConfirmPassword("");
-    setShowPassword(false);
+  const startEmailOtp = async () => {
+    if (!email) {
+      toast({ title: "ایمیل لازم است", description: "ابتدا ایمیل خود را وارد کنید" });
+      return;
+    }
+    try {
+      setLoading(true);
+      // Create email OTP via Appwrite
+      const token = await account.createEmailToken(
+        email,
+        undefined as never // SDK type mismatch workaround
+      );
+      // Some SDKs return { userId }, store it for session creation
+      const uid = (token as { userId?: string; user_id?: string })?.userId || (token as { userId?: string; user_id?: string })?.user_id || '';
+      if (!uid) throw new Error('OTP userId missing');
+      setOtpUserId(uid);
+      setOtpStep('code_sent');
+      toast({ title: "کد ارسال شد", description: "کد تایید به ایمیل شما ارسال شد" });
+    } catch (e) {
+      const errorMessage = getErrorMessage(e);
+      toast({ title: "خطا در ارسال کد", description: errorMessage, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const switchMode = () => {
-    setIsLogin(!isLogin);
-    resetForm();
+  const verifyEmailOtp = async () => {
+    if (!otpUserId || otpCode.trim().length === 0) return;
+    try {
+      setOtpStep('verifying');
+      // Complete session using Appwrite Email OTP
+      await account.createSession(otpUserId, otpCode);
+      const jwt = await account.createJWT();
+      await authService.exchangeJwt(jwt.jwt);
+      toast({ title: "ورود موفق", description: "با موفقیت وارد شدید" });
+      navigate('/dashboard');
+    } catch (e) {
+      setOtpStep('code_sent');
+      const errorMessage = getErrorMessage(e);
+      toast({ title: "کد نامعتبر", description: errorMessage, variant: "destructive" });
+    }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 px-4">
       <Helmet>
-        <title>{isLogin ? "ورود" : "ثبت‌نام"} - ارزان سایت</title>
-        <meta name="description" content={isLogin ? "وارد حساب کاربری خود شوید" : "حساب کاربری جدید بسازید"} />
+        <title>{"ورود یا ثبت‌نام"} - ارزان سایت</title>
+        <meta name="description" content={"ورود یا ثبت‌نام سریع با ایمیل و رمز عبور، لینک جادویی یا کد یکبارمصرف"} />
       </Helmet>
 
       <motion.div
@@ -192,18 +177,38 @@ const Auth = () => {
               <User className="w-8 h-8 text-white" />
             </motion.div>
             <CardTitle className="text-2xl font-bold text-foreground">
-              {isLogin ? "ورود به حساب" : "ساخت حساب جدید"}
+              {mode === "signin" ? "ورود به حساب کاربری" : "ثبت‌نام"}
             </CardTitle>
             <CardDescription>
-              {isLogin 
-                ? "به حساب کاربری خود وارد شوید" 
-                : "برای استفاده از خدمات ارزان سایت ثبت‌نام کنید"
+              {mode === "signin" 
+                ? "با ایمیل و رمز عبور خود وارد شوید"
+                : "برای ساخت حساب کاربری جدید اطلاعات خود را وارد کنید"
               }
             </CardDescription>
+
+            {/* Mode Toggle */}
+            <div className="flex gap-2 pt-2">
+              <Button
+                type="button"
+                variant={mode === "signin" ? "default" : "outline"}
+                onClick={() => setMode("signin")}
+                className="flex-1"
+              >
+                ورود
+              </Button>
+              <Button
+                type="button"
+                variant={mode === "signup" ? "default" : "outline"}
+                onClick={() => setMode("signup")}
+                className="flex-1"
+              >
+                ثبت‌نام
+              </Button>
+            </div>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleAuth} className="space-y-4">
+            <form onSubmit={mode === "signin" ? handleSignIn : handleSignUp} className="space-y-4">
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium text-foreground">
                   ایمیل
@@ -224,21 +229,32 @@ const Auth = () => {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="password" className="text-sm font-medium text-foreground">
-                  رمز عبور
-                </label>
+                <div className="flex justify-between items-center">
+                  <label htmlFor="password" className="text-sm font-medium text-foreground">
+                    رمز عبور
+                  </label>
+                  {mode === "signin" && (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/forgot-password")}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      فراموش کرده‌اید؟
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                          <Input
-          id="password"
-          type={showPassword ? "text" : "password"}
-          placeholder="رمز عبور خود را وارد کنید"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="pl-10 pr-10 h-12"
-          required
-          minLength={8}
-        />
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="رمز عبور خود را وارد کنید"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-10 pr-10 h-12"
+                    required
+                    minLength={8}
+                  />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
@@ -249,52 +265,38 @@ const Auth = () => {
                 </div>
               </div>
 
-              <AnimatePresence>
-                {!isLogin && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="space-y-2"
-                  >
-                    <label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
-                      تکرار رمز عبور
-                    </label>
-                    <div className="relative">
-                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="confirmPassword"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="رمز عبور خود را دوباره وارد کنید"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        className="pl-10 h-12"
-                        required={!isLogin}
-                        minLength={8}
-                      />
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               <Button
                 type="submit"
                 disabled={loading}
                 className="w-full h-12 bg-gradient-to-r from-primary to-secondary hover:from-primary-hover hover:to-secondary-hover text-white font-semibold text-lg transition-all duration-300"
               >
                 {loading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <AnimatedLoader size="sm" />
                 ) : (
                   <span className="flex items-center gap-2">
-                    {isLogin ? "ورود" : "ثبت‌نام"}
+                    {mode === "signin" ? "ورود" : "ثبت‌نام"}
                     <ArrowRight className="w-4 h-4" />
                   </span>
                 )}
               </Button>
             </form>
 
-            {/* OAuth Login Section */}
+            {/* Switch mode helper text */}
+            <div className="mt-4 text-center text-sm">
+              <span className="text-muted-foreground">
+                {mode === "signin" ? "حساب کاربری ندارید؟" : "قبلاً ثبت‌نام کرده‌اید؟"}
+              </span>
+              {" "}
+              <button
+                type="button"
+                onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+                className="text-primary hover:underline font-medium"
+              >
+                {mode === "signin" ? "ثبت‌نام کنید" : "وارد شوید"}
+              </button>
+            </div>
+
+            {/* Alternative authentication methods */}
             <div className="mt-6">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
@@ -306,64 +308,65 @@ const Auth = () => {
                   </span>
                 </div>
               </div>
-              
-              <div className="mt-4 space-y-2">
+
+              {/* Magic Link and OTP - Only for signin mode */}
+              {mode === "signin" && (
+                <div className="mt-4 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" className="w-full" onClick={sendMagicLink} disabled={!email || loading}>
+                      ورود با لینک
+                    </Button>
+                    <Button variant="outline" className="w-full" onClick={startEmailOtp} disabled={!email || loading}>
+                      ارسال کد یکبارمصرف به ایمیل
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {otpStep !== 'idle' && (
+                <div className="mt-4 space-y-3">
+                  <div className="text-sm text-muted-foreground">کد ۶ رقمی ارسال‌شده به ایمیل را وارد کنید</div>
+                  <InputOTP maxLength={6} value={otpCode} onChange={setOtpCode} dir="ltr">
+                    <InputOTPGroup>
+                      {Array.from({ length: 6 }).map((_, idx) => (
+                        <InputOTPSlot key={idx} index={idx} />
+                      ))}
+                    </InputOTPGroup>
+                  </InputOTP>
+                  <div className="flex gap-2">
+                    <Button className="w-full" onClick={verifyEmailOtp} disabled={otpStep === 'verifying'}>
+                      {otpStep === 'verifying' ? 'در حال بررسی…' : 'تایید کد'}
+                    </Button>
+                    <Button variant="ghost" onClick={() => setOtpStep('idle')}>انصراف</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* OAuth Buttons - Available for both signin and signup */}
+              <div className={`${mode === "signup" ? "mt-4" : "mt-6"} space-y-2`}>
                 <OAuthButton 
                   provider="github"
                   onSuccess={() => {
-                    toast({
-                      title: "OAuth شروع شد",
-                      description: "در حال انتقال به GitHub...",
-                    });
+                    toast({ title: "OAuth شروع شد", description: "در حال انتقال به GitHub..." });
                   }}
                   onError={(error) => {
-                    toast({
-                      title: "خطا در OAuth",
-                      description: error,
-                      variant: "destructive",
-                    });
+                    toast({ title: "خطا در OAuth", description: error, variant: "destructive" });
                   }}
-                />
+                >
+                  {mode === "signin" ? "ورود با GitHub" : "ثبت‌نام با GitHub"}
+                </OAuthButton>
                 <OAuthButton 
                   provider="google"
                   onSuccess={() => {
-                    toast({
-                      title: "OAuth شروع شد",
-                      description: "در حال انتقال به Google...",
-                    });
+                    toast({ title: "OAuth شروع شد", description: "در حال انتقال به Google..." });
                   }}
                   onError={(error) => {
-                    toast({
-                      title: "خطا در OAuth",
-                      description: error,
-                      variant: "destructive",
-                    });
+                    toast({ title: "خطا در OAuth", description: error, variant: "destructive" });
                   }}
-                />
+                >
+                  {mode === "signin" ? "ورود با Google" : "ثبت‌نام با Google"}
+                </OAuthButton>
               </div>
-            </div>
-
-            <div className="mt-6 text-center space-y-2">
-              <button
-                onClick={switchMode}
-                className="text-primary hover:text-primary-hover font-medium transition-colors"
-              >
-                {isLogin 
-                  ? "حساب کاربری ندارید؟ ثبت‌نام کنید" 
-                  : "قبلاً ثبت‌نام کرده‌اید؟ وارد شوید"
-                }
-              </button>
-              
-              {isLogin && (
-                <div>
-                  <button
-                    onClick={() => navigate("/forgot-password")}
-                    className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-                  >
-                    رمز عبور خود را فراموش کرده‌اید؟
-                  </button>
-                </div>
-              )}
             </div>
 
             <div className="mt-4 text-center">
@@ -377,18 +380,6 @@ const Auth = () => {
           </CardContent>
         </Card>
       </motion.div>
-
-      {/* Email Verification Prompt */}
-      {showVerificationPrompt && (
-        <EmailVerificationPrompt
-          userEmail={pendingVerificationEmail}
-          onClose={() => setShowVerificationPrompt(false)}
-          onVerified={() => {
-            setShowVerificationPrompt(false);
-            toast({ title: "تایید موفقیت‌آمیز", description: "ایمیل شما تایید شد" });
-          }}
-        />
-      )}
     </div>
   );
 };

@@ -3,7 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { apiClient, Receipt } from '@/lib/api-client';
+import { receiptService, useApi, Receipt } from '@/lib/services';
+import { tokenManager } from '@/lib/tokenManager';
 import { Download, RefreshCw, Search, FileText } from 'lucide-react';
 
 interface ReceiptListProps {
@@ -21,28 +22,82 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ pageSize = 10 }) => {
 	const [downloading, setDownloading] = useState<string | null>(null);
 	const [loadError, setLoadError] = useState<string | null>(null);
 
+	const { execute: fetchReceipts, loading: fetchLoading } = useApi(
+		receiptService.getReceipts.bind(receiptService),
+		{
+			onSuccess: (data) => {
+				// Handle direct array or wrapped response
+				if (Array.isArray(data)) {
+					setReceipts(data);
+				} else if (data && typeof data === 'object') {
+					if ('items' in data) setReceipts((data as any).items || []);
+					else if ('receipts' in data) setReceipts((data as any).receipts || []);
+					else if ('data' in data && Array.isArray((data as any).data)) setReceipts((data as any).data);
+					else {
+						console.warn('Unexpected receipt data structure:', data);
+						setReceipts([]);
+					}
+				} else {
+					setReceipts([]);
+				}
+			},
+			onError: (error) => {
+				console.error('Error loading receipts:', error);
+				// Check if it's a missing collection error
+				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+				if (errorMessage.includes('Collection with the requested ID could not be found') || 
+					errorMessage.includes('AppwriteException')) {
+					toast({ 
+						title: 'سیستم در حال راه‌اندازی', 
+						description: 'لطفاً چند لحظه صبر کنید تا سیستم رسیدها آماده شود',
+						variant: 'default'
+					});
+				} else {
+					setLoadError('خطا در دریافت رسیدها');
+					toast({ title: 'خطا در دریافت رسیدها', variant: 'destructive' });
+				}
+			}
+		}
+	);
+
+	const { execute: downloadReceipt, loading: downloadLoading } = useApi(
+		receiptService.downloadReceipt.bind(receiptService),
+		{
+			onSuccess: (blob) => {
+				const url = window.URL.createObjectURL(blob);
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = `receipt-${downloading}.pdf`;
+				a.click();
+				window.URL.revokeObjectURL(url);
+				setDownloading(null);
+			},
+			onError: (error) => {
+				toast({ title: 'دانلود ناموفق', variant: 'destructive' });
+				setDownloading(null);
+			}
+		}
+	);
+
 	const load = async () => {
+		// Ensure token exists to avoid immediate 401s after login
+		let token = tokenManager.getAccessToken();
+		if (!token) {
+			tokenManager.forceRefreshFromStorage();
+			token = tokenManager.getAccessToken();
+			if (!token) {
+				setLoading(false);
+				return;
+			}
+		}
 		setLoading(true);
 		setLoadError(null);
 		try {
-			const data = await apiClient.getReceipts();
-			setReceipts(data);
+			await fetchReceipts();
 		} catch (e: unknown) {
 			console.error('Error loading receipts:', e);
-			
-			// Check if it's a missing collection error
-			const error = e as { message?: string; error?: string };
-			if (error?.message?.includes('Collection with the requested ID could not be found') || 
-				error?.error?.includes('AppwriteException')) {
-				toast({ 
-					title: 'سیستم در حال راه‌اندازی', 
-					description: 'لطفاً چند لحظه صبر کنید تا سیستم رسیدها آماده شود',
-					variant: 'default'
-				});
-			} else {
-				setLoadError('خطا در دریافت رسیدها');
-				toast({ title: 'خطا در دریافت رسیدها', variant: 'destructive' });
-			}
+			setLoadError('خطا در دریافت رسیدها');
+			toast({ title: 'خطا در دریافت رسیدها', variant: 'destructive' });
 		} finally {
 			setLoading(false);
 		}
@@ -54,28 +109,22 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ pageSize = 10 }) => {
 	}, []);
 
 	const filtered = useMemo(() => {
+		// Safety check to ensure receipts is an array
+		if (!Array.isArray(receipts)) {
+			console.warn('Receipts is not an array:', receipts);
+			return [];
+		}
+		
 		const s = search.trim().toLowerCase();
 		if (!s) return receipts;
 		return receipts.filter((r) =>
-			(r.ref_id || '').toLowerCase().includes(s) || (r.service || '').toLowerCase().includes(s)
+			(r.refId || '').toLowerCase().includes(s) || (r.service || '').toLowerCase().includes(s)
 		);
 	}, [receipts, search]);
 
 	const download = async (id: string, format: 'pdf' | 'html') => {
 		setDownloading(id);
-		try {
-			const blob = await apiClient.downloadReceipt(id, format);
-			const url = window.URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = `receipt-${id}.${format === 'pdf' ? 'pdf' : 'html'}`;
-			a.click();
-			window.URL.revokeObjectURL(url);
-		} catch (e) {
-			toast({ title: 'دانلود ناموفق', variant: 'destructive' });
-		} finally {
-			setDownloading(null);
-		}
+		await downloadReceipt(id, format);
 	};
 
 	return (
@@ -99,7 +148,7 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ pageSize = 10 }) => {
 					<Input placeholder="جستجوی رسید (RefId/سرویس)..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10" />
 				</div>
 
-				{loading ? (
+				{loading || fetchLoading ? (
 					<div className="text-center text-sm text-muted-foreground py-8">در حال بارگیری...</div>
 				) : filtered.length === 0 ? (
 					<div className="text-center text-sm text-muted-foreground py-8">رسیـدی یافت نشد</div>
@@ -109,15 +158,15 @@ const ReceiptList: React.FC<ReceiptListProps> = ({ pageSize = 10 }) => {
 							<div key={r.id} className="p-3 border rounded-lg bg-background flex items-center justify-between gap-4">
 								<div className="flex-1 min-w-0">
 									<div className="font-medium text-sm">{r.service || 'سرویس'}</div>
-									<div className="text-xs text-muted-foreground mt-1">RefId: {r.ref_id || '—'}</div>
-									<div className="text-xs text-muted-foreground mt-1">تاریخ: {formatDate(r.created_at)}</div>
+									<div className="text-xs text-muted-foreground mt-1">RefId: {r.refId || '—'}</div>
+									<div className="text-xs text-muted-foreground mt-1">تاریخ: {formatDate(r.createdAt)}</div>
 								</div>
 								<div className="flex items-center gap-2">
 									<div className="font-medium whitespace-nowrap">{formatAmount(r.amount)}</div>
-									<Button variant="outline" size="sm" disabled={downloading === r.id} onClick={() => download(r.id, 'pdf')} className="flex items-center gap-1">
+									<Button variant="outline" size="sm" disabled={downloading === r.id || downloadLoading} onClick={() => download(r.id, 'pdf')} className="flex items-center gap-1">
 										<Download className="w-4 h-4" /> PDF
 									</Button>
-									<Button variant="outline" size="sm" disabled={downloading === r.id} onClick={() => download(r.id, 'html')} className="flex items-center gap-1">
+									<Button variant="outline" size="sm" disabled={downloading === r.id || downloadLoading} onClick={() => download(r.id, 'html')} className="flex items-center gap-1">
 										<FileText className="w-4 h-4" /> HTML
 									</Button>
 								</div>

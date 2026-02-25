@@ -13,8 +13,8 @@ import {
   Home,
   User
 } from 'lucide-react';
-import { WalletService } from '@/lib/walletService';
 import { formatPriceWithUnit } from '@/lib/pricingUtils';
+import { formatAmount } from '@/lib/currencyUtils';
 
 interface OrderSuccessStepProps {
   orderData: {
@@ -151,7 +151,7 @@ const OrderSuccessStep: React.FC<OrderSuccessStepProps> = ({
               <div className="p-3 bg-white rounded-lg border">
                 <div className="text-sm text-muted-foreground mb-1">موجودی قبلی</div>
                 <div className="text-lg font-bold text-blue-600">
-                  {WalletService.formatAmount(previousWalletBalance)}
+                  {formatAmount(previousWalletBalance, 'RIAL')}
                 </div>
               </div>
               <div className="p-3 bg-white rounded-lg border">
@@ -163,7 +163,7 @@ const OrderSuccessStep: React.FC<OrderSuccessStepProps> = ({
               <div className="p-3 bg-white rounded-lg border">
                 <div className="text-sm text-muted-foreground mb-1">موجودی فعلی</div>
                 <div className="text-lg font-bold text-green-600">
-                  {WalletService.formatAmount(walletBalance)}
+                  {formatAmount(walletBalance, 'RIAL')}
                 </div>
               </div>
             </div>

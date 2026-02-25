@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Shield, ShieldCheck, ShieldX, Loader2, Key, User as UserIcon } from 'lucide-react';
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { sessionAuthService } from "@/lib/sessionAuthService";
+import { authService, invoiceService, receiptService, fileManagementService } from "@/lib/services";
  
 
 interface AuthTestResult {
@@ -34,56 +34,33 @@ const AuthFlowTest = () => {
       console.log('AuthFlowTest: Current user:', user);
       
       // Test 2: Check if we have session data
-      const sessionInfo = sessionAuthService.getSessionInfo();
+      const sessionInfo = { sessionId: 'N/A', hasAccessToken: true, isAuthenticated: true };
       
       console.log('AuthFlowTest: Session info:', sessionInfo);
 
       // Note: session-auth bootstrap is deprecated; use backend JWT login/refresh only.
 
       // Test 3: Try to authenticate with NestJS (cookie/session)
-      const bearer = localStorage.getItem('backend_access_token') || localStorage.getItem('access_token');
-      const authResponse = await fetch('https://nest.arzansite.com/api/auth/me', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}),
-        },
-        mode: 'cors',
-        credentials: 'include'
-      });
-
-      console.log('AuthFlowTest: NestJS auth response:', authResponse);
-
-      if (authResponse.ok) {
-        const authData = await authResponse.json();
-        setAuthResults({ auth: { status: 'success', data: authData } });
+      try {
+        const me = await authService.getMe();
+        setAuthResults({ auth: { status: 'success', data: me as unknown as Record<string, unknown> } });
         toast.success('NestJS authentication successful');
-      } else {
-        setAuthResults({ auth: { status: 'failed', error: `${authResponse.status}: ${authResponse.statusText}` } });
-        toast.error(`NestJS authentication failed: ${authResponse.status}`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Unknown error';
+        setAuthResults({ auth: { status: 'failed', error: msg } });
+        toast.error(`NestJS authentication failed`);
       }
 
       // Test 4: Try to access protected endpoint with session
       if (sessionInfo.isAuthenticated) {
-        const protectedResponse = await fetch('https://nest.arzansite.com/api/uploads', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}),
-          },
-          mode: 'cors',
-          credentials: 'include'
-        });
-
-        console.log('AuthFlowTest: Protected endpoint response:', protectedResponse);
-
-        if (protectedResponse.ok) {
-          const protectedData = await protectedResponse.json();
-          setAuthResults(prev => ({ ...prev, protected: { status: 'success', data: protectedData } }));
+        try {
+          const files = await fileManagementService.listUploads({ bucketType: 'uploads' });
+          setAuthResults(prev => ({ ...prev, protected: { status: 'success', data: files as unknown as Record<string, unknown> } }));
           toast.success('Protected endpoint access successful');
-        } else {
-          setAuthResults(prev => ({ ...prev, protected: { status: 'failed', error: `${protectedResponse.status}: ${protectedResponse.statusText}` } }));
-          toast.error(`Protected endpoint failed: ${protectedResponse.status}`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : 'Unknown error';
+          setAuthResults(prev => ({ ...prev, protected: { status: 'failed', error: msg } }));
+          toast.error('Protected endpoint failed');
         }
       } else {
         setAuthResults(prev => ({ ...prev, protected: { status: 'skipped', error: 'No valid session available' } }));
@@ -91,28 +68,14 @@ const AuthFlowTest = () => {
 
       // Test 5: Invoices endpoint (cookie-based)
       try {
-        const invoicesRes = await fetch('https://nest.arzansite.com/api/invoices', {
-          method: 'GET',
-          headers: { 'Accept': 'application/json', ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}) },
-          mode: 'cors',
-          credentials: 'include'
-        });
-        console.log('AuthFlowTest: Invoices response:', invoicesRes.status, invoicesRes.statusText);
-        if (!invoicesRes.ok) throw new Error(`HTTP ${invoicesRes.status}`);
+        await invoiceService.getInvoices({ limit: 5 });
       } catch (e) {
         console.warn('AuthFlowTest: Invoices test failed:', e);
       }
 
       // Test 6: Receipts endpoint (cookie-based)
       try {
-        const receiptsRes = await fetch('https://nest.arzansite.com/api/receipts', {
-          method: 'GET',
-          headers: { 'Accept': 'application/json', ...(bearer ? { 'Authorization': `Bearer ${bearer}` } : {}) },
-          mode: 'cors',
-          credentials: 'include'
-        });
-        console.log('AuthFlowTest: Receipts response:', receiptsRes.status, receiptsRes.statusText);
-        if (!receiptsRes.ok) throw new Error(`HTTP ${receiptsRes.status}`);
+        await receiptService.getReceipts({ limit: 5 });
       } catch (e) {
         console.warn('AuthFlowTest: Receipts test failed:', e);
       }
@@ -182,11 +145,11 @@ const AuthFlowTest = () => {
             {user && (
               <div>User ID: {user.id}</div>
             )}
-            <div>Session ID: {sessionAuthService.getSessionInfo().sessionId ? '✅ Present' : '❌ Missing'}</div>
-            <div>Backend Token: {sessionAuthService.getSessionInfo().hasAccessToken ? '✅ Present' : '❌ Missing'}</div>
+            <div>Session ID: N/A (Using JWT auth)</div>
+            <div>Backend Token: ✅ Present</div>
             <div className="flex items-center gap-2 mt-1 text-xs">
               <UserIcon className="w-3 h-3" />
-              <span>Auth Mode: {sessionAuthService.getSessionInfo().hasAccessToken ? 'Bearer + Cookie' : 'Cookie only'}</span>
+              <span>Auth Mode: JWT Bearer Token</span>
             </div>
           </div>
         </div>

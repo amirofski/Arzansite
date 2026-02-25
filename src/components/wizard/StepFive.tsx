@@ -6,9 +6,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { User, Mail, Globe, Shield, Clock, Check, X, Loader2, DollarSign, Plus, Trash2, LogIn, UserPlus } from 'lucide-react';
-import { apiClient } from "@/lib/api-client";
+import { wizardService, type DomainAvailabilityResponse } from "@/lib/services";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+
+// Extend Window interface to include our custom navigation function
+declare global {
+  interface Window {
+    __APP_NAVIGATE__?: (path: string) => void;
+  }
+}
 
 interface StepFiveProps {
   data: {
@@ -63,16 +70,8 @@ interface StepFiveProps {
   }>) => void;
 }
 
-interface DomainAvailability {
-  available: boolean;
-  domain: string;
-  extension: string;
-  price: number;
-  description: string;
-  message: string;
-  error?: string;
-  checkedAt?: string;
-}
+// Use the imported type
+type DomainAvailability = DomainAvailabilityResponse;
 
 const DOMAIN_EXTENSIONS = [
   { value: '.ir', label: '.ir', price: 0, description: 'دامنه ایرانی - یک سال رایگان' },
@@ -217,12 +216,38 @@ const DomainStatus = ({ domainCheck }: { domainCheck: DomainAvailability | null 
         )}
         <span className="font-medium text-xs sm:text-sm">{domainCheck.message}</span>
       </div>
-      <div className="flex items-center gap-2 text-xs sm:text-sm">
-        <Check className="w-4 h-4" />
-        <span>دامنه .ir برای یک سال رایگان است</span>
-      </div>
+      
+      {/* Show WHOIS data if available */}
+      {!domainCheck.available && domainCheck.whoisData && (
+        <div className="mt-3 pt-3 border-t border-current/20 space-y-2">
+          <div className="text-xs opacity-90">
+            <strong>اطلاعات دامنه:</strong>
+          </div>
+          {domainCheck.whoisData.registrar && (
+            <div className="text-xs opacity-75">
+              ثبت‌کننده: {domainCheck.whoisData.registrar.name}
+            </div>
+          )}
+          {domainCheck.whoisData.createDate && (
+            <div className="text-xs opacity-75">
+              تاریخ ثبت: {new Date(domainCheck.whoisData.createDate).toLocaleDateString('fa-IR')}
+            </div>
+          )}
+          {domainCheck.whoisData.expireDate && (
+            <div className="text-xs opacity-75">
+              تاریخ انقضا: {new Date(domainCheck.whoisData.expireDate).toLocaleDateString('fa-IR')}
+            </div>
+          )}
+          {domainCheck.whoisData.domainAge !== undefined && (
+            <div className="text-xs opacity-75">
+              سن دامنه: {Math.floor(domainCheck.whoisData.domainAge / 365)} سال
+            </div>
+          )}
+        </div>
+      )}
+      
       {domainCheck.checkedAt && (
-        <div className="text-xs mt-1 opacity-75">
+        <div className="text-xs mt-2 opacity-75">
           بررسی شده در: {new Date(domainCheck.checkedAt).toLocaleString('fa-IR')}
         </div>
       )}
@@ -290,11 +315,9 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
 
     setIsChecking(true);
     try {
-      const result = await (apiClient as any).request('/domains/check', {
-        method: 'POST',
-        body: JSON.stringify({ domain, extension }),
-      });
-      setDomainCheck(result as DomainAvailability);
+      const result = await wizardService.checkDomainAvailability({ domain, extension });
+      // Store the extension for later use
+      setDomainCheck({ ...result, extension } as any);
     } catch (error) {
       console.error('Domain check failed:', error);
       toast({
@@ -361,10 +384,7 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
     // Check domain availability
     setIsChecking(true);
     try {
-      const result = await (apiClient as any).request('/domains/check', {
-        method: 'POST',
-        body: JSON.stringify({ domain: additionalDomain, extension: additionalExtension }),
-      }) as DomainAvailability;
+      const result = await wizardService.checkDomainAvailability({ domain: additionalDomain, extension: additionalExtension });
 
       if (result?.available) {
         const extension = DOMAIN_EXTENSIONS.find(ext => ext.value === additionalExtension);
@@ -464,11 +484,14 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                   className="flex-1"
                   onClick={() => {
                     try {
-                      (window as any).__APP_NAVIGATE__?.('/auth?redirect=wizard');
+                      const navigate = window.__APP_NAVIGATE__;
+                      if (navigate) {
+                        navigate('/auth?redirect=wizard');
+                      } else {
+                        window.location.href = '/auth?redirect=wizard';
+                      }
                     } catch {
                       // Fallback to window.location if navigation fails
-                    }
-                    if (!((window as any).__APP_NAVIGATE__)) {
                       window.location.href = '/auth?redirect=wizard';
                     }
                   }}
@@ -481,11 +504,14 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
                   className="flex-1"
                   onClick={() => {
                     try {
-                      (window as any).__APP_NAVIGATE__?.('/auth?redirect=wizard&mode=signup');
+                      const navigate = window.__APP_NAVIGATE__;
+                      if (navigate) {
+                        navigate('/auth?redirect=wizard&mode=signup');
+                      } else {
+                        window.location.href = '/auth?redirect=wizard&mode=signup';
+                      }
                     } catch {
                       // Fallback to window.location if navigation fails
-                    }
-                    if (!((window as any).__APP_NAVIGATE__)) {
                       window.location.href = '/auth?redirect=wizard&mode=signup';
                     }
                   }}
@@ -540,14 +566,17 @@ const StepFive = ({ data, updateData }: StepFiveProps) => {
               
               <DomainStatus domainCheck={domainCheck} />
               
-              <p className="text-xs sm:text-sm text-muted-foreground leading-tight">
-                دامنه اصلی شما: <strong>
-                  {data.userInfo?.domain || 'mywebsite'}.ir
-                </strong>
-                <span className="block mt-1 text-success font-medium">
-                  رایگان برای یک سال
-                </span>
-              </p>
+              <div className="bg-success/10 border border-success/20 rounded-lg p-3">
+                <p className="text-xs sm:text-sm text-muted-foreground leading-tight">
+                  دامنه اصلی شما: <strong className="text-primary">
+                    {data.userInfo?.domain || 'mywebsite'}.ir
+                  </strong>
+                </p>
+                <div className="mt-1 text-success font-medium flex items-center gap-1 text-xs sm:text-sm">
+                  <Check className="w-3 h-3" />
+                  <span>رایگان برای یک سال</span>
+                </div>
+              </div>
             </div>
 
             {/* Additional Domains */}

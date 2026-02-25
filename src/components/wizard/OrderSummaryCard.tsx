@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { calculateTotalPrice } from '@/lib/pricingUtils';
 import { formatPriceWithUnit } from '@/lib/pricingUtils';
-import { WalletService } from '@/lib/walletService';
+import { formatAmount } from '@/lib/currencyUtils';
 
 interface OrderSummaryCardProps {
   wizardData: {
@@ -281,7 +281,7 @@ const OrderSummaryCard: React.FC<OrderSummaryCardProps> = ({
               </div>
               <div className="text-right">
                 <div className="text-lg font-bold text-blue-700">
-                  {WalletService.formatAmount(walletBalance)}
+{formatAmount(walletBalance, 'RIAL')}
                 </div>
                 <div className="text-xs text-blue-600">
                   موجودی فعلی

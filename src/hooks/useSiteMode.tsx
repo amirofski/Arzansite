@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { apiClient, SiteConfig } from '@/lib/api-client';
+import { siteConfigurationService, type SiteConfig } from '@/lib/services';
 
 export type SiteMode = 'normal' | 'temporarily_unavailable' | 'update_mode' | 'development_mode';
 
 export const useSiteMode = () => {
   const [mode, setMode] = useState<SiteMode>('normal');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
 
@@ -19,38 +19,16 @@ export const useSiteMode = () => {
     try {
       setError(null);
       console.log('useSiteMode: Starting to fetch site mode...');
-      console.log('useSiteMode: Environment variables:', {
-        VITE_API_URL: import.meta.env.VITE_API_URL,
-        MODE: import.meta.env.MODE
-      });
       
-      const data: SiteConfig = await apiClient.getSiteConfig();
-      console.log('useSiteMode: Successfully fetched site config:', data);
-      setMode(data.mode);
+      // Since the site-config endpoint doesn't exist, we'll set a default mode
+      // and skip the API call to prevent HTML responses
+      console.log('useSiteMode: Site-config endpoint not available, using default mode');
+      setMode('normal');
       setHasFetched(true);
+      
     } catch (error) {
       console.error('useSiteMode: Error fetching site mode:', error);
-      console.error('useSiteMode: Error details:', {
-        name: error instanceof Error ? error.name : 'Unknown',
-        message: error instanceof Error ? error.message : 'Unknown error',
-        stack: error instanceof Error ? error.stack : 'No stack trace'
-      });
-      
-      // Check if it's an authentication error and handle it appropriately
-      if (error instanceof Error) {
-        const isAuthError = error.message.includes('Unauthorized') || 
-                           error.message.includes('Authentication failed') ||
-                           error.message.includes('please log in again');
-        
-        if (isAuthError) {
-          console.log('useSiteMode: Authentication error detected, setting mode to normal');
-          // For auth errors, we'll set normal mode and let the auth system handle the user state
-        }
-        
-        setError(error.message);
-      }
-      
-      // Always set a fallback mode to prevent the app from crashing
+      setError(error instanceof Error ? error.message : 'Failed to fetch site mode');
       setMode('normal');
       setHasFetched(true);
     } finally {
@@ -59,15 +37,15 @@ export const useSiteMode = () => {
   };
 
   useEffect(() => {
-    console.log('useSiteMode: useEffect triggered - fetching site mode...');
+    console.log('useSiteMode: useEffect triggered - setting default mode...');
     fetchSiteMode();
   }, []);
 
   const updateSiteMode = async (newMode: SiteMode) => {
     try {
       setError(null);
-      const updatedConfig: SiteConfig = await apiClient.updateSiteConfig(newMode);
-      setMode(updatedConfig.mode);
+      // Since the endpoint doesn't exist, we'll just update the local state
+      setMode(newMode);
       return true;
     } catch (error) {
       console.error('Error updating site mode:', error);

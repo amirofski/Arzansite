@@ -17,7 +17,7 @@ import {
   Calendar,
   ArrowRight
 } from 'lucide-react';
-import { enhancedApiClient, EnhancedOrderData } from '@/lib/enhancedApiClient';
+import { ordersService, type EnhancedOrderData } from '@/lib/services';
 
 interface OrderProgressTrackerProps {
   orderId: string;
@@ -53,8 +53,8 @@ const OrderProgressTracker: React.FC<OrderProgressTrackerProps> = ({
     try {
       setLoading(true);
       const [orderResponse, progressResponse] = await Promise.all([
-        enhancedApiClient.getEnhancedOrder(orderId),
-        enhancedApiClient.getOrderProgress(orderId)
+        ordersService.getEnhancedOrder(orderId),
+        ordersService.getOrderProgress(orderId)
       ]);
       
       setOrderData(orderResponse);

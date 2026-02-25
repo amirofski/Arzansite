@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
-import { apiClient } from '@/lib/api-client';
+import { ordersService, useApi } from '@/lib/services';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
@@ -18,7 +18,6 @@ interface CreateOrderDialogProps {
 const CreateOrderDialog = ({ open, onOpenChange, onOrderCreated }: CreateOrderDialogProps) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -26,37 +25,51 @@ const CreateOrderDialog = ({ open, onOpenChange, onOrderCreated }: CreateOrderDi
     comments: ''
   });
 
+  // New API hook for creating orders
+  const { execute: createOrder, loading: createLoading } = useApi(
+    ordersService.createOrder.bind(ordersService),
+    { 
+      onSuccess: handleOrderCreated,
+      onError: handleOrderError
+    }
+  );
+
+  // Handle successful order creation
+  function handleOrderCreated() {
+    toast({
+      title: 'سفارش ایجاد شد',
+      description: 'سفارش شما با موفقیت ثبت شد',
+    });
+
+    setFormData({ title: '', description: '', price: '', comments: '' });
+    onOrderCreated();
+    onOpenChange(false);
+  }
+
+  // Handle order creation error
+  function handleOrderError(error: Error) {
+    console.error('Error creating order:', error);
+    toast({
+      title: 'خطا در ایجاد سفارش',
+      description: 'مشکلی در ثبت سفارش پیش آمد',
+      variant: 'destructive',
+    });
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
-    setLoading(true);
-
     try {
-      await apiClient.createOrder({
+      await createOrder({
         title: formData.title,
         description: formData.description,
         price: formData.price ? parseFloat(formData.price) : 0,
         comments: formData.comments || undefined
-      } as any);
-
-      toast({
-        title: 'سفارش ایجاد شد',
-        description: 'سفارش شما با موفقیت ثبت شد',
       });
-
-      setFormData({ title: '', description: '', price: '', comments: '' });
-      onOrderCreated();
-      onOpenChange(false);
     } catch (error) {
-      console.error('Error creating order:', error);
-      toast({
-        title: 'خطا در ایجاد سفارش',
-        description: 'مشکلی در ثبت سفارش پیش آمد',
-        variant: 'destructive',
-      });
-    } finally {
-      setLoading(false);
+      console.error('Error in handleSubmit:', error);
+      // Error handling is done in the useApi hook's onError callback
     }
   };
 
@@ -130,10 +143,10 @@ const CreateOrderDialog = ({ open, onOpenChange, onOrderCreated }: CreateOrderDi
             </Button>
             <Button
               type="submit"
-              disabled={loading || !formData.title}
+              disabled={createLoading || !formData.title}
               className="flex-1"
             >
-              {loading ? (
+              {createLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin ml-2" />
               ) : null}
               ایجاد سفارش

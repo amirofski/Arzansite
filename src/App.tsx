@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useNavigate } from "react-router-dom";
 import Index from "./pages/Index";
+import Contact from "./pages/Contact";
 import Wizard from "./pages/Wizard";
 import Dashboard from "./pages/Dashboard";
 import AdminDashboard from "./pages/AdminDashboard";
@@ -11,18 +12,17 @@ import Auth from "./pages/Auth";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
-// removed custom auth pages; using unified Auth page
+import MagicLinkCallback from "./pages/MagicLinkCallback";
 import PaymentCallback from "./pages/PaymentCallback";
-import WalletPaymentCallback from "./pages/WalletPaymentCallback";
 import OAuthCallback from "./components/OAuthCallback";
 import NotFound from "./pages/NotFound";
-import Debug from "./pages/Debug";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useSiteMode } from "@/hooks/useSiteMode";
 import SiteModeDisplay from "@/components/ui/SiteModeDisplay";
 import React from "react";
+import { AnimatedLoader } from "./components/ui/AnimatedLoader";
 
 const queryClient = new QueryClient();
 
@@ -38,7 +38,7 @@ const SiteModeWrapper = React.memo(() => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <AnimatedLoader size="lg" variant="gradient2"/>
       </div>
     );
   }
@@ -68,9 +68,10 @@ const SiteModeWrapper = React.memo(() => {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/auth/magic-link/callback" element={<MagicLinkCallback />} />
+        <Route path="/auth/magic" element={<MagicLinkCallback />} />
         <Route path="/auth/oauth/callback" element={<OAuthCallback provider="github" />} />
         <Route path="/auth/oauth/callback/:provider" element={<OAuthCallback />} />
-        <Route path="/debug" element={<Debug />} />
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
@@ -83,8 +84,7 @@ const SiteModeWrapper = React.memo(() => {
         } />
         {/* <Route path="/payment-callback" element={<PaymentCallback />} /> */}
         <Route path="/payment/callback" element={<PaymentCallback />} />
-        {/* <Route path="/wallet-payment-callback" element={<WalletPaymentCallback />} /> */}
-        <Route path="/wallet/payment/callback" element={<WalletPaymentCallback />} />
+        <Route path="/contact" element={<Contact />} />
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -6,8 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
-import { apiClient, WalletAdjustmentDto } from '@/lib/api-client';
-import { WalletService } from '@/lib/walletService';
+import { adminService } from '@/lib/services';
+import { formatAmount } from '@/lib/currencyUtils';
+import { Loader2, AlertTriangle } from 'lucide-react';
 
 interface AdminWalletAdjustmentDialogProps {
   open: boolean;
@@ -55,7 +56,7 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
       return;
     }
 
-    // Check if debit would result in negative balance
+    // Check if debit would result in negative balance (unless it's a correction)
     if (type === 'debit' && adjustmentAmount > currentBalance) {
       toast({
         title: 'خطا',
@@ -65,21 +66,29 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
       return;
     }
 
+    // For correction type, ensure amount is positive
+    if (type === 'correction' && adjustmentAmount < 0) {
+      toast({
+        title: 'خطا',
+        description: 'موجودی تصحیحی نمی‌تواند منفی باشد',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setProcessing(true);
     try {
-      const payload: WalletAdjustmentDto = {
+      const result = await adminService.adjustWalletBalance(walletId, {
         amount: adjustmentAmount,
         type,
         reason: reason.trim(),
         notes: notes.trim() || undefined,
-      };
-
-      const result = await apiClient.adjustWalletBalance(walletId, payload);
+      });
       
       if (result.success) {
         toast({
           title: 'عملیات موفق',
-          description: `موجودی کیف پول ${userName} با موفقیت تنظیم شد. موجودی قبلی: ${WalletService.formatAmount(result.balanceBefore)}، موجودی جدید: ${WalletService.formatAmount(result.balanceAfter)}`,
+          description: `موجودی کیف پول ${userName} با موفقیت تنظیم شد. موجودی قبلی: ${formatAmount(result.balanceBefore, 'RIAL')}، موجودی جدید: ${formatAmount(result.balanceAfter, 'RIAL')}`
         });
         
         // Reset form
@@ -133,7 +142,7 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
             <Label htmlFor="current-balance">موجودی فعلی</Label>
             <Input
               id="current-balance"
-              value={WalletService.formatAmount(currentBalance)}
+value={formatAmount(currentBalance, 'RIAL')}
               disabled
               className="bg-muted"
             />
@@ -193,8 +202,14 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
             <div className="p-3 bg-muted rounded-lg">
               <div className="text-sm font-medium">موجودی جدید:</div>
               <div className="text-lg font-bold text-primary">
-                {WalletService.formatAmount(getNewBalance())}
+                {formatAmount(getNewBalance(), 'RIAL')}
               </div>
+              {type === 'debit' && getNewBalance() < currentBalance * 0.1 && (
+                <div className="flex items-center gap-2 mt-2 text-yellow-600 text-sm">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>موجودی پس از عملیات کمتر از 10% موجودی فعلی خواهد بود</span>
+                </div>
+              )}
             </div>
           )}
 
@@ -208,7 +223,14 @@ const AdminWalletAdjustmentDialog: React.FC<AdminWalletAdjustmentDialogProps> = 
               انصراف
             </Button>
             <Button type="submit" disabled={processing}>
-              {processing ? 'در حال پردازش...' : 'اعمال تغییرات'}
+              {processing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  در حال پردازش...
+                </>
+              ) : (
+                'اعمال تغییرات'
+              )}
             </Button>
           </div>
         </form>

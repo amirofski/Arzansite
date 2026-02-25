@@ -8,11 +8,21 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Wallet as WalletIcon, Plus, ArrowUpDown, History, CreditCard, AlertCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { WalletService } from '@/lib/walletService';
+import { formatAmount } from '@/lib/currencyUtils';
 import { usePagination } from '@/hooks/usePagination';
 import { PaginationControls } from '@/components/ui/PaginationControls';
-// Removed direct Supabase function calls; handled by backend via WalletService
+// New API services
+import { walletService, useApi } from '@/lib/services';
 import type { Transaction } from '@/lib/walletService';
+
+function getBalanceAfter(tx: Transaction & Partial<{ balanceAfter: number; balance_after: number }>): number {
+  if (typeof tx.balanceAfter === 'number') return tx.balanceAfter;
+  if ('balance_after' in tx) {
+    const legacy = (tx as unknown as { balance_after?: number }).balance_after;
+    if (typeof legacy === 'number') return legacy;
+  }
+  return 0;
+}
 
 interface WalletCardProps {
   userId: string;
@@ -26,7 +36,6 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
   const [depositDialogOpen, setDepositDialogOpen] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
   const [depositDescription, setDepositDescription] = useState('');
-  const [depositing, setDepositing] = useState(false);
   const [pendingPayment, setPendingPayment] = useState<{
     orderId: string;
     amount: number;
@@ -34,7 +43,21 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
     timestamp: number;
   } | null>(null);
 
+  // New API hooks
+  const { execute: fetchBalance, loading: balanceLoading } = useApi(
+    walletService.getBalance.bind(walletService),
+    { onSuccess: handleBalanceSuccess, onError: handleBalanceError }
+  );
 
+  const { execute: fetchTransactions, loading: transactionsLoading } = useApi(
+    walletService.getTransactions.bind(walletService),
+    { onSuccess: handleTransactionsSuccess, onError: handleTransactionsError }
+  );
+
+  const { execute: requestDeposit, loading: depositing } = useApi(
+    walletService.requestDeposit.bind(walletService),
+    { onSuccess: handleDepositSuccess, onError: handleDepositError }
+  );
 
   // Pagination settings
   const ITEMS_PER_PAGE = 10;
@@ -117,42 +140,124 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
     setLoading(true);
     
     try {
-      const balanceData = await WalletService.getWalletBalance(userId);
+      // Use new wallet service methods
+      await fetchBalance();
+      await fetchTransactions({ limit: 50 }); // Fetch more transactions for pagination
       
-      const transactionsData = await WalletService.getTransactions(userId, 50); // Fetch more transactions for pagination
-      
-      const previousBalance = balance;
-      setBalance(balanceData);
-      
-      // Validate transaction data and ensure unique IDs
-      const validatedTransactions = transactionsData.map((transaction, index) => {
-        if (!transaction.id) {
-          return { ...transaction, id: `temp-${index}-${Date.now()}` };
-        }
-        return transaction;
-      });
-      
-      setTransactions(validatedTransactions);
-      
-      // Show success message if balance increased
-      if (showSuccessMessage && balanceData > previousBalance) {
-        const increase = balanceData - previousBalance;
-        toast({
-          title: 'شارژ کیف پول موفق',
-          description: `مبلغ ${WalletService.formatAmount(increase)} با موفقیت به کیف پول شما اضافه شد`,
-        });
+      // Show success message if balance increased (this will be handled in success callbacks)
+      if (showSuccessMessage) {
+        // Success message will be shown in handleBalanceSuccess if balance increased
       }
     } catch (error) {
       console.error('Error fetching wallet data:', error);
-      toast({
-        title: 'خطا در بارگیری اطلاعات کیف پول',
-        description: 'مشکلی در دریافت اطلاعات کیف پول پیش آمد',
-        variant: 'destructive',
-      });
+      // Error handling is done in the useApi hook's onError callbacks
     } finally {
       setLoading(false);
     }
   };
+
+  // Handle successful balance fetch
+  function handleBalanceSuccess(balanceData: any) {
+    const previousBalance = balance;
+    let value = 0;
+    if (typeof balanceData === 'number') value = balanceData;
+    else if (balanceData && typeof balanceData === 'object') {
+      if (typeof balanceData.balance === 'number') value = balanceData.balance;
+      else if (balanceData.data && typeof balanceData.data.balance === 'number') value = balanceData.data.balance;
+    }
+    setBalance(value);
+    
+    // Show success message if balance increased (for payment success scenarios)
+    const urlParams = new URLSearchParams(window.location.search);
+    const paymentSuccess = urlParams.get('payment_success');
+    if (paymentSuccess === 'true' && value > previousBalance) {
+      const increase = value - previousBalance;
+      toast({
+        title: 'شارژ کیف پول موفق',
+        description: `مبلغ ${formatAmount(increase, 'RIAL')} با موفقیت به کیف پول شما اضافه شد`,
+      });
+    }
+  }
+
+  // Handle balance fetch error
+  function handleBalanceError(error: Error) {
+    console.error('Error fetching wallet balance:', error);
+    toast({
+      title: 'خطا در بارگیری موجودی کیف پول',
+      description: 'مشکلی در دریافت موجودی کیف پول پیش آمد',
+      variant: 'destructive',
+    });
+  }
+
+  // Handle successful transactions fetch
+  function handleTransactionsSuccess(raw: any) {
+    // Normalize various response shapes to an array
+    let list: any[] = [];
+    try {
+      if (Array.isArray(raw)) list = raw;
+      else if (raw && Array.isArray(raw.transactions)) list = raw.transactions;
+      else if (raw && raw.data && Array.isArray(raw.data.transactions)) list = raw.data.transactions;
+    } catch {}
+
+    // Validate transaction data and ensure unique IDs
+    const validatedTransactions = list.map((transaction, index) => {
+      const id = (transaction && transaction.id) ? transaction.id : `temp-${index}-${Date.now()}`;
+      return { ...transaction, id } as Transaction;
+    });
+    
+    setTransactions(validatedTransactions);
+  }
+
+  // Handle transactions fetch error
+  function handleTransactionsError(error: Error) {
+    console.error('Error fetching wallet transactions:', error);
+    toast({
+      title: 'خطا در بارگیری تراکنشات کیف پول',
+      description: 'مشکلی در دریافت تراکنشات کیف پول پیش آمد',
+      variant: 'destructive',
+    });
+  }
+
+  // Handle successful deposit request
+  function handleDepositSuccess(depositData: { paymentUrl: string; orderId: string }) {
+    if (!depositData.paymentUrl) {
+      throw new Error('Failed to create deposit request - no payment URL received');
+    }
+
+    // Store payment information for callback handling
+    const amount = parseFloat(depositAmount);
+    const paymentInfo = {
+      orderId: depositData.orderId,
+      amount,
+      type: 'wallet_deposit',
+      userId,
+      timestamp: Date.now(),
+      description: depositDescription || `شارژ کیف پول - ${formatAmount(amount, 'RIAL')}`
+    };
+    
+    // Store in session storage for callback handling
+    sessionStorage.setItem('walletPaymentInfo', JSON.stringify(paymentInfo));
+    
+    // Redirect to payment URL
+    window.location.href = depositData.paymentUrl;
+  }
+
+  // Handle deposit request error
+  function handleDepositError(error: Error) {
+    console.error('Error depositing:', error);
+    
+    // Extract specific error message from backend
+    let errorMessage = 'مشکلی در شارژ کیف پول پیش آمد';
+    if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    toast({
+      title: 'خطا در شارژ',
+      description: errorMessage,
+      variant: 'destructive',
+    });
+  }
 
   const resetDepositForm = () => {
     setDepositAmount('');
@@ -218,64 +323,20 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
       return;
     }
 
-    setDepositing(true);
     try {
       console.log('Requesting wallet deposit for amount:', amount);
       
-      // Use the dedicated wallet deposit endpoint (backend JWT)
-      const { apiClient } = await import('@/lib/api-client');
-      const depositPayload = {
-        amount: Math.floor(amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
-        description: depositDescription || `شارژ کیف پول - ${WalletService.formatAmount(amount)}`,
-        callbackUrl: `${window.location.origin}/wallet-payment-callback`
-        // Do not send user_id; backend derives from session
-      } as { amount: number; description: string; callbackUrl: string };
+      // Use the new wallet service
+        const depositPayload = {
+          amount: Math.floor(amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
+          description: depositDescription || `شارژ کیف پول - ${formatAmount(amount, 'RIAL')}`,
+          callbackUrl: `${window.location.origin}/payment/callback`
+        };
       
-      const res = await apiClient.requestWalletDeposit(depositPayload);
-      if (!res.paymentUrl) throw new Error('Failed to create deposit request');
-      const depositData = res;
-      
-      // Store payment information for callback handling
-      const paymentInfo = {
-        orderId: depositData.orderId,
-        amount,
-        type: 'wallet_deposit',
-        userId,
-        timestamp: Date.now(),
-        description: depositDescription || `شارژ کیف پول - ${WalletService.formatAmount(amount)}`
-      };
-      
-      // Store in session storage for callback handling
-      sessionStorage.setItem('walletPaymentInfo', JSON.stringify(paymentInfo));
-      
-      if (depositData.paymentUrl) {
-        window.location.href = depositData.paymentUrl;
-      } else {
-        throw new Error('Failed to create deposit request - no payment URL received');
-      }
+      await requestDeposit(depositPayload);
     } catch (error) {
-      console.error('Error depositing:', error);
-      
-      // Extract specific error message from backend
-      let errorMessage = 'مشکلی در شارژ کیف پول پیش آمد';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (typeof error === 'object' && error !== null) {
-        const errorObj = error as Record<string, unknown>;
-        if (typeof errorObj.message === 'string') {
-          errorMessage = errorObj.message;
-        } else if (typeof errorObj.error === 'string') {
-          errorMessage = errorObj.error;
-        }
-      }
-      
-      toast({
-        title: 'خطا در شارژ',
-        description: errorMessage,
-        variant: 'destructive',
-      });
-    } finally {
-      setDepositing(false);
+      console.error('Error in handleDeposit:', error);
+      // Error handling is done in the useApi hook's onError callback
     }
   };
 
@@ -357,7 +418,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
             {/* Balance Display */}
             <div className="text-center p-4 bg-muted/30 rounded-lg">
               <div className="text-2xl font-bold text-primary">
-                {WalletService.formatAmount(balance)}
+                {formatAmount(balance, 'RIAL')}
               </div>
               <div className="text-sm text-muted-foreground mt-1">
                 موجودی فعلی
@@ -394,7 +455,7 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                   <span className="font-medium text-yellow-800">پرداخت در انتظار</span>
                 </div>
                 <p className="text-sm text-yellow-700 mb-2">
-                  {pendingPayment.description} - {WalletService.formatAmount(pendingPayment.amount)}
+                  {pendingPayment.description} - {formatAmount(pendingPayment.amount, 'RIAL')}
                 </p>
                 <p className="text-xs text-yellow-600 mb-3">
                   تاریخ: {new Date(pendingPayment.timestamp).toLocaleDateString('fa-IR')}
@@ -405,15 +466,16 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                     onClick={async () => {
                       try {
                         // Request wallet deposit for the pending payment
-                        const { apiClient } = await import('@/lib/api-client');
-                        const depositPayload = {
-                          amount: Math.floor(pendingPayment.amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
-                          description: pendingPayment.description
-                        } as { amount: number; description: string };
+                        const amount = pendingPayment.amount;
+                        const description = pendingPayment.description;
                         
-                        const res = await apiClient.requestWalletDeposit({ ...depositPayload, callbackUrl: `${window.location.origin}/wallet-payment-callback` });
-                        if (!res.paymentUrl) throw new Error('Failed to create deposit request');
-                        const depositData = res;
+                                                 const depositData = await requestDeposit({
+                           amount: Math.floor(amount * 10), // Convert Tomans to Rials (1 Toman = 10 Rials)
+                           description: description,
+                           callbackUrl: `${window.location.origin}/payment/callback`
+                         }) as { paymentUrl: string; orderId: string };
+                         
+                         if (!depositData.paymentUrl) throw new Error('Failed to create deposit request');
                         
                         if (depositData.paymentUrl) {
                           window.location.href = depositData.paymentUrl;
@@ -552,13 +614,13 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-medium text-sm truncate">
-                                {WalletService.getTransactionTypeText(transaction.type as import('@/lib/walletService').TransactionType)}
+                                {transaction.type}
                               </span>
                               <Badge
                                 variant="outline"
-                                className={`text-xs ${WalletService.getTransactionStatusColor(transaction.status)}`}
+                                className={`text-xs ${transaction.status === 'completed' ? 'bg-green-100 text-green-800' : transaction.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : transaction.status === 'failed' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}
                               >
-                                {WalletService.getTransactionStatusText(transaction.status)}
+                                {transaction.status === 'completed' ? 'موفق' : transaction.status === 'pending' ? 'در انتظار' : transaction.status === 'failed' ? 'ناموفق' : 'لغو شده'}
                               </Badge>
                             </div>
                             {transaction.description && (
@@ -567,17 +629,17 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
                               </div>
                             )}
                             <div className="text-xs text-muted-foreground">
-                              {formatDate(transaction.created_at)}
+                              {formatDate(transaction.createdAt)}
                             </div>
                           </div>
                         </div>
-                        <div className={`font-medium text-right ml-3 ${WalletService.getTransactionTypeColor(transaction.type as import('@/lib/walletService').TransactionType)}`}>
+                        <div className={`font-medium text-right ml-3 ${transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
                           <div className="text-sm">
                             {transaction.type === 'deposit' || transaction.type === 'refund' || transaction.type === 'credit' ? '+' : '-'}
-                            {WalletService.formatAmount(transaction.amount)}
+                            {formatAmount(transaction.amount, 'RIAL')}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
-                            موجودی: {WalletService.formatAmount(transaction.balance_after || 0)}
+                            موجودی: {formatAmount(getBalanceAfter(transaction), 'RIAL')}
                           </div>
                         </div>
                       </div>
@@ -632,9 +694,9 @@ const WalletCard: React.FC<WalletCardProps> = ({ userId }) => {
               <div className="text-xs text-muted-foreground mt-1">
                 حداقل مبلغ: ۱۰۰,۰۰۰ تومان (۱,۰۰۰,۰۰۰ ریال)
               </div>
-              {depositAmount && parseFloat(depositAmount) >= 100000 && (
+                  {depositAmount && parseFloat(depositAmount) >= 100000 && (
                 <div className="text-xs text-green-600 mt-1 font-medium">
-                  معادل: {WalletService.formatAmount(parseFloat(depositAmount))} تومان
+                  معادل: {formatAmount(parseFloat(depositAmount), 'RIAL')}
                 </div>
               )}
             </div>

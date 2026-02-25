@@ -16,48 +16,76 @@ import {
   RefreshCw,
   AlertCircle
 } from 'lucide-react';
-import { enhancedApiClient } from '@/lib/enhancedApiClient';
-import { WalletService } from '@/lib/walletService';
+import { walletService } from '@/lib/services';
+import { useApi } from '@/hooks/useApi';
 
 interface EnhancedWalletAnalyticsProps {
   className?: string;
   onRefresh?: () => void;
 }
 
+interface WalletAnalytics {
+  totalTransactions: number;
+  totalVolume: number;
+  averageTransactionValue: number;
+  transactionTypeDistribution: Record<string, number>;
+  monthlyTrends: Array<{
+    month: string;
+    transactions: number;
+    volume: number;
+  }>;
+  topTransactionSources: Array<{
+    source: string;
+    count: number;
+    volume: number;
+  }>;
+}
+
+interface WalletTransaction {
+  id: string;
+  type: 'deposit' | 'withdrawal' | 'payment' | 'refund' | 'credit' | 'debit';
+  amount: number;
+  status: 'completed' | 'pending' | 'failed';
+  description: string;
+  createdAt: string;
+}
+
+interface WalletTransactionsResponse {
+  transactions: WalletTransaction[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
   className = '',
   onRefresh
 }) => {
-  const [analyticsData, setAnalyticsData] = useState<any>(null);
-  const [transactionsData, setTransactionsData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | '90d' | '1y' | 'all'>('30d');
 
-  useEffect(() => {
-    fetchWalletAnalytics();
-  }, [selectedPeriod]);
+  // Use the new useApi hooks for better state management
+  const { 
+    data: analyticsData, 
+    loading: analyticsLoading, 
+    error: analyticsError, 
+    execute: fetchWalletAnalytics 
+  } = useApi(() => walletService.getWalletAnalytics({ 
+    period: selectedPeriod,
+    from: getDateFromPeriod(selectedPeriod),
+    to: new Date().toISOString()
+  }));
 
-  const fetchWalletAnalytics = async () => {
-    try {
-      setLoading(true);
-      const [analyticsResponse, transactionsResponse] = await Promise.all([
-        enhancedApiClient.getWalletTransactionAnalytics({ period: selectedPeriod }),
-        enhancedApiClient.getEnhancedWalletTransactions({ 
-          limit: 50, 
-          page: 1,
-          from_date: getDateFromPeriod(selectedPeriod)
-        })
-      ]);
-      
-      setAnalyticsData(analyticsResponse);
-      setTransactionsData(transactionsResponse);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'خطا در دریافت اطلاعات کیف پول');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { 
+    data: transactionsData, 
+    loading: transactionsLoading, 
+    error: transactionsError, 
+    execute: fetchTransactions 
+  } = useApi(() => walletService.getWalletTransactions({ 
+    limit: 50, 
+    page: 1,
+    from: getDateFromPeriod(selectedPeriod),
+    to: new Date().toISOString()
+  }));
 
   const getDateFromPeriod = (period: string): string => {
     const now = new Date();
@@ -135,6 +163,22 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
     }
   };
 
+  // Load data when period changes
+  useEffect(() => {
+    fetchWalletAnalytics();
+    fetchTransactions();
+  }, [selectedPeriod]);
+
+  // Handle refresh callback
+  useEffect(() => {
+    if (onRefresh) {
+      onRefresh();
+    }
+  }, [onRefresh]);
+
+  const loading = analyticsLoading || transactionsLoading;
+  const error = analyticsError || transactionsError;
+
   if (loading) {
     return (
       <Card className={className}>
@@ -164,8 +208,8 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
         <CardContent>
           <div className="text-center py-8">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <p className="text-red-600 mb-4">{error}</p>
-            <Button onClick={fetchWalletAnalytics} variant="outline">
+            <p className="text-red-600 mb-4">{error instanceof Error ? error.message : 'خطا در دریافت اطلاعات کیف پول'}</p>
+            <Button onClick={() => { fetchWalletAnalytics(); fetchTransactions(); }} variant="outline">
               تلاش مجدد
             </Button>
           </div>
@@ -197,7 +241,7 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
           <div className="flex items-center gap-2">
             <select
               value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value as any)}
+              onChange={(e) => setSelectedPeriod(e.target.value as '7d' | '30d' | '90d' | '1y' | 'all')}
               className="px-3 py-1 border rounded text-sm"
             >
               <option value="7d">۷ روز گذشته</option>
@@ -209,7 +253,7 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchWalletAnalytics}
+              onClick={() => { fetchWalletAnalytics(); fetchTransactions(); }}
               className="flex items-center gap-1"
             >
               <RefreshCw className="w-4 h-4" />
@@ -239,14 +283,14 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
               
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
                 <div className="text-2xl font-bold text-blue-700">
-                  {WalletService.formatAmount(analyticsData.totalVolume)}
+                  {walletService.formatAmount(analyticsData.totalVolume)}
                 </div>
                 <div className="text-sm text-blue-600">حجم کل</div>
               </div>
               
               <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg text-center">
                 <div className="text-2xl font-bold text-purple-700">
-                  {WalletService.formatAmount(analyticsData.averageTransactionValue)}
+                  {walletService.formatAmount(analyticsData.averageTransactionValue)}
                 </div>
                 <div className="text-sm text-purple-600">میانگین تراکنش</div>
               </div>
@@ -268,7 +312,7 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 {Object.entries(analyticsData.transactionTypeDistribution || {}).map(([type, count]) => (
                   <div key={type} className="p-3 bg-muted/30 rounded-lg text-center">
-                    <div className="text-lg font-semibold">{count as number}</div>
+                    <div className="text-lg font-semibold">{count}</div>
                     <div className="text-sm text-muted-foreground">
                       {getTransactionTypeText(type)}
                     </div>
@@ -285,7 +329,7 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
                   روند ماهانه
                 </h4>
                 <div className="space-y-2">
-                  {analyticsData.monthlyTrends.slice(-6).map((trend: any, index: number) => (
+                  {analyticsData.monthlyTrends.slice(-6).map((trend, index) => (
                     <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                       <span className="font-medium">{trend.month}</span>
                       <div className="flex items-center gap-4">
@@ -293,7 +337,7 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
                           {trend.transactions} تراکنش
                         </span>
                         <span className="font-semibold">
-                          {WalletService.formatAmount(trend.volume)}
+                          {walletService.formatAmount(trend.volume)}
                         </span>
                       </div>
                     </div>
@@ -314,7 +358,7 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
             </div>
             
             <div className="space-y-3">
-              {transactionsData.transactions.slice(0, 10).map((transaction: any) => (
+              {transactionsData.transactions.slice(0, 10).map((transaction) => (
                 <div
                   key={transaction.id}
                   className="flex items-center justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors"
@@ -340,10 +384,10 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
                         : 'text-red-600'
                     }`}>
                       {transaction.type === 'deposit' || transaction.type === 'refund' ? '+' : '-'}
-                      {WalletService.formatAmount(transaction.amount)}
+                      {walletService.formatAmount(transaction.amount)}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {new Date(transaction.created_at).toLocaleDateString('fa-IR')}
+                      {new Date(transaction.createdAt).toLocaleDateString('fa-IR')}
                     </div>
                   </div>
                   
@@ -371,7 +415,7 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
             {analyticsData.topTransactionSources && analyticsData.topTransactionSources.length > 0 && (
               <div className="space-y-3">
                 <h5 className="font-medium text-sm text-muted-foreground">منابع اصلی تراکنش‌ها</h5>
-                {analyticsData.topTransactionSources.map((source: any, index: number) => (
+                {analyticsData.topTransactionSources.map((source, index) => (
                   <div key={index} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="w-6 h-6 bg-primary text-white rounded-full flex items-center justify-center text-xs font-bold">
@@ -382,7 +426,7 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
                     <div className="text-right">
                       <div className="font-semibold">{source.count} تراکنش</div>
                       <div className="text-sm text-muted-foreground">
-                        {WalletService.formatAmount(source.volume)}
+                        {walletService.formatAmount(source.volume)}
                       </div>
                     </div>
                   </div>
@@ -394,9 +438,9 @@ const EnhancedWalletAnalytics: React.FC<EnhancedWalletAnalyticsProps> = ({
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <h5 className="font-medium text-blue-800 mb-2">الگوی خرج کردن</h5>
               <div className="text-sm text-blue-700 space-y-1">
-                <div>• میانگین تراکنش: {WalletService.formatAmount(analyticsData.averageTransactionValue)}</div>
-                <div>• بیشترین تراکنش: {WalletService.formatAmount(Math.max(...analyticsData.monthlyTrends?.map((t: any) => t.volume) || [0]))}</div>
-                <div>• کمترین تراکنش: {WalletService.formatAmount(Math.min(...analyticsData.monthlyTrends?.map((t: any) => t.volume) || [0]))}</div>
+                <div>• میانگین تراکنش: {walletService.formatAmount(analyticsData.averageTransactionValue)}</div>
+                <div>• بیشترین تراکنش: {walletService.formatAmount(Math.max(...analyticsData.monthlyTrends?.map((t) => t.volume) || [0]))}</div>
+                <div>• کمترین تراکنش: {walletService.formatAmount(Math.min(...analyticsData.monthlyTrends?.map((t) => t.volume) || [0]))}</div>
               </div>
             </div>
           </TabsContent>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '@/hooks/useAuth';
-import { apiClient, Order, BackendUserProfile, EmailLog, DomainExtension, SystemMetrics } from '@/lib/api-client';
+import { adminService } from '@/lib/services';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -37,19 +37,21 @@ import { PaginationControls } from '@/components/ui/PaginationControls';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSiteMode } from '@/hooks/useSiteMode';
 import SiteModeDisplay from '@/components/ui/SiteModeDisplay';
-import { EmailService } from '@/lib/emailService';
-import { WalletService } from '@/lib/walletService';
-import { PaymentService } from '@/lib/paymentService';
-import { DesignService } from '@/lib/designService';
-import { emailService } from '@/lib/emailService';
+// Removed unused frontend email templating utilities; keep only adminService usage for emails
+// Removed legacy service imports; using consolidated services via '@/lib/services'
 import AdminInvoiceManager from '@/components/admin/AdminInvoiceManager';
+import OrderCard from '@/components/dashboard/OrderCard';
 import AdminReceiptManager from '@/components/admin/AdminReceiptManager';
+import AdminWalletAdjustmentDialog from '@/components/admin/AdminWalletAdjustmentDialog';
 import AdminPaymentLogs from '@/components/admin/AdminPaymentLogs';
 import AdminDashboardStats from '@/components/admin/AdminDashboardStats';
+import type { AdminUser, AdminOrder, AdminEmailLog, AdminWallet, AdminWalletAdjustment } from '@/lib/services';
 import { Label } from '@/components/ui/label';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import AnimatedLoader from '@/components/ui/AnimatedLoader';
 
 
 const AdminDashboard = () => {
@@ -58,9 +60,9 @@ const AdminDashboard = () => {
   const { mode, updateSiteMode } = useSiteMode();
   
   // State for different data
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [users, setUsers] = useState<BackendUserProfile[]>([]);
-  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [emailLogs, setEmailLogs] = useState<AdminEmailLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -83,17 +85,32 @@ const AdminDashboard = () => {
     averageOrderValue: 0
   });
 
+  const [selectedTab, setSelectedTab] = useState<string>('orders');
+
   // New state for enhanced features
-  const [domainPrices, setDomainPrices] = useState<DomainExtension[]>([]);
-  const [systemMetrics, setSystemMetrics] = useState<SystemMetrics | null>(null);
+  const [domainPrices, setDomainPrices] = useState<{ id: string; extension: string; price: number; description?: string; available?: boolean; category?: string }[]>([]);
+  type SystemMetricsView = { system?: { uptime?: number; memoryUsage?: number; cpuUsage?: number }; database?: { responseTime?: number }; services?: { email?: { status?: string }; payment?: { status?: string } } };
+  const [systemMetrics, setSystemMetrics] = useState<SystemMetricsView | null>(null);
   const [domainCheckDialog, setDomainCheckDialog] = useState(false);
   const [newDomainDialog, setNewDomainDialog] = useState(false);
-  const [deleteUserDialog, setDeleteUserDialog] = useState<{ open: boolean; user: BackendUserProfile | null }>({ open: false, user: null });
+  const [deleteUserDialog, setDeleteUserDialog] = useState<{ open: boolean; user: AdminUser | null }>({ open: false, user: null });
   const [domainToCheck, setDomainToCheck] = useState({ domain: '', extension: '.ir' });
-  const [newDomainData, setNewDomainData] = useState({ extension: '', price: '', description: '', category: 'generic' as 'generic' | 'country' | 'specialized' });
+  const [newDomainData, setNewDomainData] = useState({ extension: '', price: '', description: '', category: 'generic' as 'generic' | 'country' | 'specialized', available: true });
   const [deleteUserReason, setDeleteUserReason] = useState('');
   const [loadingDomains, setLoadingDomains] = useState(false);
   const [loadingSystemMetrics, setLoadingSystemMetrics] = useState(false);
+
+  // Wallets tab state
+  const [wallets, setWallets] = useState<AdminWallet[]>([]);
+  const [walletsLoading, setWalletsLoading] = useState(false);
+  const [walletsSearchTerm, setWalletsSearchTerm] = useState('');
+  const [walletsPage, setWalletsPage] = useState(1);
+  const [walletsLimit, setWalletsLimit] = useState(10);
+  const [walletsPagination, setWalletsPagination] = useState<{ page: number; limit: number; total: number; pages: number } | null>(null);
+  const [selectedWallet, setSelectedWallet] = useState<AdminWallet | null>(null);
+  const [adjustments, setAdjustments] = useState<AdminWalletAdjustment[]>([]);
+  const [adjustmentsLoading, setAdjustmentsLoading] = useState(false);
+  const [adjustDialogOpen, setAdjustDialogOpen] = useState(false);
 
   // useEffect to load data (placed after callbacks to avoid temporal dead zone)
 
@@ -102,75 +119,137 @@ const AdminDashboard = () => {
   const fetchOrders = useCallback(async () => {
     setOrdersLoading(true);
     try {
-      const ordersData = await apiClient.getOrders({ admin: true });
-      setOrders(ordersData || []);
+      const ordersData = await adminService.getOrders({ admin: true });
+      setOrders(Array.isArray(ordersData.items) ? ordersData.items : []);
     } catch (error) {
       console.error('Error fetching orders:', error);
+      toast({
+        title: 'خطا در دریافت سفارشات',
+        description: 'مشکلی در دریافت اطلاعات سفارشات پیش آمد',
+        variant: 'destructive',
+      });
     } finally {
       setOrdersLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   const fetchUsers = useCallback(async () => {
     setUsersLoading(true);
     try {
-      const usersData = await apiClient.getAllProfiles();
-      setUsers(usersData || []);
+      const usersData = await adminService.getAllProfiles();
+      setUsers(Array.isArray(usersData.items) ? usersData.items : []);
     } catch (error) {
       console.error('Error fetching users:', error);
+      toast({
+        title: 'خطا در دریافت کاربران',
+        description: 'مشکلی در دریافت اطلاعات کاربران پیش آمد',
+        variant: 'destructive',
+      });
     } finally {
       setUsersLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   const fetchEmailLogs = useCallback(async () => {
     setEmailLogsLoading(true);
     try {
-      const logsData = await apiClient.getEmailLogs(100, 0);
-      setEmailLogs(logsData || []);
+      const logsData = await adminService.getEmailLogs(100, 0);
+      setEmailLogs(Array.isArray(logsData.items) ? logsData.items : []);
     } catch (error) {
       console.error('Error fetching email logs:', error);
+      toast({
+        title: 'خطا در دریافت لاگ ایمیل‌ها',
+        description: 'مشکلی در دریافت اطلاعات ایمیل‌ها پیش آمد',
+        variant: 'destructive',
+      });
     } finally {
       setEmailLogsLoading(false);
     }
-  }, []);
+  }, [toast]);
+
+  // Wallets fetchers
+  const fetchWallets = useCallback(async () => {
+    setWalletsLoading(true);
+    try {
+      const resp = await adminService.getWallets({ page: walletsPage, limit: walletsLimit, search: walletsSearchTerm || undefined });
+      setWallets(Array.isArray(resp.items) ? resp.items : []);
+      setWalletsPagination(resp.pagination || null);
+    } catch (error) {
+      console.error('Error fetching wallets:', error);
+      toast({ title: 'خطا در دریافت کیف پول‌ها', variant: 'destructive' });
+    } finally {
+      setWalletsLoading(false);
+    }
+  }, [walletsPage, walletsLimit, walletsSearchTerm, toast]);
+
+  const fetchWalletAdjustments = useCallback(async (wallet: AdminWallet) => {
+    setSelectedWallet(wallet);
+    setAdjustmentsLoading(true);
+    try {
+      const resp = await adminService.getWalletAdjustments(wallet.$id, { page: 1, limit: 10 });
+      setAdjustments(Array.isArray(resp.items) ? resp.items : []);
+    } catch (error) {
+      console.error('Error fetching wallet adjustments:', error);
+      toast({ title: 'خطا در دریافت سوابق تنظیم', variant: 'destructive' });
+    } finally {
+      setAdjustmentsLoading(false);
+    }
+  }, [toast]);
 
   const calculateStats = useCallback(async () => {
     try {
-      const allOrders = await apiClient.getOrders({ admin: true });
-      const allUsersRaw = await apiClient.getAllProfiles();
-      const allUsers = Array.isArray(allUsersRaw) ? allUsersRaw : [];
-      
-      const totalOrders = Array.isArray(allOrders) ? allOrders.length : 0;
-      const totalUsers = allUsers.length;
-      const totalRevenue = allOrders.reduce((sum, order) => sum + (order.price || 0), 0);
-      const pendingOrders = allOrders.filter(order => order.status === 'pending').length;
-      const completedOrders = allOrders.filter(order => order.status === 'completed').length;
-      const activeUsers = allUsers.filter(user => user.role === 'user').length;
-      
-      // Calculate email sent today
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const emailLogsArray = Array.isArray(emailLogs) ? emailLogs : [];
-      const emailSentToday = emailLogsArray.filter(log => {
-        const logDate = new Date(log.created_at);
-        return logDate >= today;
-      }).length;
-
-      const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-
+      // Use the new admin stats endpoint for better performance
+      const adminStats = await adminService.getAdminStats();
       setStats({
-        totalOrders,
-        totalUsers,
-        totalRevenue,
-        pendingOrders,
-        completedOrders,
-        activeUsers,
-        emailSentToday,
-        averageOrderValue
+        totalOrders: adminStats.totalOrders || 0,
+        totalUsers: adminStats.totalUsers || 0,
+        totalRevenue: adminStats.totalRevenue || 0,
+        pendingOrders: adminStats.pendingOrders || 0,
+        completedOrders: adminStats.completedOrders || 0,
+        activeUsers: adminStats.activeUsers || 0,
+        emailSentToday: adminStats.emailSentToday || 0,
+        averageOrderValue: adminStats.averageOrderValue || 0
       });
     } catch (error) {
       console.error('Error calculating stats:', error);
+      // Fallback to manual calculation if admin stats endpoint fails
+      try {
+        const allOrders = await adminService.getOrders({ admin: true });
+        const allUsersRaw = await adminService.getAllProfiles();
+        const allUsers = allUsersRaw.items || [];
+        const orders = allOrders.items || [];
+        
+        const totalOrders = orders.length;
+        const totalUsers = allUsers.length;
+        const totalRevenue = orders.reduce((sum, order) => sum + (order.price || 0), 0);
+        const pendingOrders = orders.filter(order => order.status === 'pending').length;
+        const completedOrders = orders.filter(order => order.status === 'completed').length;
+        const activeUsers = allUsers.filter(user => user.role === 'user').length;
+        
+        // Calculate email sent today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const emailLogsArray = Array.isArray(emailLogs) ? emailLogs : [];
+        const emailSentToday = emailLogsArray.filter(log => {
+          const logDate = new Date(log.sent_at);
+          return logDate >= today;
+        }).length;
+
+        const averageOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+        setStats({
+          totalOrders,
+          totalUsers,
+          totalRevenue,
+          pendingOrders,
+          completedOrders,
+          activeUsers,
+          emailSentToday,
+          averageOrderValue
+        });
+      } catch (fallbackError) {
+        console.error('Error in fallback stats calculation:', fallbackError);
+      }
     }
   }, [emailLogs]);
 
@@ -180,7 +259,7 @@ const AdminDashboard = () => {
       await Promise.all([
         fetchOrders(),
         fetchUsers(),
-        fetchEmailLogs(),
+        // Lazy-load email logs when the Emails tab is opened
         calculateStats()
       ]);
     } catch (error) {
@@ -193,17 +272,18 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [fetchOrders, fetchUsers, fetchEmailLogs, calculateStats, toast]);
+  }, [fetchOrders, fetchUsers, calculateStats, toast]);
 
   const handleOrderStatusUpdate = async (orderId: string, newStatus: string) => {
     try {
-      await apiClient.updateOrder(orderId, { status: newStatus as 'pending' | 'in_progress' | 'completed' | 'cancelled' });
+      await adminService.updateOrder(orderId, { status: newStatus as 'pending' | 'in_progress' | 'completed' | 'cancelled' });
       await fetchOrders();
       toast({
         title: 'وضعیت سفارش بروزرسانی شد',
         description: 'وضعیت سفارش با موفقیت تغییر یافت',
       });
     } catch (error) {
+      console.error('Error updating order status:', error);
       toast({
         title: 'خطا در بروزرسانی وضعیت',
         description: 'مشکلی در تغییر وضعیت سفارش پیش آمد',
@@ -214,13 +294,14 @@ const AdminDashboard = () => {
 
   const handleDeleteOrder = async (orderId: string) => {
     try {
-      await apiClient.deleteOrder(orderId);
+      await adminService.deleteOrder(orderId);
       await fetchOrders();
       toast({
         title: 'سفارش حذف شد',
         description: 'سفارش با موفقیت حذف شد',
       });
     } catch (error) {
+      console.error('Error deleting order:', error);
       toast({
         title: 'خطا در حذف سفارش',
         description: 'مشکلی در حذف سفارش پیش آمد',
@@ -229,32 +310,44 @@ const AdminDashboard = () => {
     }
   };
 
-
+  const handleDeleteUser = async (user: AdminUser) => {
+    try {
+      await adminService.deleteUser(user.id);
+      await fetchUsers();
+      setDeleteUserDialog({ open: false, user: null });
+      toast({
+        title: 'کاربر حذف شد',
+        description: 'کاربر با موفقیت حذف شد',
+      });
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast({
+        title: 'خطا در حذف کاربر',
+        description: 'مشکلی در حذف کاربر پیش آمد',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const testEmailService = async () => {
     try {
-      const result = await apiClient.testEmailService({
-        testType: 'comprehensive',
-        recipient: user?.email || 'admin@arzansite.com',
-        testOptions: {
-          smtp: true,
-          templates: true,
-          delivery: true
-        }
+      const result = await adminService.testEmailService({
+        to: user?.email || 'admin@arzansite.com',
+        subject: 'Test Email',
+        template: 'test',
+        data: { message: 'This is a test email from the admin dashboard' }
       });
       
       if (result.success) {
-        const dataObj = (result.data && typeof result.data === 'object') ? (result.data as Record<string, unknown>) : undefined;
-        const message = typeof dataObj?.message === 'string' ? (dataObj.message as string) : 'تست سرویس ایمیل با موفقیت انجام شد';
         toast({
           title: 'تست موفق',
-          description: message,
+          description: result.message || 'تست سرویس ایمیل با موفقیت انجام شد',
           variant: 'default',
         });
       } else {
         toast({
           title: 'تست ناموفق',
-          description: 'مشکلی در تست سرویس ایمیل پیش آمد',
+          description: result.message || 'مشکلی در تست سرویس ایمیل پیش آمد',
           variant: 'destructive',
         });
       }
@@ -269,11 +362,11 @@ const AdminDashboard = () => {
 
   // New enhanced functions
   const fetchDomainPrices = useCallback(async () => {
-    setLoadingDomains(true);
-    try {
-      const data = await apiClient.getDomainPrices();
-      setDomainPrices(data);
-    } catch (error) {
+          setLoadingDomains(true);
+      try {
+        const data = await adminService.getDomainPrices();
+        setDomainPrices(data.items || []);
+      } catch (error) {
       console.error('Error fetching domain prices:', error);
       toast({
         title: 'خطا در دریافت قیمت دامنه‌ها',
@@ -288,8 +381,16 @@ const AdminDashboard = () => {
   const fetchSystemMetrics = useCallback(async () => {
     setLoadingSystemMetrics(true);
     try {
-      const data = await apiClient.getSystemMetrics();
-      setSystemMetrics(data);
+      const metrics = await adminService.getSystemMetrics();
+      // Render minimal placeholder, map only fields we show
+      setSystemMetrics({
+        system: { uptime: Number(metrics?.system?.uptime || 0), memoryUsage: Number(metrics?.system?.memoryUsage || 0), cpuUsage: Number(metrics?.system?.cpuUsage || 0) },
+        database: { responseTime: Number(metrics?.database?.responseTime || 0) },
+        services: {
+          email: { status: metrics?.services?.email?.status },
+          payment: { status: metrics?.services?.payment?.status },
+        },
+      });
     } catch (error) {
       console.error('Error fetching system metrics:', error);
       toast({
@@ -308,12 +409,20 @@ const AdminDashboard = () => {
       fetchAllData();
       fetchDomainPrices();
       fetchSystemMetrics();
+      fetchWallets();
     }
-  }, [user, fetchAllData, fetchDomainPrices, fetchSystemMetrics]);
+  }, [user, fetchAllData, fetchDomainPrices, fetchSystemMetrics, fetchWallets]);
+
+  // Lazy-load email logs when Emails tab is opened
+  useEffect(() => {
+    if (selectedTab === 'emails' && !emailLogsLoading && emailLogs.length === 0) {
+      fetchEmailLogs();
+    }
+  }, [selectedTab, emailLogsLoading, fetchEmailLogs]);
 
   const updateDomainPrice = async (extensionId: string, newPrice: number) => {
     try {
-      await apiClient.updateDomainPrice(extensionId, { price: newPrice });
+      await adminService.updateDomainPrice(extensionId, { price: newPrice });
       await fetchDomainPrices();
       toast({
         title: 'قیمت بروزرسانی شد',
@@ -339,17 +448,17 @@ const AdminDashboard = () => {
     }
 
     try {
-      await apiClient.createDomainExtension({
+      await adminService.createDomainExtension({
         extension: newDomainData.extension,
         price: parseInt(newDomainData.price),
         description: newDomainData.description,
-        available: true,
-        category: newDomainData.category
+        category: newDomainData.category,
+        available: newDomainData.available
       });
       
       await fetchDomainPrices();
       setNewDomainDialog(false);
-      setNewDomainData({ extension: '', price: '', description: '', category: 'generic' });
+      setNewDomainData({ extension: '', price: '', description: '', category: 'generic', available: true });
       
       toast({
         title: 'دامنه جدید اضافه شد',
@@ -375,7 +484,7 @@ const AdminDashboard = () => {
     }
 
     try {
-      const result = await apiClient.checkDomainAvailability(domainToCheck);
+      const result = await adminService.checkDomainAvailability(domainToCheck);
       toast({
         title: result.available ? 'دامنه در دسترس است' : 'دامنه در دسترس نیست',
         description: `${domainToCheck.domain}${domainToCheck.extension} ${result.available ? 'قابل ثبت است' : 'قبلاً ثبت شده است'}`,
@@ -390,37 +499,33 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteUser = async (userToDelete: BackendUserProfile) => {
-    if (!deleteUserReason.trim()) {
-      toast({
-        title: 'خطا',
-        description: 'لطفاً دلیل حذف کاربر را وارد کنید',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+  const handleBanUser = async (u: AdminUser) => {
     try {
-      const result = await apiClient.deleteUser(userToDelete.id);
-      
-      if (result.success) {
-        toast({
-          title: 'کاربر حذف شد',
-          description: result.message,
-        });
-        setDeleteUserDialog({ open: false, user: null });
-        setDeleteUserReason('');
+      const res = await adminService.banUser(u.id);
+      if (res.success) {
+        toast({ title: 'کاربر مسدود شد', description: `وضعیت: ${res.status}` });
         await fetchUsers();
       } else {
-        throw new Error(result.message || 'عملیات ناموفق بود');
+        throw new Error('Ban failed');
       }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'مشکلی در حذف کاربر پیش آمد';
-      toast({
-        title: 'خطا در حذف کاربر',
-        description: errorMessage,
-        variant: 'destructive',
-      });
+    } catch (error: any) {
+      console.error('Error banning user:', error);
+      toast({ title: 'خطا در مسدودسازی', description: error?.message || 'مشکلی پیش آمد', variant: 'destructive' });
+    }
+  };
+
+  const handleUnbanUser = async (u: AdminUser) => {
+    try {
+      const res = await adminService.unbanUser(u.id);
+      if (res.success) {
+        toast({ title: 'کاربر آزاد شد', description: `وضعیت: ${res.status}` });
+        await fetchUsers();
+      } else {
+        throw new Error('Unban failed');
+      }
+    } catch (error: any) {
+      console.error('Error unbanning user:', error);
+      toast({ title: 'خطا در رفع انسداد', description: error?.message || 'مشکلی پیش آمد', variant: 'destructive' });
     }
   };
 
@@ -453,21 +558,21 @@ const AdminDashboard = () => {
   };
 
   // Filter functions
-  const filterOrders = (order: Order, searchTerm: string) => {
+  const filterOrders = (order: AdminOrder, searchTerm: string) => {
     return order.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
            order.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
            getStatusText(order.status).toLowerCase().includes(searchTerm.toLowerCase());
   };
 
-  const filterUsers = (user: BackendUserProfile, searchTerm: string) => {
+  const filterUsers = (user: AdminUser, searchTerm: string) => {
     return user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
            (user.full_name && user.full_name.toLowerCase().includes(searchTerm.toLowerCase()));
   };
 
-  const filterEmailLogs = (log: EmailLog, searchTerm: string) => {
-    return log.to.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           log.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-           log.status.toLowerCase().includes(searchTerm.toLowerCase());
+  const filterEmailLogs = (log: AdminEmailLog, searchTerm: string) => {
+    return (log.to || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (log.subject || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+           (log.status || '').toLowerCase().includes(searchTerm.toLowerCase());
   };
 
   // Use pagination hooks
@@ -515,7 +620,7 @@ const AdminDashboard = () => {
       <Layout>
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+            <AnimatedLoader size='lg' />
             <p className="mt-4 text-muted-foreground">در حال بارگیری...</p>
           </div>
         </div>
@@ -543,7 +648,7 @@ const AdminDashboard = () => {
         <title>داشبورد مدیریت - ارزان سایت</title>
       </Helmet>
 
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-8 mt-16">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -626,8 +731,8 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
 
-          <Tabs defaultValue="orders" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-10">
+          <Tabs value={selectedTab} onValueChange={setSelectedTab} className="space-y-6">
+            <TabsList className="grid w-full grid-cols-11">
               <TabsTrigger value="orders">سفارشات</TabsTrigger>
               <TabsTrigger value="users">کاربران</TabsTrigger>
               <TabsTrigger value="emails">ایمیل‌ها</TabsTrigger>
@@ -636,6 +741,7 @@ const AdminDashboard = () => {
               <TabsTrigger value="invoices">فاکتورها</TabsTrigger>
               <TabsTrigger value="receipts">رسیدها</TabsTrigger>
               <TabsTrigger value="payments">پرداخت‌ها</TabsTrigger>
+              <TabsTrigger value="wallets">کیف پول‌ها</TabsTrigger>
               <TabsTrigger value="domains">دامنه‌ها</TabsTrigger>
               <TabsTrigger value="tools">ابزارها</TabsTrigger>
             </TabsList>
@@ -689,57 +795,52 @@ const AdminDashboard = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-4">
-                  {currentOrders.map((order) => (
-                    <Card key={order.id}>
-                      <CardHeader>
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <CardTitle className="text-lg">{order.title}</CardTitle>
-                            <CardDescription className="mt-2">
-                              {order.description}
-                            </CardDescription>
-                          </div>
-                          <div className="flex gap-2 items-center">
-                            <Badge className={`${getStatusColor(order.status)} border-0`}>
-                              {getStatusText(order.status)}
-                            </Badge>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleOrderStatusUpdate(order.id, 'completed')}
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleDeleteOrder(order.id)}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
+                <div className="space-y-6">
+                  {currentOrders.map((order) => {
+                    // Map AdminOrder to user Order shape for OrderCard
+                    const mappedOrder: any = {
+                      id: (order as any).id,
+                      title: (order as any).title,
+                      description: (order as any).description,
+                      price: Number((order as any).price || 0),
+                      status: (order as any).status || 'pending',
+                      paymentStatus: (order as any).payment_status || (order as any).paymentStatus,
+                      comments: (order as any).comments,
+                      totalPages: (order as any).total_pages || (order as any).totalPages,
+                      totalSections: (order as any).total_sections || (order as any).totalSections,
+                      userId: (order as any).user_id,
+                      siteType: (order as any).site_type || (order as any).siteType,
+                      sessionId: (order as any).session_id || (order as any).sessionId,
+                      wizardData: (order as any).wizardData || (order as any).wizard_data,
+                      createdAt: (order as any).created_at || (order as any).createdAt,
+                      updatedAt: (order as any).updated_at || (order as any).updatedAt,
+                    };
+
+                    return (
+                      <div key={(order as any).id} className="space-y-2">
+                        <OrderCard
+                          order={mappedOrder}
+                          hidePayButton
+                          onRefresh={fetchOrders}
+                          onDeleted={() => fetchOrders()}
+                          onDeleteRequest={async (id) => { await adminService.deleteOrder(id); }}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Badge className={`${getStatusColor(order.status)} border-0`}>
+                            {getStatusText(order.status)}
+                          </Badge>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleOrderStatusUpdate(order.id, 'completed')}
+                          >
+                            <CheckCircle className="w-4 h-4" /> تکمیل سفارش
+                          </Button>
                         </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="font-medium">قیمت: </span>
-                            {order.price ? formatPrice(order.price) : 'نامشخص'}
-                          </div>
-                          <div>
-                            <span className="font-medium">تاریخ ایجاد: </span>
-                            {formatDate(order.created_at)}
-                          </div>
-                          <div>
-                            <span className="font-medium">کاربر: </span>
-                            {order.user_id}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                  
+                      </div>
+                    );
+                  })}
+
                   <PaginationControls
                     currentPage={ordersCurrentPage}
                     totalPages={ordersTotalPages}
@@ -800,24 +901,33 @@ const AdminDashboard = () => {
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <CardTitle className="text-lg">
-                              {user.full_name || user.email}
-                            </CardTitle>
-                            <CardDescription className="mt-2">
-                              {user.email}
-                            </CardDescription>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={(user as any).avatar_url || ''} alt={user.full_name || user.email} />
+                                <AvatarFallback>{(user.full_name || user.email || '?').slice(0,2).toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <CardTitle className="text-lg">
+                                  {user.full_name || (user as any).fullName || user.email}
+                                </CardTitle>
+                                <CardDescription className="mt-1">
+                                  {user.email}
+                                </CardDescription>
+                              </div>
+                            </div>
                           </div>
                           <div className="flex gap-2 items-center">
                             <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
                               {user.role === 'admin' ? 'مدیر' : 'کاربر'}
                             </Badge>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => setDeleteUserDialog({ open: true, user })}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <Badge variant={(user as any).status === 'banned' ? 'destructive' : 'outline'}>
+                              {(user as any).status || 'active'}
+                            </Badge>
+                            {((user as any).status === 'banned') ? (
+                              <Button variant="outline" size="sm" onClick={() => handleUnbanUser(user)}>رفع انسداد</Button>
+                            ) : (
+                              <Button variant="destructive" size="sm" onClick={() => handleBanUser(user)}>مسدود کردن</Button>
+                            )}
                           </div>
                         </div>
                       </CardHeader>
@@ -828,8 +938,24 @@ const AdminDashboard = () => {
                             {user.role === 'admin' ? 'مدیر' : 'کاربر'}
                           </div>
                           <div>
+                            <span className="font-medium">وضعیت: </span>
+                            {(user as any).status || 'active'}
+                          </div>
+                          <div>
+                            <span className="font-medium">تلفن: </span>
+                            {(user as any).phone || '—'}
+                          </div>
+                          <div>
+                            <span className="font-medium">تأیید ایمیل: </span>
+                            {(user as any).verification_status || '—'}
+                          </div>
+                          <div>
                             <span className="font-medium">تاریخ عضویت: </span>
-                            {formatDate(user.created_at)}
+                            {formatDate((user as any).created_at || (user as any).createdAt)}
+                          </div>
+                          <div>
+                            <span className="font-medium">آخرین ورود: </span>
+                            {formatDate((user as any).last_login_at || (user as any).lastLoginAt)}
                           </div>
                         </div>
                       </CardContent>
@@ -919,7 +1045,7 @@ const AdminDashboard = () => {
                           </div>
                           <div>
                             <span className="font-medium">تاریخ ارسال: </span>
-                            {formatDate(log.created_at)}
+                            {formatDate(log.sent_at)}
                           </div>
                         </div>
                       </CardContent>
@@ -1074,6 +1200,113 @@ const AdminDashboard = () => {
                 <h2 className="text-2xl font-bold">لاگ پرداخت‌ها</h2>
               </div>
               <AdminPaymentLogs />
+            </TabsContent>
+
+            <TabsContent value="wallets" className="space-y-6">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <h2 className="text-2xl font-bold">مدیریت کیف پول‌ها</h2>
+                <div className="flex gap-3 items-center">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <Input
+                      placeholder="جستجو (نام/ایمیل/شناسه کاربر)..."
+                      value={walletsSearchTerm}
+                      onChange={(e) => setWalletsSearchTerm(e.target.value)}
+                      className="pl-10 w-full sm:w-64"
+                    />
+                  </div>
+                  <Button onClick={() => { setWalletsPage(1); fetchWallets(); }} variant="outline">
+                    بروزرسانی
+                  </Button>
+                </div>
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>لیست کیف پول‌ها</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {walletsLoading ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground">در حال بارگیری...</div>
+                  ) : wallets.length === 0 ? (
+                    <div className="text-center py-8 text-sm text-muted-foreground">کیف پولی یافت نشد</div>
+                  ) : (
+                    <div className="space-y-3">
+                      {wallets.map((w) => (
+                        <div key={w.$id} className="p-3 border rounded-lg bg-background flex items-center justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{w.userProfile?.full_name || w.user_id}</span>
+                              {w.userProfile?.email && (
+                                <span className="text-xs text-muted-foreground">{w.userProfile.email}</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">ایجاد: {formatDate(w.created_at)}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="font-medium whitespace-nowrap">{formatPrice(w.balance)}</div>
+                            <Button size="sm" variant="outline" onClick={() => fetchWalletAdjustments(w)}>سوابق</Button>
+                            <Button size="sm" variant="outline" onClick={() => { setSelectedWallet(w); setAdjustDialogOpen(true); }}>تنظیم موجودی</Button>
+                          </div>
+                        </div>
+                      ))}
+
+                      {walletsPagination && (
+                        <PaginationControls
+                          currentPage={walletsPagination.page}
+                          totalPages={walletsPagination.pages}
+                          onPageChange={(p) => { setWalletsPage(p); fetchWallets(); }}
+                          totalItems={walletsPagination.total}
+                          itemsPerPage={walletsPagination.limit}
+                        />
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {selectedWallet && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>سوابق تنظیم موجودی - {selectedWallet.userProfile?.full_name || selectedWallet.user_id}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {adjustmentsLoading ? (
+                      <div className="text-center py-8 text-sm text-muted-foreground">در حال بارگیری...</div>
+                    ) : adjustments.length === 0 ? (
+                      <div className="text-center py-8 text-sm text-muted-foreground">سابقه‌ای یافت نشد</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {adjustments.map((adj) => (
+                          <div key={adj.id} className="p-3 border rounded-lg bg-background flex items-center justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-sm">{adj.type === 'credit' ? 'افزایش' : adj.type === 'debit' ? 'کاهش' : 'تصحیح'}</span>
+                                <span className="text-xs text-muted-foreground">توسط: {adj.adminName || adj.adminId}</span>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">{adj.reason}</div>
+                              <div className="text-xs text-muted-foreground mt-1">{formatDate(adj.created_at)}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-medium whitespace-nowrap">{formatPrice(adj.amount)}</div>
+                              <div className="text-xs text-muted-foreground">{formatPrice(adj.balanceBefore)} → {formatPrice(adj.balanceAfter)}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              <AdminWalletAdjustmentDialog
+                open={adjustDialogOpen}
+                onOpenChange={setAdjustDialogOpen}
+                walletId={selectedWallet?.$id || ''}
+                userName={selectedWallet?.userProfile?.full_name || selectedWallet?.user_id || ''}
+                currentBalance={selectedWallet?.balance || 0}
+                onAdjustmentComplete={() => { fetchWallets(); if (selectedWallet) fetchWalletAdjustments(selectedWallet); }}
+              />
             </TabsContent>
 
             <TabsContent value="domains" className="space-y-6">
@@ -1315,6 +1548,19 @@ const AdminDashboard = () => {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="available"
+                checked={newDomainData.available}
+                onChange={(e) => setNewDomainData(prev => ({ ...prev, available: e.target.checked }))}
+                className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded"
+              />
+              <Label htmlFor="available" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                دامنه فعال است
+              </Label>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
@@ -1378,5 +1624,7 @@ const AdminDashboard = () => {
     </Layout>
   );
 };
-
 export default AdminDashboard;
+
+
+

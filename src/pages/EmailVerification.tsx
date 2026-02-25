@@ -3,10 +3,12 @@ import { motion } from "framer-motion";
 import { Mail, CheckCircle, XCircle, Loader2, RefreshCw } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { apiClient } from "@/lib/api-client";
+// New API services
+import { authService, useApi } from "@/lib/services";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnimatedLoader } from "@/components/ui/AnimatedLoader";
 
 const EmailVerification = () => {
   const [verificationStatus, setVerificationStatus] = useState<'loading' | 'success' | 'error' | 'pending'>('loading');
@@ -16,8 +18,17 @@ const EmailVerification = () => {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
+  // New API hook for email verification
+  const { execute: verifyEmail, loading: verifyLoading } = useApi(
+    authService.verifyEmail.bind(authService),
+    { 
+      onSuccess: handleVerificationSuccess, 
+      onError: handleVerificationError 
+    }
+  );
+
   useEffect(() => {
-    const verifyEmail = async () => {
+    const performVerification = async () => {
       try {
         const token = searchParams.get('token_hash') || searchParams.get('token') || searchParams.get('code') || '';
         if (!token) {
@@ -25,31 +36,42 @@ const EmailVerification = () => {
           setErrorMessage('توکن تایید یافت نشد');
           return;
         }
-        await apiClient.verifyEmail(token);
-          setVerificationStatus('success');
-          toast({
-            title: "ایمیل تایید شد",
-            description: "حساب کاربری شما با موفقیت تایید شد",
-          });
-          
-          // Redirect to dashboard after 3 seconds
-          setTimeout(() => {
-            navigate("/dashboard");
-          }, 3000);
+        await verifyEmail({ token });
       } catch (error) {
-        setVerificationStatus('error');
-        setErrorMessage('مشکلی در تایید ایمیل پیش آمد');
+        // Error handling is done in the useApi hook's onError callback
+        console.error('Verification error:', error);
       }
     };
 
     // Check if we have the necessary parameters
     const token = searchParams.get('token_hash') || searchParams.get('token') || searchParams.get('code');
     if (token) {
-      verifyEmail();
+      performVerification();
     } else {
       setVerificationStatus('pending');
     }
-  }, [searchParams, navigate, toast]);
+  }, [searchParams, verifyEmail]);
+
+  // Handle successful verification
+  function handleVerificationSuccess() {
+    setVerificationStatus('success');
+    toast({
+      title: "ایمیل تایید شد",
+      description: "حساب کاربری شما با موفقیت تایید شد",
+    });
+    
+    // Redirect to dashboard after 3 seconds
+    setTimeout(() => {
+      navigate("/dashboard");
+    }, 3000);
+  }
+
+  // Handle verification error
+  function handleVerificationError(error: Error) {
+    setVerificationStatus('error');
+    setErrorMessage('مشکلی در تایید ایمیل پیش آمد');
+    console.error('Email verification error:', error);
+  }
 
   const handleResendVerification = async () => {
     setResending(true);
@@ -73,7 +95,7 @@ const EmailVerification = () => {
       case 'loading':
         return (
           <div className="space-y-4 text-center">
-            <Loader2 className="w-16 h-16 mx-auto animate-spin text-primary" />
+            <AnimatedLoader size="lg" />
             <p className="text-muted-foreground">در حال تایید ایمیل...</p>
           </div>
         );
@@ -120,7 +142,7 @@ const EmailVerification = () => {
                 className="w-full"
               >
                 {resending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <AnimatedLoader size="sm" />
                 ) : (
                   <RefreshCw className="w-4 h-4" />
                 )}
@@ -156,7 +178,7 @@ const EmailVerification = () => {
                 className="w-full"
               >
                 {resending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <AnimatedLoader size="sm" />
                 ) : (
                   <RefreshCw className="w-4 h-4" />
                 )}

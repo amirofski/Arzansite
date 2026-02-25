@@ -3,8 +3,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { discoverAllImages, getCategoryStats, DiscoveredCategory } from '@/lib/imageDiscovery';
-import { SECTION_NAMES, getSectionCategories, SectionCategory, getImageCacheStatus, clearAllImageCaches, getEfficientDiscoveryStats, getCategoryImageInfo } from '@/lib/imageLoader';
-import { getImageTemplatesByCategory, SkeletonTemplate } from './templates-del';
+import { SECTION_NAMES, getSectionCategories, SectionCategory, getImageCacheStatus, clearAllImageCaches, getEfficientDiscoveryStats, getCategoryImageInfo, getSectionImages } from '@/lib/imageLoader';
+
+// Define SkeletonTemplate interface
+interface SkeletonTemplate {
+  id: string;
+  name: string;
+  previewImage: string;
+  component?: React.ComponentType<any>;
+}
+
+// Function to get image templates by category
+const getImageTemplatesByCategory = async (category: string): Promise<SkeletonTemplate[]> => {
+  const images = await getSectionImages(category);
+
+  return images.map(img => ({
+    id: img.id,
+    name: img.name,
+    previewImage: img.path,
+    component: undefined // We'll use previewImage instead
+  }));
+};
 
 const ImageSystemTest = () => {
   const [discoveredCategories, setDiscoveredCategories] = useState<DiscoveredCategory[]>([]);

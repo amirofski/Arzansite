@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Loader2 } from 'lucide-react';
+import { AnimatedLoader } from './ui/AnimatedLoader';
 import { useEffect, useState } from 'react';
 
 interface ProtectedRouteProps {
@@ -9,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps) => {
-  const { user, loading: authLoading, userRole, roleLoading } = useAuth();
+  const { user, loading: authLoading, userRole, roleLoading, isAuthenticated } = useAuth();
   const location = useLocation();
   const [isRedirecting, setIsRedirecting] = useState(false);
 
@@ -18,6 +19,7 @@ const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps)
     console.log('ProtectedRoute: Rendered with props:', {
       requireAdmin,
       hasUser: !!user,
+      isAuthenticated,
       userRole: userRole?.role,
       authLoading,
       roleLoading,
@@ -33,19 +35,19 @@ const ProtectedRoute = ({ children, requireAdmin = false }: ProtectedRouteProps)
     }
   }, [authLoading, user, isRedirecting]);
 
-  // Show loading state while checking authentication
-  if (authLoading || roleLoading) {
-    console.log('ProtectedRoute: Showing loading state...');
+  // Show loading while we have an authenticated session but user object hasn't loaded yet
+  if (authLoading || roleLoading || (isAuthenticated && !user)) {
+    console.log('ProtectedRoute: Showing loading state (awaiting user profile)...');
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <AnimatedLoader size="md" />
       </div>
     );
   }
 
-  // Redirect to auth if not authenticated
-  if (!user && !isRedirecting) {
-    console.log('ProtectedRoute: No user, redirecting to auth...');
+  // Redirect to auth if not authenticated (no user and no token)
+  if (!isAuthenticated && !isRedirecting) {
+    console.log('ProtectedRoute: Not authenticated, redirecting to auth...');
     return <Navigate to="/auth" replace state={{ from: location }} />;
   }
 

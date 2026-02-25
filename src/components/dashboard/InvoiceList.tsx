@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { apiClient, Invoice } from '@/lib/api-client';
+import { invoiceService, useApi, Invoice } from '@/lib/services';
+import { tokenManager } from '@/lib/tokenManager';
 import { RefreshCw, FileText, Search } from 'lucide-react';
 
 interface InvoiceListProps {
@@ -36,27 +37,82 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 	const [payingId, setPayingId] = useState<string | null>(null);
 	const [loadError, setLoadError] = useState<string | null>(null);
 
+	const { execute: fetchInvoices, loading: fetchLoading } = useApi(
+		invoiceService.getInvoices.bind(invoiceService),
+		{
+			onSuccess: (data) => {
+				// Handle direct array or wrapped responses
+				if (Array.isArray(data)) {
+					setInvoices(data);
+				} else if (data && typeof data === 'object') {
+					if ('items' in data) setInvoices((data as any).items || []);
+					else if ('invoices' in data) setInvoices((data as any).invoices || []);
+					else if ('data' in data && Array.isArray((data as any).data)) setInvoices((data as any).data);
+					else {
+						console.warn('Unexpected invoice data structure:', data);
+						setInvoices([]);
+					}
+				} else {
+					setInvoices([]);
+				}
+			},
+			onError: (error) => {
+				console.error('Error loading invoices:', error);
+				// Check if it's a missing collection error
+				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+				if (errorMessage.includes('Collection with the requested ID could not be found') || 
+					errorMessage.includes('AppwriteException')) {
+					toast({ 
+						title: 'سیستم در حال راه‌اندازی', 
+						description: 'لطفاً چند لحظه صبر کنید تا سیستم فاکتورها آماده شود',
+						variant: 'default'
+					});
+				} else {
+					setLoadError('خطا در دریافت فاکتورها');
+					toast({ title: 'خطا در دریافت فاکتورها', variant: 'destructive' });
+				}
+			}
+		}
+	);
+
+	const { execute: payInvoice, loading: payLoading } = useApi(
+		invoiceService.payInvoice.bind(invoiceService),
+		{
+			onSuccess: (res) => {
+				if (res?.success) {
+					toast({ title: 'فاکتور پرداخت شد' });
+					load();
+				} else {
+					toast({ title: 'پرداخت ناموفق', variant: 'destructive' });
+				}
+				setPayingId(null);
+			},
+			onError: (error) => {
+				toast({ title: 'خطا در پرداخت', variant: 'destructive' });
+				setPayingId(null);
+			}
+		}
+	);
+
 	const load = async () => {
+		// Wait for token presence to avoid unauthorized noise right after login
+		let token = tokenManager.getAccessToken();
+		if (!token) {
+			tokenManager.forceRefreshFromStorage();
+			token = tokenManager.getAccessToken();
+			if (!token) {
+				setLoading(false);
+				return;
+			}
+		}
 		setLoading(true);
 		setLoadError(null);
 		try {
-			const data = await apiClient.getInvoices(statusFilter !== 'all' ? { status: statusFilter } : undefined);
-			setInvoices(data);
+			await fetchInvoices(statusFilter !== 'all' ? { status: statusFilter } : undefined);
 		} catch (e: unknown) {
 			console.error('Error loading invoices:', e);
-			// Check if it's a missing collection error
-			const error = e as { message?: string; error?: string };
-			if (error?.message?.includes('Collection with the requested ID could not be found') || 
-				error?.error?.includes('AppwriteException')) {
-				toast({ 
-					title: 'سیستم در حال راه‌اندازی', 
-					description: 'لطفاً چند لحظه صبر کنید تا سیستم فاکتورها آماده شود',
-					variant: 'default'
-				});
-			} else {
-				setLoadError('خطا در دریافت فاکتورها');
-				toast({ title: 'خطا در دریافت فاکتورها', variant: 'destructive' });
-			}
+			setLoadError('خطا در دریافت فاکتورها');
+			toast({ title: 'خطا در دریافت فاکتورها', variant: 'destructive' });
 		} finally {
 			setLoading(false);
 		}
@@ -75,45 +131,27 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 	}, [autoRefreshMs, statusFilter]);
 
 	const filtered = useMemo(() => {
+		// Safety check to ensure invoices is an array
+		if (!Array.isArray(invoices)) {
+			console.warn('Invoices is not an array:', invoices);
+			return [];
+		}
+		
 		const s = search.trim().toLowerCase();
 		if (!s) return invoices;
 		return invoices.filter((inv) =>
-			(inv.service_name || '').toLowerCase().includes(s) || inv.id.toLowerCase().includes(s)
+			(inv.serviceName || '').toLowerCase().includes(s) || inv.id.toLowerCase().includes(s)
 		);
 	}, [invoices, search]);
 
 	const payFromWallet = async (invoiceId: string) => {
 		setPayingId(invoiceId);
-		try {
-			const res = await apiClient.payInvoice(invoiceId, { method: 'wallet', useWallet: true });
-			if (res?.success) {
-				toast({ title: 'فاکتور پرداخت شد' });
-				await load();
-			} else {
-				toast({ title: 'پرداخت ناموفق', variant: 'destructive' });
-			}
-		} catch (e) {
-			toast({ title: 'خطا در پرداخت', variant: 'destructive' });
-		} finally {
-			setPayingId(null);
-		}
+		await payInvoice(invoiceId, { method: 'wallet', useWallet: true });
 	};
 
 	const payViaGateway = async (invoiceId: string) => {
 		setPayingId(invoiceId);
-		try {
-			const res = await apiClient.payInvoice(invoiceId, { method: 'gateway' });
-			if (res?.success) {
-				toast({ title: 'درخواست پرداخت ایجاد شد' });
-				await load();
-			} else {
-				toast({ title: 'ایجاد پرداخت ناموفق', variant: 'destructive' });
-			}
-		} catch (e) {
-			toast({ title: 'خطا در ایجاد پرداخت', variant: 'destructive' });
-		} finally {
-			setPayingId(null);
-		}
+		await payInvoice(invoiceId, { method: 'gateway' });
 	};
 
 	return (
@@ -147,7 +185,7 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 					</div>
 				</div>
 
-				{loading ? (
+				{loading || fetchLoading ? (
 					<div className="text-center text-sm text-muted-foreground py-8">در حال بارگیری...</div>
 				) : filtered.length === 0 ? (
 					<div className="text-center text-sm text-muted-foreground py-8">فاکتوری یافت نشد</div>
@@ -157,23 +195,23 @@ const InvoiceList: React.FC<InvoiceListProps> = ({ autoRefreshMs = 30000 }) => {
 							<div key={inv.id} className="p-3 border rounded-lg bg-background flex items-center justify-between gap-4">
 								<div className="flex-1 min-w-0">
 									<div className="flex items-center gap-2">
-										<span className="font-medium text-sm">{inv.service_name || 'سرویس'}</span>
+										<span className="font-medium text-sm">{inv.serviceName || 'سرویس'}</span>
 										<Badge className={`${statusBadge(inv.status)} border-0`}>{
 											inv.status === 'paid' ? 'پرداخت شده' : inv.status === 'pending' ? 'در انتظار' : inv.status === 'overdue' || inv.status === 'due' ? 'سررسید' : 'لغو شده'
 										}</Badge>
 									</div>
 									<div className="text-xs text-muted-foreground mt-1">شناسه: {inv.id}</div>
-									<div className="text-xs text-muted-foreground mt-1">سررسید: {formatDate(inv.due_date)}</div>
+									<div className="text-xs text-muted-foreground mt-1">سررسید: {formatDate(inv.dueDate)}</div>
 								</div>
 								<div className="flex items-center gap-3">
 									<div className="font-medium whitespace-nowrap">{formatAmount(inv.amount)}</div>
 									{inv.status !== 'paid' && (
 										<div className="flex items-center gap-2">
-											<Button size="sm" disabled={payingId === inv.id} onClick={() => payFromWallet(inv.id)}>
-												{payingId === inv.id ? 'در حال پرداخت...' : 'پرداخت از کیف پول'}
+											<Button size="sm" disabled={payingId === inv.id || payLoading} onClick={() => payFromWallet(inv.id)}>
+												{payingId === inv.id || payLoading ? 'در حال پرداخت...' : 'پرداخت از کیف پول'}
 											</Button>
-											<Button size="sm" variant="outline" disabled={payingId === inv.id} onClick={() => payViaGateway(inv.id)}>
-												{payingId === inv.id ? '...' : 'پرداخت درگاه'}
+											<Button size="sm" variant="outline" disabled={payingId === inv.id || payLoading} onClick={() => payViaGateway(inv.id)}>
+												{payingId === inv.id || payLoading ? '...' : 'پرداخت درگاه'}
 											</Button>
 										</div>
 									)}

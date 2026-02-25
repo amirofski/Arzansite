@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { apiClient } from '../lib/api-client';
+import { paymentService, walletService, ordersService } from '@/lib/services';
 import { SafeTransactionDescription } from './SafeTransactionDescription';
+import { AnimatedLoader } from './ui/AnimatedLoader';
 
 export interface PaymentCallbackData {
   authority: string;
@@ -22,6 +24,7 @@ export interface PaymentVerificationResult {
   errorDetails?: string;
   retryable: boolean;
   supportRequired: boolean;
+  context?: 'order' | 'wallet';
 }
 
 export interface PaymentError {
@@ -31,6 +34,11 @@ export interface PaymentError {
   retryable: boolean;
   supportRequired: boolean;
   action?: string;
+}
+
+export interface PaymentCallbackHandlerProps {
+  onPaymentSuccess?: (result: PaymentVerificationResult) => void;
+  onPaymentFailure?: (result: PaymentVerificationResult) => void;
 }
 
 // Payment error definitions
@@ -117,7 +125,10 @@ const PAYMENT_ERRORS: Record<string, PaymentError> = {
   }
 };
 
-export const PaymentCallbackHandler: React.FC = () => {
+export const PaymentCallbackHandler: React.FC<PaymentCallbackHandlerProps> = ({ 
+  onPaymentSuccess, 
+  onPaymentFailure 
+}) => {
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
   const [verificationResult, setVerificationResult] = useState<PaymentVerificationResult | null>(null);
   const [retryCount, setRetryCount] = useState(0);
@@ -136,9 +147,20 @@ export const PaymentCallbackHandler: React.FC = () => {
     const params = new URLSearchParams(location.search);
     const authority = params.get('Authority') ?? params.get('authority') ?? '';
     const statusParam = params.get('Status') ?? '';
-    const orderId = params.get('orderId') ?? '';
-    const amount = params.get('amount') ? parseInt(params.get('amount')!) : undefined;
-    const description = params.get('description') ?? '';
+    const orderIdParam = params.get('orderId') ?? params.get('order_id') ?? '';
+    const amountParam = params.get('amount');
+    const descriptionParam = params.get('description') ?? '';
+
+    // Try to recover payment context from sessionStorage if query params are missing
+    let stored: { orderId?: string; amount?: number; description?: string } | null = null;
+    try {
+      const raw = sessionStorage.getItem('orderPaymentInfo');
+      if (raw) stored = JSON.parse(raw);
+    } catch {}
+
+    const orderId = orderIdParam || stored?.orderId || '';
+    const amount = amountParam ? parseInt(amountParam) : stored?.amount || undefined;
+    const description = descriptionParam || stored?.description || '';
 
     return {
       authority,
@@ -173,19 +195,58 @@ export const PaymentCallbackHandler: React.FC = () => {
         };
       }
 
-      // Verify payment with backend
-      const response = await apiClient.verifyWalletDeposit({
+      // Decide context: wallet deposit (no orderId) vs order payment (has orderId)
+      let hasOrderContext = false;
+      try { hasOrderContext = !!sessionStorage.getItem('orderPaymentInfo'); } catch {}
+      const isWallet = !hasOrderContext && !data.orderId;
+
+      if (isWallet) {
+        // Verify wallet deposit
+        const response = await walletService.verifyDeposit({
+          orderId: data.orderId || undefined,
+          authority: data.authority,
+        });
+
+        if (response.success) {
+          return {
+            success: true,
+            refId: response.refId,
+            orderId: undefined,
+            amount: response.amount,
+            description: response.description,
+            retryable: false,
+            supportRequired: false,
+            context: 'wallet',
+          };
+        } else {
+          return {
+            success: false,
+            error: response.error || 'Wallet deposit verification failed',
+            errorCode: response.errorCode || 'VERIFICATION_FAILED',
+            errorDetails: response.errorDetails,
+            retryable: response.retryable !== false,
+            supportRequired: response.supportRequired === true,
+          };
+        }
+      }
+
+      // Order payment verification
+      const response = await paymentService.verifyPayment({
         authority: data.authority,
-        orderId: data.orderId
+        amount: data.amount,
+        orderId: data.orderId,
       });
 
       if (response.success) {
         return {
           success: true,
           refId: response.refId,
-          orderId: response.orderId,
+          orderId: response.orderId || data.orderId,
           amount: response.amount,
-          description: response.description
+          description: response.description,
+          retryable: false,
+          supportRequired: false,
+          context: 'order',
         };
       } else {
         return {
@@ -194,36 +255,37 @@ export const PaymentCallbackHandler: React.FC = () => {
           errorCode: response.errorCode || 'VERIFICATION_FAILED',
           errorDetails: response.errorDetails,
           retryable: response.retryable !== false,
-          supportRequired: response.supportRequired === true
+          supportRequired: response.supportRequired === true,
         };
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Payment verification error:', error);
       
       // Determine error type based on error details
       let errorCode = 'UNKNOWN_ERROR';
       let retryable = false;
-      
-      if (error.name === 'TypeError' || error.message?.includes('fetch')) {
+      const err = error as { name?: string; message?: string; status?: number };
+
+      if (err.name === 'TypeError' || err.message?.includes('fetch')) {
         errorCode = 'NETWORK_ERROR';
         retryable = true;
-      } else if (error.message?.includes('timeout')) {
+      } else if (err.message?.includes('timeout')) {
         errorCode = 'TIMEOUT_ERROR';
         retryable = true;
-      } else if (error.status === 400) {
+      } else if (err.status === 400) {
         errorCode = 'INVALID_AUTHORITY';
         retryable = false;
-      } else if (error.status === 409) {
+      } else if (err.status === 409) {
         errorCode = 'DUPLICATE_PAYMENT';
         retryable = false;
-      } else if (error.status >= 500) {
+      } else if (typeof err.status === 'number' && err.status >= 500) {
         errorCode = 'GATEWAY_ERROR';
         retryable = true;
       }
 
       return {
         success: false,
-        error: error.message || 'Network error during verification',
+        error: err.message || 'Network error during verification',
         errorCode,
         retryable,
         supportRequired: errorCode === 'UNKNOWN_ERROR' || errorCode === 'GATEWAY_ERROR'
@@ -247,20 +309,31 @@ export const PaymentCallbackHandler: React.FC = () => {
 
       if (result.success) {
         setStatus('success');
+        onPaymentSuccess?.(result);
+        // Best-effort client-side update in case backend didn't set order status
+        if (result.orderId) {
+          try {
+            await ordersService.updateOrderStatus(result.orderId, { paymentStatus: 'succeeded' });
+          } catch (e) {
+            console.warn('Order status update fallback failed:', e);
+          }
+        }
       } else {
         setStatus('failed');
         const errorDetails = getErrorDetails(result.errorCode!, result.error);
         setErrorDetails(errorDetails);
+        onPaymentFailure?.(result);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Verification handler error:', error);
       setStatus('failed');
-      const errorDetails = getErrorDetails('UNKNOWN_ERROR', error.message);
+      const err = error as { message?: string };
+      const errorDetails = getErrorDetails('UNKNOWN_ERROR', err.message);
       setErrorDetails(errorDetails);
     } finally {
       setIsRetrying(false);
     }
-  }, [parseCallbackParams, verifyPayment, getErrorDetails]);
+  }, [parseCallbackParams, verifyPayment, getErrorDetails, onPaymentSuccess, onPaymentFailure]);
 
   // Retry verification
   const handleRetry = useCallback(async () => {
@@ -305,25 +378,52 @@ export const PaymentCallbackHandler: React.FC = () => {
     handleVerification();
   }, [handleVerification]);
 
+  // Auto-redirect on success after 5 seconds (wallet -> wallet tab)
+  useEffect(() => {
+    if (status === 'success' && verificationResult) {
+      const isWallet = !verificationResult.orderId;
+      const target = isWallet ? '/dashboard?tab=wallet&payment_success=true' : '/dashboard';
+      const timer = setTimeout(() => navigate(target), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [status, verificationResult, navigate]);
+
   // Loading state
   if (status === 'loading') {
     return (
-      <div className="payment-callback-loading">
-        <div className="loading-spinner"></div>
-        <h2>در حال تأیید پرداخت...</h2>
-        <p>لطفاً صبر کنید، در حال بررسی وضعیت پرداخت شما هستیم.</p>
-      </div>
+      <motion.div 
+        className="payment-callback-loading"
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <AnimatedLoader size="lg" />
+        <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>در حال تأیید پرداخت...</motion.h2>
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>لطفاً صبر کنید، در حال بررسی وضعیت پرداخت شما هستیم.</motion.p>
+      </motion.div>
     );
   }
 
   // Success state
   if (status === 'success' && verificationResult) {
     return (
-      <div className="payment-callback-success">
-        <div className="success-icon">✅</div>
-        <h2>پرداخت موفقیت‌آمیز بود</h2>
+      <motion.div 
+        className="payment-callback-success"
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.35 }}
+      >
+        <motion.div 
+          className="success-icon"
+          initial={{ scale: 0, rotate: -20 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 18 }}
+        >
+          ✅
+        </motion.div>
+        <motion.h2 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>پرداخت موفقیت‌آمیز بود</motion.h2>
         
-        <div className="payment-details">
+        <motion.div className="payment-details" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
           <div className="detail-item">
             <span className="label">شماره پیگیری:</span>
             <span className="value">{verificationResult.refId}</span>
@@ -350,37 +450,61 @@ export const PaymentCallbackHandler: React.FC = () => {
               />
             </div>
           )}
-        </div>
+        </motion.div>
 
-        <div className="success-message">
-          <p>پرداخت شما با موفقیت انجام شد و مبلغ به کیف پول شما اضافه شد.</p>
+        <motion.div className="success-message" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+          {(verificationResult.context === 'wallet') ? (
+            <>
+              <p>پرداخت شما با موفقیت انجام شد و مبلغ به کیف پول شما اضافه شد.</p>
+              <p>تا چند لحظه دیگر به داشبورد (بخش کیف پول) هدایت می‌شوید...</p>
+            </>
+          ) : (
+            <>
+              <p>پرداخت سفارش شما با موفقیت ثبت شد. وضعیت سفارش از طریق داشبورد قابل پیگیری است.</p>
+              <p>تا چند لحظه دیگر به داشبورد هدایت می‌شوید...</p>
+            </>
+          )}
           <p>شماره پیگیری را برای مراجعات بعدی یادداشت کنید.</p>
-        </div>
+        </motion.div>
 
-        <div className="action-buttons">
-          <button 
-            onClick={handleGoToWallet}
-            className="primary-button"
-          >
-            مشاهده کیف پول
-          </button>
+        <motion.div className="action-buttons" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
+          {!verificationResult.orderId && (
+            <button 
+              onClick={handleGoToWallet}
+              className="primary-button"
+            >
+              مشاهده کیف پول
+            </button>
+          )}
           <button 
             onClick={() => navigate('/dashboard')}
             className="secondary-button"
           >
             بازگشت به داشبورد
           </button>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
     );
   }
 
   // Failed state
   if (status === 'failed' && errorDetails) {
     return (
-      <div className="payment-callback-failed">
-        <div className="error-icon">❌</div>
-        <h2>{errorDetails.message}</h2>
+      <motion.div 
+        className="payment-callback-failed"
+        initial={{ opacity: 0, scale: 0.98 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.35 }}
+      >
+        <motion.div 
+          className="error-icon"
+          initial={{ scale: 0, rotate: 10 }}
+          animate={{ scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20 }}
+        >
+          ❌
+        </motion.div>
+        <motion.h2 initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>{errorDetails.message}</motion.h2>
         
         <div className="error-details">
           <p className="error-description">{errorDetails.description}</p>
@@ -474,7 +598,7 @@ export const PaymentCallbackHandler: React.FC = () => {
             <p>در صورت کسر مبلغ از حساب شما، لطفاً با پشتیبانی تماس بگیرید.</p>
           </div>
         )}
-      </div>
+      </motion.div>
     );
   }
 
@@ -511,16 +635,29 @@ export const usePaymentCallback = () => {
   const processCallback = useCallback(async (callbackData: PaymentCallbackData) => {
     setIsProcessing(true);
     try {
-      const response = await apiClient.verifyWalletDeposit({
+      const response = await paymentService.verifyPayment({
         authority: callbackData.authority,
-        orderId: callbackData.orderId
+        amount: callbackData.amount
       });
-      setResult(response);
-      return response;
-    } catch (error: any) {
+      
+      // Transform response to match PaymentVerificationResult interface
+      const result: PaymentVerificationResult = {
+        success: response.success,
+        refId: response.refId,
+        orderId: response.orderId,
+        amount: response.amount,
+        description: response.description,
+        retryable: response.retryable || false,
+        supportRequired: response.supportRequired || false
+      };
+      
+      setResult(result);
+      return result;
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       const errorResult: PaymentVerificationResult = {
         success: false,
-        error: error.message || 'Verification failed',
+        error: err.message || 'Verification failed',
         errorCode: 'UNKNOWN_ERROR',
         retryable: false,
         supportRequired: true

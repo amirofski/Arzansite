@@ -19,9 +19,55 @@ import {
   BarChart3,
   Monitor
 } from 'lucide-react';
-import { useTemplateLoader, getImageTemplatesByCategory } from './templates-del';
-import { getAdjacentImage, SECTION_NAMES } from '@/lib/imageLoader';
+import { getAdjacentImage, SECTION_NAMES, getSectionImages } from '@/lib/imageLoader';
 import LazyImage from '@/components/ui/lazy-image';
+
+// Define SkeletonTemplate interface
+interface SkeletonTemplate {
+  id: string;
+  name: string;
+  previewImage: string;
+  component?: React.ComponentType<any>;
+}
+
+// Hook to load templates
+const useTemplateLoader = () => {
+  const [templates, setTemplates] = useState<Record<string, SkeletonTemplate[]>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const getTemplatesByCategory = async (category: string): Promise<SkeletonTemplate[]> => {
+    if (templates[category]) {
+      return templates[category];
+    }
+
+    try {
+      setLoading(true);
+      const images = await getSectionImages(category);
+
+      const skeletonTemplates: SkeletonTemplate[] = images.map(img => ({
+        id: img.id,
+        name: img.name,
+        previewImage: img.path,
+        component: undefined // We'll use previewImage instead
+      }));
+
+      setTemplates(prev => ({
+        ...prev,
+        [category]: skeletonTemplates
+      }));
+
+      return skeletonTemplates;
+    } catch (err) {
+      setError(err.message);
+      return [];
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { templates, loading, error, getTemplatesByCategory };
+};
 
 interface PageSection {
   id: string;
@@ -60,8 +106,8 @@ const DesignPreview = ({
   onShare, 
   onViewLive 
 }: DesignPreviewProps) => {
-  const { templates, getTemplatesByCategory } = useTemplateLoader();
-  const [imageTemplates, setImageTemplates] = useState<Record<string, any[]>>({});
+  const { templates } = useTemplateLoader();
+  const [imageTemplates, setImageTemplates] = useState<Record<string, SkeletonTemplate[]>>({});
   const [fullPreview, setFullPreview] = useState<string | null>(null);
   const [generatingPreview, setGeneratingPreview] = useState(false);
 
@@ -74,22 +120,22 @@ const DesignPreview = ({
 
     try {
       console.log(`🔄 Loading templates for ${category} in preview...`);
-      const temps = await getImageTemplatesByCategory(category);
-      
+      const temps = await getTemplatesByCategory(category);
+
       setImageTemplates(prev => ({
         ...prev,
         [category]: temps
       }));
-      
+
       return temps;
     } catch (error) {
       console.error(`Failed to load image templates for ${category}:`, error);
-      
+
       setImageTemplates(prev => ({
         ...prev,
         [category]: []
       }));
-      
+
       return [];
     }
   };
@@ -179,6 +225,48 @@ const DesignPreview = ({
 
   // Render section component using image
   const renderSection = (section: PageSection) => {
+    // 1) Prefer explicit customData images when present
+    const customImages = Array.isArray(section.customData?.images)
+      ? section.customData!.images
+      : (typeof (section.customData as any)?.images === 'string' ? [(section.customData as any).images] : []);
+
+    if (customImages && customImages.length > 0) {
+      return (
+        <div className="grid gap-3">
+          {customImages.map((img, idx) => {
+            const src = resolveImageSrc(String(img));
+            if (!src) return null;
+            return (
+              <LazyImage
+                key={`${section.id}-${idx}`}
+                src={src}
+                alt={`${section.sectionType}-${section.layoutId}-${idx}`}
+                className="w-full h-auto rounded-lg"
+                fallback="/placeholder.svg"
+              />
+            );
+          })}
+        </div>
+      );
+    }
+
+    // 2) If no custom images, derive a direct asset path by layoutId under public/designs
+    try {
+      const layout = String(section.layoutId || '1');
+      const parts = layout.split('-');
+      const index = parts.length > 1 ? parts[1] : layout;
+      const direct = `/designs/${section.sectionType}/${index}.png`;
+      return (
+        <LazyImage
+          src={direct}
+          alt={`${section.sectionType}-${layout}`}
+          className="w-full h-auto rounded-lg"
+          fallback="/placeholder.svg"
+        />
+      );
+    } catch {}
+
+    // 3) Otherwise use template preview images if available
     const templates = imageTemplates[section.sectionType] || [];
     const template = templates.find(t => t.id === section.layoutId) || templates[0];
     
@@ -209,7 +297,7 @@ const DesignPreview = ({
       );
     }
 
-    // Fallback to component if no image
+    // 4) Fallback to component if no image
     const LayoutComponent = template.component;
     return <LayoutComponent className="w-full" />;
   };

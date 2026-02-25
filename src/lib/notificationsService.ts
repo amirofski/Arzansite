@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api-client';
+import { tokenManager } from '@/lib/tokenManager';
 
 export type NotificationPayload = {
   topicId: string;
@@ -14,7 +14,7 @@ export class NotificationsService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(apiClient.getToken() ? { Authorization: `Bearer ${apiClient.getToken()}` } : {})
+          ...(tokenManager.getAccessToken() ? { Authorization: `Bearer ${tokenManager.getAccessToken()}` } : {})
         },
         credentials: 'include',
         body: JSON.stringify({ name: topicId, subscribe: [topicId.startsWith('user:') ? topicId : `user:${topicId}`] })
@@ -42,7 +42,7 @@ export class NotificationsService {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(apiClient.getToken() ? { Authorization: `Bearer ${apiClient.getToken()}` } : {})
+          ...(tokenManager.getAccessToken() ? { Authorization: `Bearer ${tokenManager.getAccessToken()}` } : {})
         },
         credentials: 'include',
         body: JSON.stringify({ message, data })

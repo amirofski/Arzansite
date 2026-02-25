@@ -1,0 +1,19 @@
+{
+  "$schema": "https://example.com/schemas/api-endpoint-mapping.json",
+  "notes": "Add endpoint replacement rules here. The verifier script will only replace exact matches in service files when run with --write. By default, it only reports.",
+  "replacements": [
+    {
+      "from": { "path": "/auth/register" },
+      "to":   { "path": "/auth/signup" }
+    },
+    {
+      "from": { "path": "/auth/forgot-password" },
+      "to":   { "path": "/auth/password-reset" }
+    },
+    {
+      "from": { "path": "/auth/reset" },
+      "to":   { "path": "/auth/reset-password" }
+    }
+  ]
+}
+
